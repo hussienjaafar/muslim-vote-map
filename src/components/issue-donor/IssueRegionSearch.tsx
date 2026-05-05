@@ -24,7 +24,6 @@ export function IssueRegionSearch({ statesData, districtsData, onSelect }: Issue
         id: s.state_code,
         label: `${s.state_name} (${s.state_code})`,
         type: 'state' as const,
-        voters: s.muslim_voters ?? 0,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
     if (!query) return all;

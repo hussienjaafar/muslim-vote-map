@@ -7,8 +7,8 @@ import { STATE_ABBREVIATIONS } from '@/lib/us-states';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface IssueRegionSearchProps {
-  statesData: Array<{ state_code: string; state_name: string; muslim_voters?: number | null }> | null;
-  districtsData: Array<{ cd_code: string; state_code: string; muslim_voters?: number | null }> | null;
+  statesData: Array<{ state_code: string; state_name: string }> | null;
+  districtsData: Array<{ cd_code: string; state_code: string }> | null;
   onSelect: (regionId: string, type: 'state' | 'district') => void;
 }
 

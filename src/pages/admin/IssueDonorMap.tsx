@@ -89,7 +89,7 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
   );
 
   return (
-    <div className="fixed top-16 left-0 md:left-64 right-0 bottom-0 bg-[#0e0e0e] text-foreground flex flex-col">
+    <div className={`fixed ${isAdminView ? 'top-16 left-0 md:left-64' : 'top-0 left-0'} right-0 bottom-0 bg-[#0e0e0e] text-foreground flex flex-col`}>
       {/* Top bar — single row on desktop; 2-row stacked on mobile */}
       <header
         className="shrink-0 z-20 bg-[#131313]/80 backdrop-blur-xl border-b border-white/5"

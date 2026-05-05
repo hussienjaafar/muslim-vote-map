@@ -1,9 +1,11 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { supabase } from '@/integrations/supabase/client';
-import { FIPS_TO_ABBR } from '@/hooks/useImpactMapLayers';
-import { colorScales } from '@/lib/colorScales';
+
+// Aesthetic teal/blue ramp for the marketing flyover. Deterministic per state
+// FIPS so the visual is stable but varied — no underlying data read.
+const FLYOVER_RAMP = ['#0b2540', '#0e3a5f', '#0f5779', '#107a93', '#0ea5c9', '#22c2dd', '#5fd6e6'];
+
 
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const STATES_URL = '/geojson/us-states.json';

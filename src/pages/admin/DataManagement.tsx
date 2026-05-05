@@ -146,7 +146,7 @@ export default function DataManagement() {
                     <TableRow className="border-b border-white/5 hover:bg-transparent">
                       <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">State</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Code</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Muslim Voters</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Population</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Registered</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Households</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Voted 2024</TableHead>
@@ -223,7 +223,7 @@ export default function DataManagement() {
                       <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">CD Code</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">State</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">District</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Muslim Voters</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Population</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Winner</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Margin</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Can Impact</TableHead>

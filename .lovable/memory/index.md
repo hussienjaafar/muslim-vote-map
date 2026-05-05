@@ -1,36 +1,43 @@
 # Memory: index.md
 Updated: now
 
-Muslim Voter Data Platform — architecture decisions, product catalog, and design constraints
+Campaign Data Solutions (CDS) — issue-based donor intelligence platform. Rebrand of the legacy Muslim Voter Project.
 
 ## Domain
-- Production: muslimvoterproject.com
-- Email sender: notify.muslimvoterproject.com
-- Email logo: https://muslimvoterproject.com/logo-icon.png
+- Production: campaigndatasolutions.com (planned; not yet wired)
+- Email sender: notify.muslimvoterproject.com (deferred rebrand — DNS still on legacy domain)
+- Email logo: https://muslimvoterproject.com/logo-icon.png (deferred)
 
-## Product Catalog (5 products)
-- Voters: $0.10/record, source_field: muslim_voters
-- Activists: $0.20/record, source_field: political_activists  
-- Donor Platinum: $10.00/record, source_field: donor_platinum
-- Donor Gold: $5.00/record, source_field: donor_gold
-- Donor Silver: $1.00/record, source_field: donor_silver
+## Product Catalog (issue-scoped, quote-only)
+All SKUs use price_per_record = 0 — Request Quote model. No public pricing or subtotals.
+- Issue Donors — Gold (source: gold_donors)
+- Issue Donors — Silver (source: silver_donors)
+- Cell Phones — Gold (source: gold_cell_phones)
+- Cell Phones — Silver (source: silver_cell_phones)
+- Mailing Addresses — Gold (source: gold_addresses)
+- Mailing Addresses — Silver (source: silver_addresses)
 
 ## Key Decisions
 - Invite-only signup (whitelist in `invited_emails` table)
-- Teaser data free, detailed data gated behind purchase
-- Manual fulfillment initially, automated later
+- Issue Map is the single primary product; legacy Voter Impact Map removed
+- `voter_impact_districts/states` retained read-only as election context (winner, margin, turnout) shown in Issue Map sidebar
+- Manual fulfillment, admin notified via email + dashboard on quote requests
 - Saved regions (bookmarks) + saved lists (cart configs)
-- Stripe for checkout
-- Admin notified via email + dashboard on new orders
 
 ## Routes
-- / → Landing page (public)
-- /login → Auth (public)
-- /map → Voter Impact Map (auth-gated)
-- /account → User dashboard
-- /admin → Admin back-office
+- `/` → Landing page (public)
+- `/login`, `/signup`, `/request-access` → Auth (public)
+- `/map` → Issue Map (auth-gated, primary product)
+- `/home` → User dashboard (issue-driven)
+- `/account` → Profile, quote requests, saved regions
+- `/admin/*` → Admin console (admin role)
 
-## Design
-- Dark theme, polish existing design
-- Logo: geometric crescent+star icon (teal #0ea5c9 on dark), public/logo-icon.png (512x512), public/logo.png (full wordmark 2400x1000)
-- Brand name: "Muslim Voter Project" (NOT "Muslim Voter Impact")
+## Brand & Design
+- Brand: Campaign Data Solutions (CDS)
+- Tagline: "Issue-based donor intelligence, district by district."
+- Surgical-glass dark theme #0e0e0e; teal primary #0ea5c9
+- Space Grotesk (display) + Manrope (body)
+
+## Terminology
+- NEVER: purchase, download, CSV, "Muslim voter"
+- ALWAYS: activate, reach, campaign, audience, quote request

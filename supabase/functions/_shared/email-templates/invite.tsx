@@ -28,15 +28,15 @@ export const InviteEmail = ({
 }: InviteEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>You've been invited to Muslim Voter Project</Preview>
+    <Preview>You've been invited to Campaign Data Solutions</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Img src="https://muslimvoterproject.com/logo-icon.png" alt="Muslim Voter Project" width="48" height="48" style={logo} />
+        <Img src="https://muslimvoterproject.com/logo-icon.png" alt="Campaign Data Solutions" width="48" height="48" style={logo} />
         <Heading style={h1}>You've been invited</Heading>
         <Text style={text}>
           You've been invited to join{' '}
           <Link href={siteUrl} style={link}>
-            <strong>Muslim Voter Project</strong>
+            <strong>Campaign Data Solutions</strong>
           </Link>
           — data-driven insights for civic engagement. Click the button below
           to accept the invitation and create your account.

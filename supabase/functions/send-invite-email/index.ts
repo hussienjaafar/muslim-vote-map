@@ -67,12 +67,12 @@ Deno.serve(async (req) => {
     const signupUrl = `${baseUrl}/signup?email=${encodeURIComponent(email)}`;
     const isAdminInvite = inviteType === "admin";
     const subject = isAdminInvite
-      ? "You've been invited as an Admin — Muslim Voter Project"
-      : "You're invited to the Muslim Voter Project";
+      ? "You've been invited as an Admin — Campaign Data Solutions"
+      : "You're invited to the Campaign Data Solutions";
 
     const roleText = isAdminInvite
-      ? "You've been granted <strong>administrator access</strong> to the Muslim Voter Project platform. As an admin, you can manage users, import data, and oversee the voter impact map."
-      : "You've been invited to join the Muslim Voter Project platform. Explore voter impact data across states and congressional districts.";
+      ? "You've been granted <strong>administrator access</strong> to the Campaign Data Solutions platform. As an admin, you can manage users, import data, and oversee the issue map."
+      : "You've been invited to join the Campaign Data Solutions platform. Explore issue-based donor data across states and congressional districts.";
 
     const ctaText = isAdminInvite ? "Sign In as Admin" : "Create Your Account";
 
@@ -86,8 +86,8 @@ Deno.serve(async (req) => {
         <!-- Header -->
         <tr>
           <td style="background-color:#0c1018;padding:32px 40px;text-align:center;">
-            <img src="https://muslimvoterproject.com/logo-icon.png" alt="Muslim Voter Project" width="48" height="48" style="display:block;margin:0 auto 8px auto;border-radius:8px;" />
-            <h1 style="color:#e8ecf0;font-size:20px;margin:8px 0 0 0;font-weight:600;">Muslim Voter Project</h1>
+            <img src="https://muslimvoterproject.com/logo-icon.png" alt="Campaign Data Solutions" width="48" height="48" style="display:block;margin:0 auto 8px auto;border-radius:8px;" />
+            <h1 style="color:#e8ecf0;font-size:20px;margin:8px 0 0 0;font-weight:600;">Campaign Data Solutions</h1>
           </td>
         </tr>
         <!-- Body -->
@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
         <!-- Footer -->
         <tr>
           <td style="background-color:#f9fafb;padding:24px 40px;border-top:1px solid #e5e7eb;">
-            <p style="color:#9ca3af;font-size:12px;margin:0;text-align:center;">Muslim Voter Project &bull; This invitation was sent to ${email}</p>
+            <p style="color:#9ca3af;font-size:12px;margin:0;text-align:center;">Campaign Data Solutions &bull; This invitation was sent to ${email}</p>
           </td>
         </tr>
       </table>
@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
 </body>
 </html>`;
 
-    const plainText = `${isAdminInvite ? "Welcome, Admin" : "You're Invited"}\n\n${roleText.replace(/<[^>]+>/g, "")}\n\n${ctaText}: ${signupUrl}\n\nMuslim Voter Project — This invitation was sent to ${email}`;
+    const plainText = `${isAdminInvite ? "Welcome, Admin" : "You're Invited"}\n\n${roleText.replace(/<[^>]+>/g, "")}\n\n${ctaText}: ${signupUrl}\n\nCampaign Data Solutions — This invitation was sent to ${email}`;
 
     // Generate or reuse an unsubscribe token for this email
     const { data: existingToken } = await serviceClient
@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
         idempotency_key: messageId,
         unsubscribe_token: unsubscribeToken,
         to: email,
-        from: `Muslim Voter Project <noreply@notify.muslimvoterproject.com>`,
+        from: `Campaign Data Solutions <noreply@notify.muslimvoterproject.com>`,
         sender_domain: "notify.muslimvoterproject.com",
         subject,
         html,

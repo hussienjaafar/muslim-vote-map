@@ -126,8 +126,8 @@ Deno.serve(async (req) => {
 
       const isFulfilled = type === "order_fulfilled";
       subject = isFulfilled
-        ? "Your Quote Request Has Been Fulfilled — Muslim Voter Project"
-        : "Quote Request Update — Muslim Voter Project";
+        ? "Your Quote Request Has Been Fulfilled — Campaign Data Solutions"
+        : "Quote Request Update — Campaign Data Solutions";
       label = "order-status-update";
 
       const statusText = isFulfilled ? "fulfilled" : "cancelled";
@@ -180,11 +180,11 @@ Deno.serve(async (req) => {
     <tr><td align="center">
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
         <tr><td style="background-color:#0c1018;padding:24px 40px;text-align:center;">
-          <h1 style="color:#e8ecf0;font-size:16px;margin:0;font-weight:600;">Muslim Voter Project</h1>
+          <h1 style="color:#e8ecf0;font-size:16px;margin:0;font-weight:600;">Campaign Data Solutions</h1>
         </td></tr>
         <tr><td style="padding:32px 40px;">${bodyHtml}</td></tr>
         <tr><td style="background-color:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;">
-          <p style="color:#9ca3af;font-size:11px;margin:0;text-align:center;">You're receiving this because you have an account on Muslim Voter Project.</p>
+          <p style="color:#9ca3af;font-size:11px;margin:0;text-align:center;">You're receiving this because you have an account on Campaign Data Solutions.</p>
         </td></tr>
       </table>
     </td></tr>
@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
           message_id: messageId,
           idempotency_key: messageId,
           to: recipientEmail,
-          from: `Muslim Voter Project <noreply@notify.muslimvoterproject.com>`,
+          from: `Campaign Data Solutions <noreply@notify.muslimvoterproject.com>`,
           sender_domain: "notify.muslimvoterproject.com",
           subject,
           html: fullHtml,
@@ -258,11 +258,11 @@ Deno.serve(async (req) => {
     <tr><td align="center">
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
         <tr><td style="background-color:#0c1018;padding:24px 40px;text-align:center;">
-          <h1 style="color:#e8ecf0;font-size:16px;margin:0;font-weight:600;">Muslim Voter Project — Admin</h1>
+          <h1 style="color:#e8ecf0;font-size:16px;margin:0;font-weight:600;">Campaign Data Solutions — Admin</h1>
         </td></tr>
         <tr><td style="padding:32px 40px;">${bodyHtml}</td></tr>
         <tr><td style="background-color:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;">
-          <p style="color:#9ca3af;font-size:11px;margin:0;text-align:center;">You're receiving this because you're an admin on Muslim Voter Project.</p>
+          <p style="color:#9ca3af;font-size:11px;margin:0;text-align:center;">You're receiving this because you're an admin on Campaign Data Solutions.</p>
         </td></tr>
       </table>
     </td></tr>
@@ -283,7 +283,7 @@ Deno.serve(async (req) => {
           message_id: messageId,
           idempotency_key: messageId,
           to: adminEmail,
-          from: `Muslim Voter Project <noreply@notify.muslimvoterproject.com>`,
+          from: `Campaign Data Solutions <noreply@notify.muslimvoterproject.com>`,
           sender_domain: "notify.muslimvoterproject.com",
           subject,
           html: fullHtml,

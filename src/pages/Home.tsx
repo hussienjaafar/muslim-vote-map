@@ -292,7 +292,7 @@ export default function Home() {
 
           {/* Full-width National Overview Map */}
           <div data-tour="mini-map">
-            <HomeMiniMap />
+            <HomeMiniMap issueId={activeIssueId} issueName={activeIssue?.name} />
           </div>
 
           <AnnouncementBanner />

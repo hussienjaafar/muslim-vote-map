@@ -37,9 +37,9 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 
 // Configuration
 const SITE_NAME = "Campaign Data Solutions"
-const SENDER_DOMAIN = "notify.muslimvoterproject.com"
-const ROOT_DOMAIN = "muslimvoterproject.com"
-const FROM_DOMAIN = "notify.muslimvoterproject.com" // Domain shown in From address (may be root or sender subdomain)
+const SENDER_DOMAIN = "notify.campaigndata.solutions"
+const ROOT_DOMAIN = "campaigndata.solutions"
+const FROM_DOMAIN = "notify.campaigndata.solutions" // Domain shown in From address (may be root or sender subdomain)
 
 // Sample data for preview mode ONLY (not used in actual email sending).
 // URLs are baked in at scaffold time from the project's real data.

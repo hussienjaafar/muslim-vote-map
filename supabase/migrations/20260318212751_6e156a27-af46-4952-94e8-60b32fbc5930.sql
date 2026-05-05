@@ -1,0 +1,1 @@
+ALTER TABLE public.voter_impact_districts ADD COLUMN IF NOT EXISTS actual_turnout_pct numeric DEFAULT NULL;

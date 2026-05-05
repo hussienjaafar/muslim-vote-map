@@ -1,0 +1,1 @@
+DELETE FROM data_products WHERE id = '06a75a1f-51c8-48b7-9a3e-dac1d2150e32';

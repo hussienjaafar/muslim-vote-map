@@ -122,7 +122,7 @@ export function getMetricValue(
 }
 
 export const metricLabels: Record<MetricType, string> = {
-  population: 'Muslim Voters',
+  population: 'Population',
   donors: 'Political Donors',
   activists: 'Political Activists',
   turnout: '2024 Turnout',

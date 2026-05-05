@@ -7,8 +7,8 @@ import { STATE_ABBREVIATIONS } from '@/lib/us-states';
 import { useIsMobile } from '@/hooks/use-mobile';
 
 interface IssueRegionSearchProps {
-  statesData: Array<{ state_code: string; state_name: string; muslim_voters?: number | null }> | null;
-  districtsData: Array<{ cd_code: string; state_code: string; muslim_voters?: number | null }> | null;
+  statesData: Array<{ state_code: string; state_name: string }> | null;
+  districtsData: Array<{ cd_code: string; state_code: string }> | null;
   onSelect: (regionId: string, type: 'state' | 'district') => void;
 }
 
@@ -24,7 +24,6 @@ export function IssueRegionSearch({ statesData, districtsData, onSelect }: Issue
         id: s.state_code,
         label: `${s.state_name} (${s.state_code})`,
         type: 'state' as const,
-        voters: s.muslim_voters ?? 0,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
     if (!query) return all;
@@ -46,7 +45,6 @@ export function IssueRegionSearch({ statesData, districtsData, onSelect }: Issue
         id: d.cd_code,
         label: `${d.cd_code} — ${STATE_ABBREVIATIONS[d.state_code] || d.state_code}`,
         type: 'district' as const,
-        voters: d.muslim_voters ?? 0,
       }));
   }, [districtsData, query]);
 
@@ -69,10 +67,7 @@ export function IssueRegionSearch({ statesData, districtsData, onSelect }: Issue
           <CommandGroup heading={<span className="font-display">States</span>}>
             {stateOptions.map(s => (
               <CommandItem key={s.id} value={s.label} onSelect={() => handleSelect(s.id, 'state')}>
-                <div className="flex items-center justify-between w-full">
-                  <span>{s.label}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{s.voters.toLocaleString()} voters</span>
-                </div>
+                <span>{s.label}</span>
               </CommandItem>
             ))}
           </CommandGroup>
@@ -81,10 +76,7 @@ export function IssueRegionSearch({ statesData, districtsData, onSelect }: Issue
           <CommandGroup heading={<span className="font-display">Districts</span>}>
             {districtOptions.map(d => (
               <CommandItem key={d.id} value={d.label} onSelect={() => handleSelect(d.id, 'district')}>
-                <div className="flex items-center justify-between w-full">
-                  <span>{d.label}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{d.voters.toLocaleString()} voters</span>
-                </div>
+                <span>{d.label}</span>
               </CommandItem>
             ))}
           </CommandGroup>

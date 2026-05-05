@@ -1,9 +1,11 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { supabase } from '@/integrations/supabase/client';
-import { FIPS_TO_ABBR } from '@/hooks/useImpactMapLayers';
-import { colorScales } from '@/lib/colorScales';
+
+// Aesthetic teal/blue ramp for the marketing flyover. Deterministic per state
+// FIPS so the visual is stable but varied — no underlying data read.
+const FLYOVER_RAMP = ['#0b2540', '#0e3a5f', '#0f5779', '#107a93', '#0ea5c9', '#22c2dd', '#5fd6e6'];
+
 
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const STATES_URL = '/geojson/us-states.json';
@@ -20,44 +22,21 @@ const KEYFRAMES: [number, number, number, number, number, number][] = [
   [-98.5, 39.8, 3.8, 0, 0, 6000],         // Back to overview
 ];
 
-const ABBR_TO_FIPS = Object.fromEntries(
-  Object.entries(FIPS_TO_ABBR).map(([k, v]) => [v, k])
-);
-
 export function MapFlyover() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const animatingRef = useRef(true);
   const [loaded, setLoaded] = useState(false);
 
-  const buildColorExpression = useCallback((statesData: any[]) => {
-    // Build a match expression: ['match', ['get', 'STATE'], 'fips1', color1, ..., fallback]
-    const stops = colorScales.population;
-    const getColor = (value: number) => {
-      if (value <= stops[0].value) return stops[0].color;
-      if (value >= stops[stops.length - 1].value) return stops[stops.length - 1].color;
-      for (let i = 1; i < stops.length; i++) {
-        if (value <= stops[i].value) {
-          const t = (value - stops[i - 1].value) / (stops[i].value - stops[i - 1].value);
-          const lerp = (a: number, b: number) => Math.round(a + (b - a) * t);
-          const c1 = stops[i - 1].color, c2 = stops[i].color;
-          const r = lerp(parseInt(c1.slice(1, 3), 16), parseInt(c2.slice(1, 3), 16));
-          const g = lerp(parseInt(c1.slice(3, 5), 16), parseInt(c2.slice(3, 5), 16));
-          const b = lerp(parseInt(c1.slice(5, 7), 16), parseInt(c2.slice(5, 7), 16));
-          return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-        }
-      }
-      return stops[stops.length - 1].color;
-    };
-
+  const buildColorExpression = useCallback(() => {
+    // Deterministic per-FIPS color from the marketing ramp — no data read.
     const expr: any[] = ['match', ['get', 'STATE']];
-    statesData.forEach((s: any) => {
-      const fips = ABBR_TO_FIPS[s.state_code];
-      if (fips) {
-        expr.push(fips, getColor(s.muslim_voters ?? 0));
-      }
-    });
-    expr.push('#2a3a50'); // fallback
+    for (let i = 1; i <= 56; i++) {
+      const fips = String(i).padStart(2, '0');
+      const color = FLYOVER_RAMP[(i * 7) % FLYOVER_RAMP.length];
+      expr.push(fips, color);
+    }
+    expr.push('#1a3d6d');
     return expr;
   }, []);
 
@@ -79,16 +58,8 @@ export function MapFlyover() {
     mapRef.current = map;
 
     map.on('load', async () => {
-      // Fetch state data for coloring
-      let colorExpr: any = '#1a3d6d'; // fallback flat color
-      try {
-        const { data } = await supabase.from('voter_impact_states').select('state_code, muslim_voters');
-        if (data && data.length > 0) {
-          colorExpr = buildColorExpression(data);
-        }
-      } catch {
-        // Silently fail — use fallback color
-      }
+      const colorExpr: any = buildColorExpression();
+
 
       // Load states GeoJSON
       try {

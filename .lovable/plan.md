@@ -1,74 +1,121 @@
 
+# Phase 1 — Naming, Positioning & Scope
 
-## Map View — Round 2 Mobile Polish
+Decisions only. No code changes until you approve this plan.
 
-The previous pass made the maps usable on mobile. Now they need to **breathe** — currently ~22% of viewport height is consumed by stacked headers, the bottom-sheet peek wastes 130px showing only "Tap a state to explore", and the map itself is mostly empty Canada/Mexico padding while overlays crowd the bottom edge.
+## 1. Product name
 
-### Audit (at 390×844 viewport from the screenshot)
+**Campaign Data Solutions** (confirmed).
 
-| # | Problem | Impact |
+Usage conventions I'll apply consistently:
+- Full name: **Campaign Data Solutions**
+- Short form (nav, footer, tight UI): **CDS**
+- Sender display name (emails): **Campaign Data Solutions**
+- Possessive in copy: "Campaign Data Solutions helps you…" (avoid "CDS's")
+
+## 2. Tagline (pick one)
+
+Hero direction: which districts care about which issues, and who funds them there.
+
+- "Issue-based donor intelligence, district by district."
+- "See which districts care about the issues you campaign on."
+- "Find your strongest districts on the issues that matter."
+
+## 3. Audience repositioning
+
+Strip community-specific copy. Target reader for landing/auth/emails:
+- Advocacy organizations
+- Issue-based PACs
+- Campaign consultants and independent expenditure groups
+
+No references to Muslim-American organizing or culturally specific framing.
+
+## 4. New SKU structure (proposal)
+
+Old SKUs are tied to `voter_impact_*` records. Replace with issue-scoped products driven by `issue_donor_districts` / `issue_donor_states`:
+
+| SKU | Scope | Source columns |
 |---|---|---|
-| 1 | **Triple-stacked header**: admin h-16 + map h-14 + metric scroller h-12 ≈ 188px (22% of screen) | Map gets only ~430px of vertical space before the 130px bottom-sheet peek = ~300px visible map |
-| 2 | **Bottom-sheet peek wastes 130px** when no region selected — only shows "Tap a state to explore" | User stares at empty real estate |
-| 3 | **Map doesn't auto-fit to CONUS** on mount on small viewports — wide aspect ratio leaves huge Canada/Mexico borders | "Where's the data?" feeling |
-| 4 | **Issue Map**: Issue selector pill ("Campaign Finance +") + map zoom controls + legend all stack on bottom-right area | Visual collision; zoom buttons sit *behind* the legend at 360–390px |
-| 5 | **Legend on mobile is full-width** with inline Quantile/Linear/Log toggles → 3 buttons at ~30px wide each | Below 40px tap target; mode toggles are decorative on phones |
-| 6 | **Metric pills "G. Cells / S. Cells"** are abbreviations only mobile users see — opaque without hover | Confusing |
-| 7 | **Voter Map header** still shows full title `"Muslim Voter Population Map"` (28 chars) which truncates with ellipsis on 360px | Loses context |
-| 8 | **Sheet tap-to-cycle drag handle** has only a 30px tap area — easy to miss; users don't realize it's interactive | Discoverability |
-| 9 | Both maps: when sheet is at peek and user taps a region, sheet animates to 50% — but the **legend "lift" stays at 140px** instead of hiding, creating a visible flash as legend disappears mid-animation | Janky |
-| 10 | No way to **collapse the metric scroller** to reclaim vertical space once the user has chosen | Permanent UI cost |
+| Issue Gold Donors — District | per (issue, CD) | `gold_donors`, `gold_addresses`, `gold_cell_phones` |
+| Issue Silver Donors — District | per (issue, CD) | `silver_donors`, `silver_addresses`, `silver_cell_phones` |
+| Issue Gold Donors — State | per (issue, state) | state-rollup columns |
+| Issue Silver Donors — State | per (issue, state) | state-rollup columns |
+| Issue Total Donors — District | combined | `total_donors` |
 
-### Design fixes
+Pricing: Request-Quote model preserved (no public per-record pricing). Internal `price_per_record` retained on `data_products` for admin-side quoting only.
 
-#### A. Reclaim vertical space (both maps)
-- **Hide bottom-sheet entirely until a region is selected.** Replace the empty peek with a small floating "Tap a region" hint pill at bottom-center (auto-dismisses on first interaction, ~32px tall vs 130px sheet). Once a region is selected, the sheet appears at peek with real data.
-- **Collapsible metric row on Issue Map**: add a tiny chevron at the right of the metric scroller; tap collapses it to just show the active metric as a pill. Persists in localStorage.
-- **Voter Map title** → use the short metric name on mobile: `"Population"` instead of `"Muslim Voter Population Map"`. Already-dynamic `MAP_TITLES` gets a parallel `MAP_TITLES_SHORT` map.
+Decision: reuse old internal numbers ($5 gold / $1 silver) or supply new?
 
-#### B. Map fit on mount
-- On both maps, when `isMobile && !selectedRegion`, call `map.fitBounds([[-125, 24], [-66, 50]], { padding: 20 })` after load to lock onto CONUS so Canada/Mexico don't dominate. AK/HI mini-cards already cover the cutoffs.
+Cart-grouping shifts from `(product, geo)` to `(issue, product, geo)`. `data_cart_items` and `data_order_items` need an `issue_id` column. Migration handled in Phase 5.
 
-#### C. Legend redesign for mobile
-- **Remove Quantile/Linear/Log toggles from the mobile legend** — relocate them into a "⋯ Scale" overflow item inside the issue picker sheet. Mobile users almost never change scale modes.
-- Keep just: metric label + gradient bar + 3 stops (low / mid / high). Reduces legend height from ~78px to ~46px.
+## 5. Voter tables — keep as election context
 
-#### D. Issue Map overlay layout
-- Move the issue selector pill from `top-3 left-3` → **top-center** (absolute `top-3 left-1/2 -translate-x-1/2`) so it doesn't fight with map zoom controls (which are top-right by default in maplibre).
-- Legend and zoom controls cleanly stay on opposite corners.
+`voter_impact_districts` / `voter_impact_states` currently feed the Issue Map sidebar with election context (winner, margin, turnout). Recommendation: **keep as read-only context**, hide all UI that surfaces Muslim voter counts as a primary metric. `ElectionResultsImport.tsx` stays. `VoterImpactDataImport.tsx` is removed.
 
-#### E. Drag-handle discoverability
-- Expand the drag-handle button to 100% width × 36px tall (currently ~30px tall, full width but small target).
-- Add a subtle one-time pulse animation on first sheet appearance to teach the gesture.
+Confirm.
 
-#### F. Sheet/legend animation parity
-- When user taps a region and the sheet expands, **start hiding the legend immediately** (CSS opacity transition over 200ms) rather than waiting for `activeSnapPoint` to change. Use a `useEffect` that sets a `legendHiding` flag the moment selection changes.
+## 6. Files to delete (Phase 2)
 
-#### G. Metric label clarity (Issue Map)
-- Rename mobile shorts: `"G. Cells"` → `"Gold ☎"`, `"S. Cells"` → `"Silver ☎"` using the phone glyph for instant recognition. Or longer: ditch abbreviations and let the row scroll horizontally — the snap-x scroll already exists, so users can swipe for the rest.
+Routes & pages:
+- `src/pages/admin/VoterImpactMap.tsx`
+- Remove `/admin/voter-impact-map` route in `App.tsx`
+- Promote `IssueDonorMap` from `/admin/issue-map` → `/map` (auth-gated, primary user map). Keep an admin entry that reuses the same component with import/manage controls visible.
 
-### Out of scope
-- Replacing custom bottom sheet with vaul/drawer library (current implementation works; vaul has touch-target and accessibility issues we already worked around).
-- Pinch-to-zoom UX changes — handled by maplibre.
-- Landscape orientation overhaul.
+Components — delete:
+- `src/components/voter-impact/ImpactMap.tsx`
+- `src/components/voter-impact/MapLegend.tsx`
+- `src/components/voter-impact/MapControls.tsx`
+- `src/components/voter-impact/DataProductSelector.tsx`
+- `src/components/voter-impact/ComparePanel.tsx`
+- `src/components/voter-impact/StateMiniCard.tsx`
+- `src/components/voter-impact/RegionSidebar.tsx`
+- `src/components/voter-impact/RegionSearch.tsx` (after confirming `IssueRegionSearch` covers all callers)
 
-### Files
+Components — keep & refactor:
+- `src/components/voter-impact/DataCart.tsx`, `DataCartIcon.tsx` — retained, refactored issue-scoped
 
-- `src/pages/admin/IssueDonorMap.tsx` — hide peek when no region; collapsible metric row; reposition issue selector; short metric labels.
-- `src/pages/admin/VoterImpactMap.tsx` — hide peek when no region; short title on mobile; CONUS fit-bounds on mount; legend hide-on-select animation.
-- `src/components/issue-donor/IssueLegend.tsx` — remove scale toggles when `compact` prop set (mobile); compact height variant.
-- `src/components/voter-impact/MapLegend.tsx` — same compact variant for parity.
-- `src/components/issue-donor/IssueSelector.tsx` — accept scale-mode props to expose toggles inside its sheet on mobile.
-- `src/components/voter-impact/ImpactMap.tsx` — `fitBounds` to CONUS on initial mobile mount.
-- `src/components/issue-donor/IssueMap.tsx` — same `fitBounds` for parity.
+Home widgets — delete and rebuild around issues:
+- `src/components/home/HomeMiniMap.tsx`
+- `src/components/home/RecommendedDistricts.tsx`
+- `src/components/home/YourRegionsWidget.tsx`
 
-No DB changes, no new dependencies, all gated on `useIsMobile()` — desktop unchanged.
+Admin imports:
+- Delete: `src/components/admin/VoterImpactDataImport.tsx`
+- Keep: `src/components/admin/IssueDonorImport.tsx`, `ElectionResultsImport.tsx`
 
-### Result
+Hooks:
+- `src/hooks/useImpactMapLayers.ts` — delete
+- `src/hooks/useVoterData.ts` — keep, prune unused methods after sweep
 
-- Map area **reclaims ~150px of vertical space** on mobile (no peek when idle, shorter legend, optional collapsed metric row).
-- Issue selector + zoom controls + legend no longer collide on small screens.
-- CONUS fills the viewport on mount instead of empty borders.
-- Scale-mode toggles remain available (in issue picker sheet) for power users without cluttering the legend for everyone else.
-- Drag-handle discoverable; legend transitions smoothly on selection.
+Landing:
+- `src/components/landing/MapFlyover.tsx` — re-theme, do not delete
+- `src/components/landing/ParticleField.tsx` — keep
 
+Memory:
+- `.lovable/memory/index.md` — replace with Campaign Data Solutions framing
+- `mem://index.md` Core — drop Muslim framing; swap map-colors rule for "per-issue palettes from `src/lib/issueColors.ts`"
+- `mem://project/business-model` — rewrite around issue-based activation
+- `mem://features/user-home` — rewrite around issues
+- `mem://data/voter-impact-map` — demote to election-context-only note
+
+## 7. Untouched
+
+Auth, invite-only flow, access vetting, admin shell, mobile sheet logic, surgical-glass design system, fonts, color tokens (except map-color memory rule), Lovable Cloud wiring, edge functions, PGMQ, pg_cron, Stripe wiring, Meta Pixel/CAPI scaffolding.
+
+## Phase order
+
+```
+Phase 1  Naming + scope                ← THIS PLAN
+Phase 2  Routes + admin restructure    promote /map, delete VoterImpactMap, sidebar
+Phase 3  Landing + copy + email        new /, marketing/auth/email copy
+Phase 4  /home rebuild around issues   new mini-map + recommended issues widget
+Phase 5  Product catalog migration     new SKUs, cart/order schema migration
+Phase 6  Memory + SEO + assets         index.html, robots.txt, og, memory files
+```
+
+## Decisions I still need
+
+1. Tagline: pick one of three (or rewrite).
+2. SKU pricing: reuse $5 gold / $1 silver internally, or new numbers?
+3. Confirm voter tables stay as read-only election context.
+4. Confirm `RegionSearch.tsx` deletion (after `IssueRegionSearch` audit).

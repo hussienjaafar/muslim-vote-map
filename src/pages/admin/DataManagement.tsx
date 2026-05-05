@@ -8,6 +8,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Download, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ElectionResultsImport } from '@/components/admin/ElectionResultsImport';
+import { IssueDonorImport } from '@/components/admin/IssueDonorImport';
 
 function useStates() {
   return useQuery({
@@ -255,10 +256,16 @@ export default function DataManagement() {
 
         {/* Import Tab */}
         <TabsContent value="import">
-          <ElectionResultsImport />
-          <div className="mt-6 p-4 rounded-md border border-white/5 bg-[#1c1c1e]/60 text-xs text-muted-foreground">
-            Looking for the <span className="text-foreground font-medium">Issue Donor</span> importer? It now lives on the
-            <a href="/admin/issue-map" className="text-blue-400 hover:underline ml-1">Map page</a>, alongside the map it powers.
+          <div className="space-y-8">
+            <section>
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground font-display mb-3">Election Results</h3>
+              <ElectionResultsImport />
+            </section>
+            <section>
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground font-display mb-3">Issue Donor Data (Congressional Districts)</h3>
+              <p className="text-xs text-muted-foreground mb-3">Upload a multi-sheet XLSX file. Each sheet becomes an issue with district- and state-level donor data.</p>
+              <IssueDonorImport />
+            </section>
           </div>
         </TabsContent>
       </Tabs>

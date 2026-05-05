@@ -45,7 +45,6 @@ export function IssueRegionSearch({ statesData, districtsData, onSelect }: Issue
         id: d.cd_code,
         label: `${d.cd_code} — ${STATE_ABBREVIATIONS[d.state_code] || d.state_code}`,
         type: 'district' as const,
-        voters: d.muslim_voters ?? 0,
       }));
   }, [districtsData, query]);
 

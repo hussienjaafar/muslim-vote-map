@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { X } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { X, Plus, CheckCircle2 } from 'lucide-react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import type { Issue, IssueDonorDistrict, IssueDonorState, IssueMetric } from '@/hooks/useIssueDonorData';
 import { useVoterDistrictContext, useVoterStateContext } from '@/hooks/useIssueDonorData';
@@ -7,6 +7,8 @@ import { getIssuePalette } from '@/lib/issueColors';
 import { STATE_ABBREVIATIONS } from '@/lib/us-states';
 import { formatNumber, formatPercent } from '@/lib/geoUtils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAuth } from '@/hooks/useAuth';
+import { useAddToCart, useDataProducts } from '@/queries/useDataProductQueries';
 
 interface IssueRegionSidebarProps {
   open: boolean;

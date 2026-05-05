@@ -76,10 +76,7 @@ export function IssueRegionSearch({ statesData, districtsData, onSelect }: Issue
           <CommandGroup heading={<span className="font-display">Districts</span>}>
             {districtOptions.map(d => (
               <CommandItem key={d.id} value={d.label} onSelect={() => handleSelect(d.id, 'district')}>
-                <div className="flex items-center justify-between w-full">
-                  <span>{d.label}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{d.voters.toLocaleString()} voters</span>
-                </div>
+                <span>{d.label}</span>
               </CommandItem>
             ))}
           </CommandGroup>

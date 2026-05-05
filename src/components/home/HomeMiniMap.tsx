@@ -1,12 +1,11 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useStatesData } from '@/hooks/useVoterData';
+import { useIssueDonorStates, type IssueMetric } from '@/hooks/useIssueDonorData';
 import { useCartItems } from '@/queries/useDataProductQueries';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { getColorForValue, getMetricValue, metricLabels } from '@/lib/colorScales';
-import type { MetricType } from '@/store/mapStore';
+import { getIssuePalette, computeScaleStops } from '@/lib/issueColors';
 import { Map as MapIcon } from 'lucide-react';
 import { STATE_ABBREVIATIONS } from '@/lib/us-states';
 import { fipsToState } from '@/lib/geoUtils';
@@ -20,10 +19,8 @@ const HEIGHT = 600;
 const projection = geoAlbersUsa().scale(1050).translate([WIDTH / 2, HEIGHT / 2]);
 const pathGenerator = geoPath().projection(projection);
 
-// Small states that need labels pushed outside
 const SMALL_STATES = new Set(['DC', 'DE', 'CT', 'RI', 'NJ', 'MD', 'MA', 'NH', 'VT']);
 
-// Rewind a ring to the desired winding order
 function ringArea(ring: Position[]): number {
   let area = 0;
   for (let i = 0, n = ring.length; i < n; i++) {
@@ -45,10 +42,9 @@ function rewindRing(ring: Position[], clockwise: boolean): Position[] {
 function rewindFeature(feature: Feature): Feature {
   const geom = feature.geometry;
   if (!geom) return feature;
-
   if (geom.type === 'Polygon') {
     const coords = (geom as any).coordinates as Position[][];
-    const rewound = coords.map((ring, i) => rewindRing(ring, i === 0)); // exterior CW, holes CCW
+    const rewound = coords.map((ring, i) => rewindRing(ring, i === 0));
     return { ...feature, geometry: { ...geom, coordinates: rewound } };
   }
   if (geom.type === 'MultiPolygon') {
@@ -61,22 +57,36 @@ function rewindFeature(feature: Feature): Feature {
   return feature;
 }
 
-const METRIC_OPTIONS: { key: MetricType; label: string }[] = [
-  { key: 'population', label: 'Population' },
-  { key: 'turnout', label: 'Turnout' },
-  { key: 'donors', label: 'Donors' },
+const METRIC_OPTIONS: { key: IssueMetric; label: string }[] = [
+  { key: 'total_donors', label: 'Total Donors' },
+  { key: 'gold_donors', label: 'Gold' },
+  { key: 'silver_donors', label: 'Silver' },
 ];
 
-export function HomeMiniMap() {
+interface HomeMiniMapProps {
+  issueId: string | null;
+  issueName?: string;
+}
+
+// Pick a color from a ramp given a value and 8 ascending stops
+function colorFromStops(value: number, ramp: string[], stops: number[]): string {
+  if (value <= 0) return ramp[0];
+  for (let i = stops.length - 1; i >= 0; i--) {
+    if (value >= stops[i]) return ramp[Math.min(i, ramp.length - 1)];
+  }
+  return ramp[0];
+}
+
+export function HomeMiniMap({ issueId, issueName }: HomeMiniMapProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: statesData } = useStatesData();
+  const { data: stateData } = useIssueDonorStates(issueId ? [issueId] : []);
   const { data: cartItems } = useCartItems();
   const [hoveredState, setHoveredState] = useState<{ code: string; cx: number; cy: number } | null>(null);
   const [geoData, setGeoData] = useState<FeatureCollection | null>(null);
   const [clickedState, setClickedState] = useState<string | null>(null);
   const [exiting, setExiting] = useState(false);
-  const [activeMetric, setActiveMetric] = useState<MetricType>('population');
+  const [metric, setMetric] = useState<IssueMetric>('total_donors');
 
   useEffect(() => {
     fetch('/geojson/us-states.json')
@@ -97,24 +107,17 @@ export function HomeMiniMap() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const stateValues = useMemo(() => {
+  const palette = useMemo(() => getIssuePalette(0), []);
+
+  const { stateValues, scaleStops } = useMemo(() => {
     const lookup: Record<string, number> = {};
-    statesData?.forEach(s => {
-      const val = getMetricValue(
-        {
-          muslim_voters: s.muslim_voters,
-          political_donors: s.political_donors ?? 0,
-          political_activists: s.political_activists ?? 0,
-          vote_2024_pct: s.vote_2024_pct != null ? Number(s.vote_2024_pct) : null,
-          donor_gold_count: s.donor_gold_count,
-          donor_silver_count: s.donor_silver_count,
-        },
-        activeMetric,
-      );
-      lookup[s.state_code] = val;
+    (stateData ?? []).forEach(s => {
+      lookup[s.state_code] = Number((s as any)[metric] ?? 0);
     });
-    return lookup;
-  }, [statesData, activeMetric]);
+    const values = Object.values(lookup);
+    const stops = computeScaleStops(values, 'quantile');
+    return { stateValues: lookup, scaleStops: stops };
+  }, [stateData, metric]);
 
   const cartStateCodes = useMemo(() => {
     const codes = new Set<string>();
@@ -134,20 +137,24 @@ export function HomeMiniMap() {
       .map(rewindFeature);
   }, [geoData]);
 
+  const metricLabel = METRIC_OPTIONS.find(o => o.key === metric)?.label.toLowerCase() ?? '';
+
   return (
     <div className="surgical-glass border border-white/[0.06] rounded-xl p-5">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
           <MapIcon className="w-4 h-4 text-primary" />
-          <h2 className="font-display text-sm font-semibold text-foreground uppercase tracking-wider">National Overview</h2>
+          <h2 className="font-display text-sm font-semibold text-foreground uppercase tracking-wider truncate">
+            National Overview {issueName ? <span className="text-muted-foreground normal-case font-normal">· {issueName}</span> : null}
+          </h2>
         </div>
         <div className="flex items-center gap-1 bg-white/[0.04] rounded-lg p-0.5">
           {METRIC_OPTIONS.map(opt => (
             <button
               key={opt.key}
-              onClick={() => setActiveMetric(opt.key)}
+              onClick={() => setMetric(opt.key)}
               className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${
-                activeMetric === opt.key
+                metric === opt.key
                   ? 'bg-primary/20 text-primary shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
@@ -162,7 +169,7 @@ export function HomeMiniMap() {
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className={`w-full h-auto cursor-pointer transition-all duration-300 ${exiting ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}
         role="img"
-        aria-label="US state overview map"
+        aria-label="National issue overview map"
         style={{ transformOrigin: 'center center' }}
       >
         <rect x="0" y="0" width={WIDTH} height={HEIGHT} fill="hsl(var(--muted) / 0.28)" rx="4" />
@@ -171,19 +178,16 @@ export function HomeMiniMap() {
           const fips = feature.id as string;
           const stateCode = fipsToState[fips];
           if (!stateCode) return null;
-
           const d = pathGenerator(feature as Feature<Geometry>);
           if (!d) return null;
 
           const value = stateValues[stateCode] ?? 0;
-          const minThreshold = activeMetric === 'population' ? 2000 : activeMetric === 'turnout' ? 5 : 50;
-          const fill = value < minThreshold
-            ? 'hsl(var(--secondary))'
-            : getColorForValue(value, activeMetric);
+          const fill = issueId
+            ? colorFromStops(value, palette.ramp, scaleStops)
+            : 'hsl(var(--secondary))';
           const isSaved = savedRegions?.has(stateCode) ?? false;
           const inCart = cartStateCodes.has(stateCode);
           const isHovered = hoveredState?.code === stateCode;
-
           const centroid = pathGenerator.centroid(feature as Feature<Geometry>);
           const hasValidCentroid = centroid && !isNaN(centroid[0]);
 
@@ -194,7 +198,8 @@ export function HomeMiniMap() {
                 if (exiting) return;
                 setClickedState(stateCode);
                 setExiting(true);
-                setTimeout(() => navigate(`/map?region=${stateCode}&type=state`), 350);
+                const issueQs = issueId ? `&issue=${issueId}` : '';
+                setTimeout(() => navigate(`/map?region=${stateCode}&type=state${issueQs}`), 350);
               }}
               onMouseEnter={() => hasValidCentroid
                 ? setHoveredState({ code: stateCode, cx: centroid[0], cy: centroid[1] })
@@ -242,12 +247,12 @@ export function HomeMiniMap() {
           );
         })}
 
-        {/* Tooltip */}
         {hoveredState && (() => {
           const name = STATE_ABBREVIATIONS[hoveredState.code] ?? hoveredState.code;
           const metricVal = stateValues[hoveredState.code] ?? 0;
-          const metricSuffix = activeMetric === 'turnout' ? '%' : '';
-          const label = `${name}: ${activeMetric === 'turnout' ? metricVal.toFixed(1) : formatNumber(metricVal)}${metricSuffix} ${metricLabels[activeMetric]?.toLowerCase() ?? ''}`;
+          const label = issueId
+            ? `${name}: ${formatNumber(metricVal)} ${metricLabel}`
+            : `${name}: select an issue`;
           const textWidth = label.length * 7 + 24;
           const tooltipHeight = 28;
           const rawX = hoveredState.cx - textWidth / 2;
@@ -281,7 +286,6 @@ export function HomeMiniMap() {
         })()}
       </svg>
 
-      {/* Legend */}
       <div className="mt-3 flex items-center gap-3 text-[10px] text-muted-foreground">
         <div className="flex items-center gap-1">
           <div className="w-2.5 h-2.5 rounded-full bg-primary" />
@@ -292,7 +296,9 @@ export function HomeMiniMap() {
           <span>Saved</span>
         </div>
         <div className="flex-1" />
-        <span className="opacity-60">Click a state to explore</span>
+        <span className="opacity-60">
+          {issueId ? 'Click a state to explore' : 'Select an issue to see donor data'}
+        </span>
       </div>
     </div>
   );

@@ -95,9 +95,10 @@ Deno.serve(async (req) => {
 
     if (!response.ok) {
       console.error('Meta CAPI error:', JSON.stringify(result));
+      // Swallow upstream errors so non-critical tracking never breaks the client
       return new Response(
-        JSON.stringify({ error: 'CAPI request failed', details: result }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ ok: false, skipped: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

@@ -122,11 +122,11 @@ export default function RequestAccess() {
       <div className="w-full max-w-lg space-y-6">
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-3">
-            <img src="/logo-icon.png" alt="Muslim Voter Project" className="h-10 w-10 rounded-lg" />
+            <img src="/logo-icon.png" alt="Campaign Data Solutions" className="h-10 w-10 rounded-lg" />
             <h1 className="font-display text-3xl font-bold text-foreground">Request Access</h1>
           </div>
           <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-            The Muslim Voter Project is an invite-only platform. Tell us about your organization and how you plan to use our data.
+            Campaign Data Solutions is invite-only. Tell us about your organization and how you plan to use issue donor data.
           </p>
         </div>
 
@@ -200,7 +200,7 @@ export default function RequestAccess() {
                   id="useCase"
                   value={useCase}
                   onChange={e => setUseCase(e.target.value)}
-                  placeholder="Describe your organization's work and how Muslim voter data would support your efforts..."
+                  placeholder="Describe your organization's work, the issues you campaign on, and how district-level donor data would support your efforts..."
                   required
                   rows={4}
                   className="resize-none"

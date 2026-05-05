@@ -68,10 +68,10 @@ export default function Login() {
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-3">
-            <img src="/logo-icon.png" alt="Muslim Voter Project" className="h-10 w-10 rounded-lg" />
-            <h1 className="font-display text-3xl font-bold text-foreground">Muslim Voter Project</h1>
+            <img src="/logo-icon.png" alt="Campaign Data Solutions" className="h-10 w-10 rounded-lg" />
+            <h1 className="font-display text-3xl font-bold text-foreground">Campaign Data Solutions</h1>
           </div>
-          <p className="text-muted-foreground">Data-driven insights for civic engagement</p>
+          <p className="text-muted-foreground">Issue-based donor intelligence, district by district</p>
         </div>
 
         <Card className="surgical-glass border-[rgba(255,255,255,0.08)]">

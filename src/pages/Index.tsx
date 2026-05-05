@@ -22,38 +22,38 @@ gsap.registerPlugin(ScrollTrigger);
 const FEATURES = [
   {
     icon: Map,
-    title: 'Interactive Choropleth Map',
-    description: 'Explore Muslim voter density across every state and congressional district with real-time color-coded visualization. Zoom in from state overview to district-level granularity.',
+    title: 'Issue-Mapped Choropleth',
+    description: 'Switch between issues and instantly see which districts have the deepest donor pools. State and congressional-district granularity in one map.',
     accent: 'bg-blue-500/20 text-blue-400',
   },
   {
     icon: BarChart3,
-    title: 'Turnout & Registration Analytics',
-    description: 'Compare 2024 vs 2022 turnout rates, track registration progress, and identify districts where even small mobilization efforts can shift outcomes.',
+    title: 'Donor & Activist Intelligence',
+    description: 'Gold and silver donor counts, mailable addresses, and cell phones — segmented by issue and rolled up to the geographies your campaign actually plans against.',
     accent: 'bg-violet-500/20 text-violet-400',
   },
   {
     icon: Shield,
-    title: 'Invite-Only Access',
-    description: 'Built exclusively for verified civic organizations, advocacy groups, and community leaders. Your data stays private within a trusted network.',
+    title: 'Vetted Access',
+    description: 'Built for advocacy organizations, issue PACs, and campaign consultants. Access is reviewed before activation to keep the data inside trusted hands.',
     accent: 'bg-amber-500/20 text-amber-400',
   },
   {
     icon: Users,
-    title: 'Voter & Activist Records',
-    description: 'Access verified voter lists with contact details, activist network data, and political engagement records — filtered by state or district.',
+    title: 'Per-Issue Audiences',
+    description: 'Every record is tagged to an issue. Build audiences that align with what your supporters actually care about — not generic universe files.',
     accent: 'bg-blue-400/20 text-blue-300',
   },
   {
     icon: ShoppingCart,
     title: 'Activate & Reach',
-    description: 'Build targeted audiences by selecting regions and products. Launch SMS, email, CTV, or Meta campaigns powered by our data.',
+    description: 'Pick issues, geographies, and record types. Request a quote and activate SMS, email, CTV, or Meta campaigns powered by the audiences you assembled.',
     accent: 'bg-red-500/20 text-red-400',
   },
   {
     icon: Database,
     title: 'Nationwide Coverage',
-    description: 'Data spanning all 50 states and 435 congressional districts. Voter files, registration records, and activism data — continuously validated.',
+    description: 'All 50 states and 435 congressional districts. Issue donor data is layered with election context — winners, margins, and turnout — for every region.',
     accent: 'bg-muted/20 text-muted-foreground',
   },
 ];
@@ -61,52 +61,52 @@ const FEATURES = [
 const STEPS = [
   {
     step: '01',
-    title: 'Explore the Map',
-    description: 'Open the interactive choropleth map. Switch between population, activist, and turnout views. Click any state to drill into its congressional districts and see the data at a local level.',
+    title: 'Pick an Issue',
+    description: 'Choose the issue that maps to your campaign. The map instantly recolors to show donor depth, district by district, with a sidebar of state and CD detail.',
   },
   {
     step: '02',
-    title: 'Identify Your Targets',
-    description: 'Use the sidebar analytics to compare districts, review registration rates, and find high-impact areas. Save regions and add them to your comparison panel.',
+    title: 'Identify Your Districts',
+    description: 'Compare donor counts, addresses, and cell-phone reach across districts. Pull in election context — winner, margin, turnout — to qualify each opportunity.',
   },
   {
     step: '03',
     title: 'Activate Your Campaign',
-    description: 'Select the regions and data products you need. Add them to your cart, request a quote, and activate outreach through SMS, email, CTV, or digital ads.',
+    description: 'Send the geographies and record types you need to your cart, request a quote, and activate outreach across SMS, email, CTV, or digital ads.',
   },
 ];
 
 const USE_CASES = [
   {
-    icon: Vote,
-    role: 'Voter Registration Drives',
-    stat: '850K+',
-    statLabel: 'Unregistered Muslim voters identified',
-    description: 'Identify districts with the lowest Muslim voter registration rates and activate contact lists for targeted outreach. Know exactly where your canvassers should be and who they should reach.',
+    icon: Megaphone,
+    role: 'Advocacy Organizations',
+    stat: 'Per-issue',
+    statLabel: 'Donor footprints by district',
+    description: 'Stop running national lists for hyperlocal fights. See where your issue resonates strongest and concentrate spend in the districts most likely to give and act.',
     accent: 'blue',
   },
   {
-    icon: Megaphone,
-    role: 'Get-Out-The-Vote Campaigns',
-    stat: '62%',
-    statLabel: 'Average turnout gap to close',
-    description: 'Find registered voters who didn\'t turn out in 2024. Filter by district and run SMS, door-to-door, or digital campaigns to close the participation gap.',
+    icon: Vote,
+    role: 'Issue-Based PACs',
+    stat: '435',
+    statLabel: 'Districts to prioritize',
+    description: 'Stack-rank congressional districts by gold donor count for your issue, layer in margin-of-victory, and route IE budget to the highest-leverage races.',
     accent: 'emerald',
   },
   {
     icon: Building2,
-    role: 'Community Organizations',
-    stat: '435',
-    statLabel: 'Districts with community data',
-    description: 'Understand where Muslim communities are concentrated, how they\'re growing, and which districts have the greatest civic potential. Use the data to plan events, allocate resources, and build coalitions.',
+    role: 'Campaign Consultants',
+    stat: 'State + CD',
+    statLabel: 'Geographies in one view',
+    description: 'Pitch clients with concrete, district-level evidence: who cares, how many of them there are, and how to reach them across the channels you already deploy.',
     accent: 'violet',
   },
   {
     icon: Target,
-    role: 'Political Campaigns',
+    role: 'IE Groups',
     stat: '2024',
-    statLabel: 'Election data current',
-    description: 'Access district-level voter data to identify swing areas where Muslim voter mobilization could change outcomes. Compare 2024 vs 2022 turnout to spot momentum and opportunities.',
+    statLabel: 'Election context current',
+    description: 'Pair issue donor density with current election results. Find the districts where a small persuasion or turnout lift on your issue can swing the outcome.',
     accent: 'amber',
   },
 ];
@@ -114,45 +114,45 @@ const USE_CASES = [
 const FAQS = [
   {
     q: 'How do I get access?',
-    a: 'Muslim Voter Project is invite-only. Contact your organization administrator for an invitation, or reach out to our team to learn about organizational partnerships.',
+    a: 'Campaign Data Solutions is invite-only. Submit a short application describing your organization and intended use. We approve advocacy groups, issue PACs, campaign consultants, and IE groups.',
   },
   {
     q: 'What data is included?',
-    a: 'The platform covers all 50 states and 435 congressional districts with Muslim voter population counts, registration rates, turnout history (2024 and 2022), political activist records, and verified contact information.',
+    a: 'Per-issue donor data — gold and silver donors, mailable addresses, and cell phones — at the state and congressional-district level, layered with election context (winner, margin, turnout) for all 50 states and 435 districts.',
   },
   {
     q: 'How often is the data updated?',
-    a: 'Voter files and registration data are updated after each election cycle. Population estimates and community data are refreshed quarterly.',
+    a: 'Election context refreshes after each election cycle. Issue donor files are refreshed on a rolling basis as new modeling and contact data lands.',
   },
   {
     q: 'How can I use the data?',
-    a: 'Our platform powers SMS campaigns, email outreach, CTV advertising, and Meta audience building — all without downloading raw files. Your team activates campaigns directly through our tools.',
+    a: 'Audiences power SMS, email, CTV, and Meta activations through our team. You define the issue, geographies, and record types — we handle the activation pipeline.',
   },
   {
-    q: 'Is my data secure?',
-    a: 'All data is hosted on encrypted infrastructure. Access is restricted to verified organizations through our invite-only system. We do not share data between organizations.',
+    q: 'Is access vetted?',
+    a: 'Every applicant is reviewed before activation. Data stays inside a trusted network of campaign-side organizations and is never shared between unrelated accounts.',
   },
   {
-    q: 'How do campaigns get activated?',
-    a: 'We support SMS, email, connected TV (CTV), and social media audience deployment. Our team works with you to activate campaigns through your preferred channels.',
+    q: 'How does pricing work?',
+    a: 'We work request-by-request. Add the issues, geographies, and record types you need to your cart and request a quote — pricing depends on scope and channels.',
   },
 ];
 
 const MAP_PREVIEW_STATS = [
-  { value: '3.5M+', label: 'Muslim voters identified' },
+  { value: 'Per-issue', label: 'Donor data tagged to each issue' },
   { value: '441', label: 'Congressional districts' },
   { value: '50', label: 'States + territories' },
-  { value: '2024', label: 'Election data current' },
+  { value: '2024', label: 'Election context current' },
 ];
 
 const HERO_STATS = [
-  { target: 3.5, suffix: 'M+', decimals: 1, label: 'Muslim Voters Mapped' },
   { target: 435, suffix: '', decimals: 0, label: 'Congressional Districts' },
   { target: 50, suffix: '', decimals: 0, label: 'States & Territories' },
+  { target: 2024, suffix: '', decimals: 0, label: 'Election Context' },
 ];
 
-const WHY_HEADLINE_1 = 'Muslim Americans are one of the fastest-growing electoral blocs in the country.';
-const WHY_HEADLINE_2 = 'But without data, civic organizations are flying blind.';
+const WHY_HEADLINE_1 = 'Campaigns spend on districts they can\'t actually move.';
+const WHY_HEADLINE_2 = 'Issue-based donor intelligence fixes that.';
 
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -507,10 +507,10 @@ function LandingContent() {
           {/* Brand */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/20 flex items-center justify-center">
-              <span className="font-display text-sm font-bold text-blue-400">M</span>
+              <span className="font-display text-sm font-bold text-blue-400">C</span>
             </div>
             <span className="font-display text-base sm:text-lg font-bold tracking-tight text-foreground hidden sm:block">
-              Muslim Voter Project
+              Campaign Data Solutions
             </span>
           </div>
 
@@ -583,23 +583,23 @@ function LandingContent() {
             </div>
 
             <h1 className="font-display text-3xl sm:text-5xl md:text-8xl font-bold tracking-tighter text-foreground mb-8 leading-[0.9]">
-              <span className="hero-line block animate-hero-fade-up" style={{ animationDelay: '0.3s' }}>The Data Infrastructure for</span>
+              <span className="hero-line block animate-hero-fade-up" style={{ animationDelay: '0.3s' }}>Issue-based donor intelligence,</span>
               <span className="hero-line block text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600 animate-hero-fade-up" style={{ animationDelay: '0.5s' }}>
-                Muslim Civic Power
+                district by district.
               </span>
             </h1>
 
             <p className="hero-body text-base sm:text-lg text-muted-foreground max-w-2xl mb-12 leading-relaxed animate-hero-fade-up" style={{ animationDelay: '0.7s' }}>
-              See where Muslim voters live, how they vote, and where your outreach will have the
-              greatest impact. The first platform that maps the Muslim electorate at the
-              congressional district level — with data you can activate and act on.
+              See which congressional districts care about the issues you campaign on, and who funds
+              them there. Pick an issue, scan donor depth across all 435 districts, and activate the
+              audiences that move your campaign.
             </p>
 
             <div className="flex items-center gap-5 mb-20 animate-hero-fade-up" style={{ animationDelay: '0.9s' }}>
               {user ? (
                 <button onClick={() => navigate('/map')} className="hero-cta group inline-flex items-center gap-2 text-blue-400 font-display text-sm font-semibold tracking-wide hover:text-blue-300 transition-colors">
                   <span className="px-4 py-2 rounded-full border border-blue-500/30 bg-blue-500/10 group-hover:bg-blue-500/20 group-hover:border-blue-400/40 transition-all">
-                    Open Impact Map
+                    Open Issue Map
                   </span>
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </button>
@@ -651,18 +651,17 @@ function LandingContent() {
             </h2>
             <div className="space-y-6">
               <p className="why-body-p text-lg text-muted-foreground leading-relaxed">
-                Most voter data platforms don't identify Muslim voters as a distinct demographic.
-                That means organizations running voter registration drives, get-out-the-vote campaigns,
-                or community engagement programs have no way to know where their community is concentrated,
-                how they're registered, or whether they turned out.
+                Most donor and voter files are sold as one universe — every name in a state, lightly
+                segmented at best. That forces campaigns to pay for reach they can't convert and
+                spray messages across districts where the issue doesn't actually move people.
               </p>
               <p className="why-body-p text-lg text-muted-foreground leading-relaxed">
-                Muslim Voter Project changes that. We've built the first comprehensive database that
-                maps Muslim voter populations at the congressional district level — with registration
-                rates, turnout history, activist networks, and purchasable contact data.
+                Campaign Data Solutions inverts that. Every donor record is tagged to an issue and
+                rolled up to the congressional districts and states you actually plan against, so
+                you can see — at a glance — where your issue has weight and where it doesn't.
               </p>
               <p className="why-body-p text-lg text-foreground font-semibold">
-                This isn't a research report. It's an operational tool.
+                Spend where the issue lands. Skip the rest.
               </p>
             </div>
           </div>
@@ -691,7 +690,7 @@ function LandingContent() {
                   onClick={ctaClick}
                   className="pointer-events-auto bg-[rgba(13,13,13,0.8)] backdrop-blur-md border border-blue-500/30 px-6 py-3 font-bold text-sm text-blue-400 inline-flex items-center gap-2 hover:bg-[rgba(13,13,13,0.9)] hover:border-blue-400/50 hover:shadow-[0_0_20px_-5px_rgba(59,130,246,0.3)] transition-all"
                 >
-                  {user ? 'Open Interactive Map' : 'Sign In to Explore'}
+                  {user ? 'Open Issue Map' : 'Sign In to Explore'}
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -737,12 +736,12 @@ function LandingContent() {
               {/* Left: sticky title — stays pinned through entire section */}
               <div className="use-cases-heading md:w-1/3 md:sticky md:top-24 md:self-start pt-24">
                 <h2 className="font-display text-3xl sm:text-5xl font-bold tracking-tighter mb-4">
-                  Built For Organizations That
+                  Built For Teams That
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600"> Take Action</span>
                 </h2>
                 <p className="text-muted-foreground leading-relaxed">
-                  Whether you're running a voter registration drive, mobilizing turnout for an election,
-                  or building long-term community infrastructure — the data you need is here.
+                  Whether you're an advocacy org, an issue PAC, a campaign consultant, or an IE
+                  group — the data you need to spend smarter is here.
                 </p>
                 {/* Progress dots */}
                 <div className="hidden md:flex gap-2 mt-8">
@@ -837,11 +836,11 @@ function LandingContent() {
             <div className="how-it-works-title md:w-1/3 md:sticky md:top-24 md:self-start">
               <h2 className="font-display text-3xl sm:text-5xl font-bold tracking-tighter mb-6">
                 Three Steps to<br />
-                <span className="text-blue-400">Actionable Data</span>
+                <span className="text-blue-400">Targeted Audiences</span>
               </h2>
               <p className="text-muted-foreground leading-relaxed">
-                Go from browsing the map to downloading targeted contact lists
-                for your next campaign — in minutes, not weeks.
+                Go from picking an issue to activating audiences in the districts that matter —
+                in minutes, not weeks.
               </p>
             </div>
             <div className="md:w-2/3 flex flex-col gap-16">
@@ -880,11 +879,11 @@ function LandingContent() {
           <div className="cta-card max-w-4xl mx-auto p-8 sm:p-16 text-center rounded-lg relative overflow-hidden surgical-glass">
             <div className="cta-glow absolute inset-0 bg-blue-500/5 pointer-events-none" />
             <h2 className="font-display text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-6 relative z-10">
-              Ready to See Where Your Community Stands?
+              Ready to See Where Your Issue Lands?
             </h2>
             <p className="text-lg text-muted-foreground mb-10 max-w-xl mx-auto relative z-10">
-              Join the civic organizations, advocacy groups, and campaign teams already using
-              Muslim Voter Project to turn data into action.
+              Advocacy organizations, issue PACs, campaign consultants, and IE groups already use
+              Campaign Data Solutions to spend where the data points.
             </p>
             <div className="relative z-10 flex flex-col items-center gap-5">
               <button
@@ -904,7 +903,7 @@ function LandingContent() {
       <footer className="landing-footer bg-[#0e0e0e] border-t border-white/5 w-full py-12 px-8">
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 w-full max-w-[1440px] mx-auto">
           <span className="text-[10px] uppercase tracking-[0.2em] font-light text-muted-foreground">
-            © {new Date().getFullYear()} Muslim Voter Project. All Rights Reserved.
+            © {new Date().getFullYear()} Campaign Data Solutions. All Rights Reserved.
           </span>
           <span className="text-[10px] uppercase tracking-[0.2em] font-light text-muted-foreground">
             Invite-only platform

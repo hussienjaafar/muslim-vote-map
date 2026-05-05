@@ -25,13 +25,13 @@ export const MagicLinkEmail = ({
 }: MagicLinkEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>Your login link for Muslim Voter Project</Preview>
+    <Preview>Your login link for Campaign Data Solutions</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Img src="https://muslimvoterproject.com/logo-icon.png" alt="Muslim Voter Project" width="48" height="48" style={logo} />
+        <Img src="https://muslimvoterproject.com/logo-icon.png" alt="Campaign Data Solutions" width="48" height="48" style={logo} />
         <Heading style={h1}>Your login link</Heading>
         <Text style={text}>
-          Click the button below to log in to Muslim Voter Project. This link
+          Click the button below to log in to Campaign Data Solutions. This link
           will expire shortly.
         </Text>
         <Button style={button} href={confirmationUrl}>

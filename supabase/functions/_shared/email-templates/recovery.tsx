@@ -25,13 +25,13 @@ export const RecoveryEmail = ({
 }: RecoveryEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>Reset your password for Muslim Voter Project</Preview>
+    <Preview>Reset your password for Campaign Data Solutions</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Img src="https://muslimvoterproject.com/logo-icon.png" alt="Muslim Voter Project" width="48" height="48" style={logo} />
+        <Img src="https://muslimvoterproject.com/logo-icon.png" alt="Campaign Data Solutions" width="48" height="48" style={logo} />
         <Heading style={h1}>Reset your password</Heading>
         <Text style={text}>
-          We received a request to reset your password for Muslim Voter Project.
+          We received a request to reset your password for Campaign Data Solutions.
           Click the button below to choose a new password.
         </Text>
         <Button style={button} href={confirmationUrl}>

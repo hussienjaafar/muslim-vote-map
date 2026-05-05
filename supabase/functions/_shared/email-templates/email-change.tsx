@@ -30,13 +30,13 @@ export const EmailChangeEmail = ({
 }: EmailChangeEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>Confirm your email change for Muslim Voter Project</Preview>
+    <Preview>Confirm your email change for Campaign Data Solutions</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Img src="https://muslimvoterproject.com/logo-icon.png" alt="Muslim Voter Project" width="48" height="48" style={logo} />
+        <Img src="https://muslimvoterproject.com/logo-icon.png" alt="Campaign Data Solutions" width="48" height="48" style={logo} />
         <Heading style={h1}>Confirm your email change</Heading>
         <Text style={text}>
-          You requested to change your email address for Muslim Voter Project from{' '}
+          You requested to change your email address for Campaign Data Solutions from{' '}
           <Link href={`mailto:${email}`} style={link}>
             {email}
           </Link>{' '}

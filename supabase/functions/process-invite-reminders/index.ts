@@ -1,9 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const REMINDER_SCHEDULE = [
-  { num: 1, daysAfter: 3, subject: "Your Muslim Voter Project invitation is waiting", tone: "friendly" },
-  { num: 2, daysAfter: 7, subject: "Don't miss your access to Muslim voter data", tone: "value" },
-  { num: 3, daysAfter: 14, subject: "Final reminder: Your invitation to Muslim Voter Project", tone: "urgency" },
+  { num: 1, daysAfter: 3, subject: "Your Campaign Data Solutions invitation is waiting", tone: "friendly" },
+  { num: 2, daysAfter: 7, subject: "Don't miss your access to issue donor data", tone: "value" },
+  { num: 3, daysAfter: 14, subject: "Final reminder: Your invitation to Campaign Data Solutions", tone: "urgency" },
 ] as const;
 
 function buildReminderHtml(email: string, signupUrl: string, reminderNum: 1 | 2 | 3): string {
@@ -13,9 +13,9 @@ function buildReminderHtml(email: string, signupUrl: string, reminderNum: 1 | 2 
     3: "Final Reminder",
   };
   const bodies: Record<number, string> = {
-    1: "A few days ago, you were invited to join the Muslim Voter Project platform. Your access is ready — just click below to create your account and start exploring voter impact data across states and congressional districts.",
-    2: "Your invitation to the Muslim Voter Project is still waiting. Our platform provides powerful insights into Muslim voter demographics, turnout data, and congressional district analysis. Don't miss out on access to these data-driven civic engagement tools.",
-    3: "This is your final reminder about your invitation to the Muslim Voter Project. Your invitation will remain valid, but we won't send any more reminders. Click below to accept and get started.",
+    1: "A few days ago, you were invited to join the Campaign Data Solutions platform. Your access is ready — just click below to create your account and start exploring issue-based donor data across states and congressional districts.",
+    2: "Your invitation to the Campaign Data Solutions is still waiting. Our platform provides powerful insights into issue-based donor data, election context, and congressional district analysis. Don't miss out on access to these data-driven civic engagement tools.",
+    3: "This is your final reminder about your invitation to the Campaign Data Solutions. Your invitation will remain valid, but we won't send any more reminders. Click below to accept and get started.",
   };
   const ctas: Record<number, string> = {
     1: "Accept Invitation",
@@ -32,8 +32,8 @@ function buildReminderHtml(email: string, signupUrl: string, reminderNum: 1 | 2 
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
         <tr>
           <td style="background-color:#0c1018;padding:32px 40px;text-align:center;">
-            <img src="https://muslimvoterproject.com/logo-icon.png" alt="Muslim Voter Project" width="48" height="48" style="display:block;margin:0 auto 8px auto;border-radius:8px;" />
-            <h1 style="color:#e8ecf0;font-size:20px;margin:8px 0 0 0;font-weight:600;">Muslim Voter Project</h1>
+            <img src="https://muslimvoterproject.com/logo-icon.png" alt="Campaign Data Solutions" width="48" height="48" style="display:block;margin:0 auto 8px auto;border-radius:8px;" />
+            <h1 style="color:#e8ecf0;font-size:20px;margin:8px 0 0 0;font-weight:600;">Campaign Data Solutions</h1>
           </td>
         </tr>
         <tr>
@@ -53,7 +53,7 @@ function buildReminderHtml(email: string, signupUrl: string, reminderNum: 1 | 2 
         </tr>
         <tr>
           <td style="background-color:#f9fafb;padding:24px 40px;border-top:1px solid #e5e7eb;">
-            <p style="color:#9ca3af;font-size:12px;margin:0;text-align:center;">Muslim Voter Project &bull; Reminder ${reminderNum} of 3 &bull; Sent to ${email}</p>
+            <p style="color:#9ca3af;font-size:12px;margin:0;text-align:center;">Campaign Data Solutions &bull; Reminder ${reminderNum} of 3 &bull; Sent to ${email}</p>
           </td>
         </tr>
       </table>
@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
 
       const signupUrl = `${baseUrl}/signup?email=${encodeURIComponent(email)}`;
       const html = buildReminderHtml(email, signupUrl, reminderToBeSent.num as 1 | 2 | 3);
-      const plainText = `Reminder: Your invitation to the Muslim Voter Project is still waiting. Accept here: ${signupUrl}`;
+      const plainText = `Reminder: Your invitation to the Campaign Data Solutions is still waiting. Accept here: ${signupUrl}`;
 
       // Get or create unsubscribe token
       const { data: existingToken } = await supabase
@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
           idempotency_key: idempotencyKey,
           unsubscribe_token: unsubscribeToken,
           to: email,
-          from: "Muslim Voter Project <noreply@notify.muslimvoterproject.com>",
+          from: "Campaign Data Solutions <noreply@notify.muslimvoterproject.com>",
           sender_domain: "notify.muslimvoterproject.com",
           subject: reminderToBeSent.subject,
           html,

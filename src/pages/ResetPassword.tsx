@@ -68,8 +68,8 @@ export default function ResetPassword() {
     <div className="min-h-screen bg-[#0e0e0e] flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center flex items-center justify-center gap-3">
-          <img src="/logo-icon.png" alt="Muslim Voter Project" className="h-10 w-10 rounded-lg" />
-          <h1 className="font-display text-3xl font-bold text-foreground">Muslim Voter Project</h1>
+          <img src="/logo-icon.png" alt="Campaign Data Solutions" className="h-10 w-10 rounded-lg" />
+          <h1 className="font-display text-3xl font-bold text-foreground">Campaign Data Solutions</h1>
         </div>
         <Card className="surgical-glass border-[rgba(255,255,255,0.08)]">
           <CardHeader>

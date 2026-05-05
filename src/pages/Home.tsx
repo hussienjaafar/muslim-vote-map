@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { useDataOrders, useCartItems, useDataProducts, useAddToCart } from '@/queries/useDataProductQueries';
+import { useIssues, useIssueDonorDistricts, useIssueDonorStates } from '@/hooks/useIssueDonorData';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,9 +14,12 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
   Package, ShoppingCart, MapPin, ArrowRight, User, LogOut, Map,
-  Users, Vote, TrendingUp, Zap, Database, CheckCircle2, Plus,
-  UserX, CalendarOff, Clock,
+  Users, TrendingUp, Zap, Database, CheckCircle2, Plus,
+  Layers, Phone, Clock,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { HomeMiniMap } from '@/components/home/HomeMiniMap';
@@ -32,73 +36,15 @@ const statusColor: Record<string, string> = {
   cancelled: 'bg-red-500/20 text-red-400 border-red-500/30',
 };
 
-const partyColor: Record<string, string> = {
-  R: 'bg-red-500',
-  D: 'bg-blue-500',
-};
-
 const PRODUCT_ICONS: Record<string, React.ReactNode> = {
-  muslim_voters: <Users className="w-4 h-4 text-blue-400" />,
-  cell_phones: <Database className="w-4 h-4 text-violet-400" />,
-  households: <Database className="w-4 h-4 text-emerald-400" />,
-  political_activists: <TrendingUp className="w-4 h-4 text-amber-400" />,
-  political_donors: <TrendingUp className="w-4 h-4 text-rose-400" />,
-  donor_gold_count: <Zap className="w-4 h-4 text-yellow-400" />,
-  donor_silver_count: <Zap className="w-4 h-4 text-slate-300" />,
-  donor_platinum_count: <Zap className="w-4 h-4 text-cyan-400" />,
+  total_donors: <Users className="w-4 h-4 text-cyan-400" />,
+  gold_donors: <Zap className="w-4 h-4 text-yellow-400" />,
+  silver_donors: <Zap className="w-4 h-4 text-slate-300" />,
+  gold_cell_phones: <Phone className="w-4 h-4 text-violet-400" />,
+  silver_cell_phones: <Phone className="w-4 h-4 text-violet-300" />,
+  gold_addresses: <MapPin className="w-4 h-4 text-emerald-400" />,
+  silver_addresses: <MapPin className="w-4 h-4 text-emerald-300" />,
 };
-
-function useNationalStats() {
-  return useQuery({
-    queryKey: ['national-stats'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('voter_impact_states')
-        .select('muslim_voters, registered, registered_pct, vote_2024, political_activists, donor_gold_count, donor_silver_count, donor_platinum_count, cell_phones, households, political_donors');
-      if (error) throw error;
-      const totalVoters = data.reduce((s, r) => s + (r.muslim_voters || 0), 0);
-      const totalRegistered = data.reduce((s, r) => s + (r.registered || 0), 0);
-      const totalVoted2024 = data.reduce((s, r) => s + (r.vote_2024 || 0), 0);
-      const avgRegPct = data.length
-        ? data.reduce((s, r) => s + Number(r.registered_pct || 0), 0) / data.length
-        : 0;
-      const turnout2024 = totalVoters > 0 ? (totalVoted2024 / totalVoters) * 100 : 0;
-      const unregistered = totalVoters - totalRegistered;
-      const nonVoters2024 = totalVoters - totalVoted2024;
-
-      const aggregates: Record<string, number> = {
-        muslim_voters: totalVoters,
-        political_activists: data.reduce((s, r) => s + (r.political_activists || 0), 0),
-        political_donors: data.reduce((s, r) => s + (r.political_donors || 0), 0),
-        donor_gold_count: data.reduce((s, r) => s + (r.donor_gold_count || 0), 0),
-        donor_silver_count: data.reduce((s, r) => s + (r.donor_silver_count || 0), 0),
-        donor_platinum_count: data.reduce((s, r) => s + (r.donor_platinum_count || 0), 0),
-        cell_phones: data.reduce((s, r) => s + (r.cell_phones || 0), 0),
-        households: data.reduce((s, r) => s + (r.households || 0), 0),
-      };
-
-      return { totalVoters, avgRegPct, turnout2024, aggregates, stateCount: data.length, unregistered, nonVoters2024 };
-    },
-    staleTime: 10 * 60 * 1000,
-  });
-}
-
-function useImpactableDistricts() {
-  return useQuery({
-    queryKey: ['impactable-districts'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('voter_impact_districts')
-        .select('cd_code, state_code, muslim_voters, votes_needed, margin_pct, winner_party')
-        .eq('can_impact', true)
-        .order('votes_needed', { ascending: true })
-        .limit(5);
-      if (error) throw error;
-      return data;
-    },
-    staleTime: 10 * 60 * 1000,
-  });
-}
 
 function formatCompact(n: number | null | undefined): string {
   if (n == null) return '—';
@@ -107,26 +53,26 @@ function formatCompact(n: number | null | undefined): string {
   return n.toLocaleString();
 }
 
-/** Quick-add button for district cards in sidebar */
-function QuickAddButton({ district, voterProduct }: {
-  district: { cd_code: string; state_code: string; muslim_voters: number };
-  voterProduct: { id: string } | undefined;
+/** Quick-add button for top district cards in sidebar */
+function QuickAddButton({ district, product }: {
+  district: { cd_code: string; state_code: string; total_donors: number };
+  product: { id: string } | undefined;
 }) {
   const { user } = useAuth();
   const addToCart = useAddToCart();
   const [added, setAdded] = useState(false);
 
-  if (!user || !voterProduct) return null;
+  if (!user || !product) return null;
 
   const handleAdd = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
       await addToCart.mutateAsync({
-        product_id: voterProduct.id,
+        product_id: product.id,
         geo_type: 'district',
         geo_code: district.cd_code,
         geo_name: `${district.cd_code} (${district.state_code})`,
-        record_count: district.muslim_voters,
+        record_count: district.total_donors,
       });
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
@@ -144,13 +90,9 @@ function QuickAddButton({ district, voterProduct }: {
       }`}
     >
       {added ? (
-        <>
-          <CheckCircle2 className="w-3 h-3" /> Added to cart
-        </>
+        <><CheckCircle2 className="w-3 h-3" /> Added to request</>
       ) : (
-        <>
-          <Plus className="w-3 h-3" /> Add Voter List
-        </>
+        <><Plus className="w-3 h-3" /> Add to quote request</>
       )}
     </button>
   );
@@ -194,9 +136,48 @@ export default function Home() {
     enabled: !!user?.id,
   });
 
-  const { data: nationalStats } = useNationalStats();
+  const { data: issues } = useIssues();
+  const publishedIssues = useMemo(() => (issues ?? []).filter(i => i.is_published), [issues]);
+  const [activeIssueId, setActiveIssueId] = useState<string | null>(null);
+
+  // Auto-select first published issue
+  useEffect(() => {
+    if (!activeIssueId && publishedIssues.length > 0) {
+      setActiveIssueId(publishedIssues[0].id);
+    }
+  }, [publishedIssues, activeIssueId]);
+
+  const issueIds = activeIssueId ? [activeIssueId] : [];
+  const { data: issueStates } = useIssueDonorStates(issueIds);
+  const { data: issueDistricts } = useIssueDonorDistricts(issueIds);
+
+  const issueStats = useMemo(() => {
+    if (!issueStates?.length) return null;
+    const totals = issueStates.reduce((acc, s) => ({
+      total_donors: acc.total_donors + (s.total_donors || 0),
+      gold_donors: acc.gold_donors + (s.gold_donors || 0),
+      silver_donors: acc.silver_donors + (s.silver_donors || 0),
+      gold_cell_phones: acc.gold_cell_phones + (s.gold_cell_phones || 0),
+      silver_cell_phones: acc.silver_cell_phones + (s.silver_cell_phones || 0),
+      gold_addresses: acc.gold_addresses + (s.gold_addresses || 0),
+      silver_addresses: acc.silver_addresses + (s.silver_addresses || 0),
+      district_count: acc.district_count + (s.district_count || 0),
+    }), {
+      total_donors: 0, gold_donors: 0, silver_donors: 0,
+      gold_cell_phones: 0, silver_cell_phones: 0,
+      gold_addresses: 0, silver_addresses: 0, district_count: 0,
+    });
+    return { ...totals, state_count: issueStates.length };
+  }, [issueStates]);
+
+  const topDistricts = useMemo(() => {
+    if (!issueDistricts?.length) return [];
+    return [...issueDistricts]
+      .sort((a, b) => (b.total_donors || 0) - (a.total_donors || 0))
+      .slice(0, 5);
+  }, [issueDistricts]);
+
   const { data: products } = useDataProducts();
-  const { data: impactDistricts } = useImpactableDistricts();
 
   // Last login timestamp
   const { data: lastVisit } = useQuery({
@@ -209,7 +190,6 @@ export default function Home() {
         .eq('event_type', 'login')
         .order('created_at', { ascending: false })
         .limit(2);
-      // Second entry is the previous login (first is current session)
       return data && data.length > 1 ? data[1].created_at : null;
     },
     enabled: !!user?.id,
@@ -219,7 +199,6 @@ export default function Home() {
   const { shouldShowTour, completeTour } = useTourStatus();
   const [showTour, setShowTour] = useState(false);
 
-  // Auto-start tour for first-time users after a brief delay
   useEffect(() => {
     if (shouldShowTour) {
       const timer = setTimeout(() => setShowTour(true), 1000);
@@ -230,27 +209,26 @@ export default function Home() {
   const displayName = profile?.full_name || user?.email?.split('@')[0] || 'there';
   const initial = (profile?.full_name || user?.email || '?').charAt(0).toUpperCase();
 
-  // Determine if user is "new" (no orders, no cart, no saved regions)
   const isNewUser = (orders?.length ?? 0) === 0 && cartCount === 0 && (savedRegions?.length ?? 0) === 0;
 
-  // Find the voter list product for quick-add
-  const voterProduct = products?.find(p => p.source_field === 'muslim_voters');
+  // Default product for quick-add (first active product, fallback)
+  const quickAddProduct = products?.[0];
 
-  // Prefetch map assets so they're cached when user navigates to the map
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const activeIssue = publishedIssues.find(i => i.id === activeIssueId);
 
   return (
     <div className="min-h-screen bg-[hsl(0_0%_5.5%)]">
-      {/* Prefetch GeoJSON + map style for faster map page loads */}
       <link rel="prefetch" href="/geojson/us-states.json" as="fetch" crossOrigin="anonymous" />
       <link rel="prefetch" href={`${supabaseUrl}/storage/v1/object/public/geojson/congressional-districts-119.json`} as="fetch" crossOrigin="anonymous" />
       <link rel="prefetch" href="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" as="fetch" crossOrigin="anonymous" />
+
       {/* Header */}
       <header className="sticky top-0 z-40 bg-[hsl(0_0%_7.5%)]/40 backdrop-blur-2xl border-b border-white/[0.04] shadow-[0_0_20px_hsl(var(--primary)/0.05)]">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo-icon.png" alt="MVP" className="h-7 w-7 rounded-md" />
-            <span className="font-display text-sm font-semibold text-foreground hidden sm:inline">Muslim Voter Project</span>
+            <img src="/logo-icon.png" alt="CDS" className="h-7 w-7 rounded-md" />
+            <span className="font-display text-sm font-semibold text-foreground hidden sm:inline">Campaign Data Solutions</span>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -277,7 +255,6 @@ export default function Home() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8">
-        {/* Main Column */}
         <main className="flex-1 min-w-0 space-y-8">
           {/* Welcome */}
           <div>
@@ -285,7 +262,7 @@ export default function Home() {
               Welcome back, {displayName}
             </h1>
             <div className="flex items-center gap-3 mt-1">
-              <p className="text-muted-foreground text-sm">Your voter data command center.</p>
+              <p className="text-muted-foreground text-sm">Issue-based donor intelligence, district by district.</p>
               {lastVisit && (
                 <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 bg-white/[0.03] px-2 py-0.5 rounded-full">
                   <Clock className="w-3 h-3" />
@@ -295,13 +272,31 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Issue selector */}
+          {publishedIssues.length > 0 && (
+            <div className="flex items-center gap-3">
+              <Layers className="w-4 h-4 text-primary" />
+              <span className="text-sm text-muted-foreground">Active issue:</span>
+              <Select value={activeIssueId ?? undefined} onValueChange={setActiveIssueId}>
+                <SelectTrigger className="w-[260px] surgical-glass border-white/[0.06]">
+                  <SelectValue placeholder="Select an issue" />
+                </SelectTrigger>
+                <SelectContent>
+                  {publishedIssues.map(issue => (
+                    <SelectItem key={issue.id} value={issue.id}>{issue.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Full-width National Overview Map */}
           <div data-tour="mini-map">
             <HomeMiniMap />
           </div>
 
-          {/* Announcements */}
           <AnnouncementBanner />
+
           {isNewUser ? (
             <Card className="border-primary/20 bg-gradient-to-br from-primary/[0.06] to-transparent">
               <CardContent className="p-6">
@@ -310,14 +305,14 @@ export default function Home() {
                     <Map className="w-6 h-6 text-primary" />
                   </div>
                   <div className="space-y-3">
-                    <h2 className="font-display text-lg font-semibold text-foreground">Get Started with Voter Impact Data</h2>
+                    <h2 className="font-display text-lg font-semibold text-foreground">Get Started with the Issue Map</h2>
                     <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
-                      <li>Explore the map to find your target regions</li>
-                      <li>Add data products to your cart</li>
-                      <li>Submit a request — we'll help you activate your campaign</li>
+                      <li>Pick the issue your campaign is built around</li>
+                      <li>Identify your strongest districts on the map</li>
+                      <li>Add audiences and submit a quote request</li>
                     </ol>
                     <Button onClick={() => navigate('/map')} className="mt-2">
-                      Explore the Map <ArrowRight className="w-4 h-4 ml-2" />
+                      Open the Issue Map <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
                   </div>
                 </div>
@@ -331,7 +326,7 @@ export default function Home() {
                     <Package className="w-5 h-5 text-amber-400" />
                   </div>
                   <div>
-                    <p className="text-label-xs text-muted-foreground">Orders</p>
+                    <p className="text-label-xs text-muted-foreground">Quote Requests</p>
                     <p className="text-stat-hero text-foreground">{orders?.length ?? 0}</p>
                     {pendingOrders.length > 0 && (
                       <p className="text-sub-label text-amber-400">{pendingOrders.length} Pending</p>
@@ -346,7 +341,7 @@ export default function Home() {
                     <ShoppingCart className="w-5 h-5 text-blue-400" />
                   </div>
                   <div>
-                    <p className="text-label-xs text-muted-foreground">Cart Items</p>
+                    <p className="text-label-xs text-muted-foreground">Items in Request</p>
                     <p className="text-stat-hero text-foreground">{cartCount}</p>
                     {cartCount > 0 && (
                       <p className="text-sub-label text-muted-foreground">Ready to quote</p>
@@ -369,81 +364,82 @@ export default function Home() {
             </div>
           )}
 
-          {/* National Snapshot */}
+          {/* National Snapshot — issue-driven */}
           <section data-tour="national-stats">
-            <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              National Snapshot
-            </h2>
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                National Snapshot {activeIssue && <span className="text-foreground/80 normal-case tracking-normal">— {activeIssue.name}</span>}
+              </h2>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              <Card className="surgical-glass border-white/[0.06] border-t-2 border-t-blue-500/30">
+              <Card className="surgical-glass border-white/[0.06] border-t-2 border-t-cyan-500/30">
                 <CardContent className="p-4 flex items-start gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                    <Users className="w-4 h-4 text-blue-400" />
+                  <div className="h-9 w-9 rounded-lg bg-cyan-500/10 flex items-center justify-center shrink-0">
+                    <Users className="w-4 h-4 text-cyan-400" />
                   </div>
                   <div>
-                    <p className="text-label-xs text-muted-foreground">Total Voters</p>
-                    <p className="text-lg font-bold text-foreground">{nationalStats ? formatCompact(nationalStats.totalVoters) : '—'}</p>
+                    <p className="text-label-xs text-muted-foreground">Total Donors</p>
+                    <p className="text-lg font-bold text-foreground">{formatCompact(issueStats?.total_donors)}</p>
                   </div>
                 </CardContent>
               </Card>
-              <Card className="surgical-glass border-white/[0.06] border-t-2 border-t-emerald-500/30">
+              <Card className="surgical-glass border-white/[0.06] border-t-2 border-t-yellow-500/30">
                 <CardContent className="p-4 flex items-start gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
-                    <Vote className="w-4 h-4 text-emerald-400" />
+                  <div className="h-9 w-9 rounded-lg bg-yellow-500/10 flex items-center justify-center shrink-0">
+                    <Zap className="w-4 h-4 text-yellow-400" />
                   </div>
                   <div>
-                    <p className="text-label-xs text-muted-foreground">Reg. Rate</p>
-                    <p className="text-lg font-bold text-foreground">{nationalStats ? nationalStats.avgRegPct.toFixed(1) + '%' : '—'}</p>
+                    <p className="text-label-xs text-muted-foreground">Gold Donors</p>
+                    <p className="text-lg font-bold text-foreground">{formatCompact(issueStats?.gold_donors)}</p>
+                    <p className="text-[10px] text-yellow-400/80">High-value tier</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="surgical-glass border-white/[0.06] border-t-2 border-t-slate-400/30">
+                <CardContent className="p-4 flex items-start gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-slate-500/10 flex items-center justify-center shrink-0">
+                    <Zap className="w-4 h-4 text-slate-300" />
+                  </div>
+                  <div>
+                    <p className="text-label-xs text-muted-foreground">Silver Donors</p>
+                    <p className="text-lg font-bold text-foreground">{formatCompact(issueStats?.silver_donors)}</p>
                   </div>
                 </CardContent>
               </Card>
               <Card className="surgical-glass border-white/[0.06] border-t-2 border-t-violet-500/30">
                 <CardContent className="p-4 flex items-start gap-3">
                   <div className="h-9 w-9 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
-                    <TrendingUp className="w-4 h-4 text-violet-400" />
+                    <Phone className="w-4 h-4 text-violet-400" />
                   </div>
                   <div>
-                    <p className="text-label-xs text-muted-foreground">2024 Turnout</p>
-                    <p className="text-lg font-bold text-foreground">{nationalStats ? nationalStats.turnout2024.toFixed(1) + '%' : '—'}</p>
+                    <p className="text-label-xs text-muted-foreground">Cell Phones</p>
+                    <p className="text-lg font-bold text-foreground">{formatCompact((issueStats?.gold_cell_phones ?? 0) + (issueStats?.silver_cell_phones ?? 0))}</p>
                   </div>
                 </CardContent>
               </Card>
-              <Card className="surgical-glass border-white/[0.06] border-t-2 border-t-amber-500/30">
+              <Card className="surgical-glass border-white/[0.06] border-t-2 border-t-emerald-500/30">
                 <CardContent className="p-4 flex items-start gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                    <UserX className="w-4 h-4 text-amber-400" />
+                  <div className="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                    <Layers className="w-4 h-4 text-emerald-400" />
                   </div>
                   <div>
-                    <p className="text-label-xs text-muted-foreground">Unregistered</p>
-                    <p className="text-lg font-bold text-foreground">{nationalStats ? formatCompact(nationalStats.unregistered) : '—'}</p>
-                    <p className="text-[10px] text-amber-400/80">Actionable gap</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="surgical-glass border-white/[0.06] border-t-2 border-t-red-500/30">
-                <CardContent className="p-4 flex items-start gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
-                    <CalendarOff className="w-4 h-4 text-red-400" />
-                  </div>
-                  <div>
-                    <p className="text-label-xs text-muted-foreground">Non-Voters '24</p>
-                    <p className="text-lg font-bold text-foreground">{nationalStats ? formatCompact(nationalStats.nonVoters2024) : '—'}</p>
-                    <p className="text-[10px] text-red-400/80">Didn't vote in 2024</p>
+                    <p className="text-label-xs text-muted-foreground">Districts Covered</p>
+                    <p className="text-lg font-bold text-foreground">{issueStats?.district_count ?? '—'}</p>
+                    <p className="text-[10px] text-muted-foreground/80">of 435</p>
                   </div>
                 </CardContent>
               </Card>
             </div>
           </section>
 
-          {/* Data Products Catalog — conversion-optimized */}
+          {/* Audiences Catalog */}
           {products && products.length > 0 && (
             <section data-tour="data-products">
               <h2 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                Available Data Products
+                Available Audiences
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {products.map(product => {
-                  const recordCount = nationalStats?.aggregates?.[product.source_field ?? ''] ?? 0;
                   const fields = (product.data_fields as string[] | null) ?? [];
                   return (
                     <Card key={product.id} className="surgical-glass border-white/[0.06] hover:border-white/[0.12] transition-all group">
@@ -457,20 +453,10 @@ export default function Home() {
                           </div>
                         </div>
 
-                        {/* Value proposition — national record count */}
-                        {recordCount > 0 && (
-                          <p className="text-sm text-foreground/80 mb-2">
-                            <span className="font-semibold text-foreground">{formatCompact(recordCount)}</span>{' '}
-                            records across{' '}
-                            <span className="text-foreground">{nationalStats?.stateCount ?? 50} states</span>
-                          </p>
-                        )}
-
                         {product.description && (
                           <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{product.description}</p>
                         )}
 
-                        {/* Data fields chips */}
                         {fields.length > 0 && (
                           <div className="flex flex-wrap gap-1 mb-4">
                             {fields.slice(0, 5).map(field => (
@@ -492,7 +478,7 @@ export default function Home() {
                             className="w-full text-xs"
                             onClick={() => navigate('/map')}
                           >
-                            <MapPin className="w-3 h-3 mr-1.5" /> Select Regions on Map
+                            <MapPin className="w-3 h-3 mr-1.5" /> Select Districts on Map
                           </Button>
                         </div>
                       </CardContent>
@@ -514,18 +500,18 @@ export default function Home() {
                   <Map className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="font-display text-lg font-semibold text-foreground">Explore the Voter Impact Map</p>
-                  <p className="text-sm text-muted-foreground">Browse population, turnout, donors & more</p>
+                  <p className="font-display text-lg font-semibold text-foreground">Open the Issue Map</p>
+                  <p className="text-sm text-muted-foreground">See which districts care about the issues you campaign on</p>
                 </div>
               </div>
               <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
             </CardContent>
           </Card>
 
-          {/* Recent Orders */}
+          {/* Recent Quote Requests */}
           {recentOrders.length > 0 && (
             <section>
-              <h2 className="font-display text-lg font-semibold text-foreground mb-3">Recent Orders</h2>
+              <h2 className="font-display text-lg font-semibold text-foreground mb-3">Recent Quote Requests</h2>
               <div className="space-y-2">
                 {recentOrders.map(order => (
                   <Card
@@ -541,11 +527,6 @@ export default function Home() {
                         <span className="text-sm text-foreground font-mono">
                           #{order.id.slice(0, 8)}
                         </span>
-                        {order.total_amount != null && Number(order.total_amount) > 0 && (
-                          <span className="text-xs font-medium text-foreground/70">
-                            ${Number(order.total_amount).toLocaleString()}
-                          </span>
-                        )}
                       </div>
                       <span className="text-xs text-muted-foreground">
                         {format(new Date(order.created_at), 'MMM d, yyyy')}
@@ -559,52 +540,50 @@ export default function Home() {
 
           {/* Your Regions at a Glance */}
           {(savedRegions?.length ?? 0) > 0 && (
-            <YourRegionsWidget regions={savedRegions!} />
+            <YourRegionsWidget regions={savedRegions!} issueId={activeIssueId} />
           )}
         </main>
 
-        {/* Right Sidebar — Top Impactable Districts */}
+        {/* Right Sidebar — Top Districts for Active Issue */}
         <aside className="w-full lg:w-80 shrink-0">
           <div className="lg:sticky lg:top-[72px] space-y-4">
             <div className="surgical-glass border border-white/[0.06] rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap className="w-4 h-4 text-amber-400" />
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingUp className="w-4 h-4 text-primary" />
                 <h2 className="font-display text-sm font-semibold text-foreground uppercase tracking-wider">
-                  Top Impactable Districts
+                  Top Districts
                 </h2>
               </div>
+              <p className="text-[11px] text-muted-foreground mb-4">
+                {activeIssue ? `Strongest districts on ${activeIssue.name}` : 'Pick an issue to see top districts'}
+              </p>
 
-              {impactDistricts && impactDistricts.length > 0 ? (
+              {topDistricts.length > 0 ? (
                 <div className="space-y-3">
-                  {impactDistricts.map(d => (
+                  {topDistricts.map(d => (
                     <div
                       key={d.cd_code}
                       className="p-3 rounded-lg bg-white/[0.02] border border-white/[0.04] hover:border-white/[0.10] transition-colors cursor-pointer"
-                      onClick={() => navigate(`/map?region=${d.cd_code}&type=district`)}
+                      onClick={() => navigate(`/map?region=${d.cd_code}&type=district&issue=${activeIssueId ?? ''}`)}
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-mono text-sm font-semibold text-foreground">{d.cd_code}</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${partyColor[d.winner_party ?? ''] ?? 'bg-muted-foreground'}`} />
-                          <span className="text-xs text-muted-foreground">
-                            {d.winner_party ?? '?'}{d.margin_pct != null ? `+${Number(d.margin_pct).toFixed(1)}%` : ''}
-                          </span>
-                        </div>
+                        <span className="text-xs text-muted-foreground">{d.state_code}</span>
                       </div>
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-amber-400 font-semibold">
-                          ⚡ {d.votes_needed?.toLocaleString() ?? '?'} votes needed
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatCompact(d.muslim_voters)} Muslim voters
+                      <p className="text-xs text-foreground/80">
+                        <span className="font-semibold text-cyan-400">{formatCompact(d.total_donors)}</span> donors
+                        {d.gold_donors > 0 && (
+                          <span className="text-muted-foreground"> • {formatCompact(d.gold_donors)} gold</span>
+                        )}
                       </p>
-                      <QuickAddButton district={d} voterProduct={voterProduct} />
+                      <QuickAddButton district={d} product={quickAddProduct} />
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No impactable districts found.</p>
+                <p className="text-sm text-muted-foreground">
+                  {activeIssue ? 'No district data yet for this issue.' : 'No published issues available.'}
+                </p>
               )}
 
               <Button
@@ -616,12 +595,11 @@ export default function Home() {
                 Explore all on map <ArrowRight className="w-3 h-3 ml-1" />
               </Button>
             </div>
-            <RecommendedDistricts />
+            <RecommendedDistricts issueId={activeIssueId} />
           </div>
         </aside>
       </div>
 
-      {/* Guided Tour */}
       {showTour && (
         <GuidedTour
           steps={HOME_TOUR_STEPS}

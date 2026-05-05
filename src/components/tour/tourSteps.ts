@@ -12,24 +12,24 @@ export const HOME_TOUR_STEPS: TourStep[] = [
   {
     id: 'welcome',
     target: null,
-    title: 'Welcome to Muslim Voter Project',
+    title: 'Welcome to Campaign Data Solutions',
     description:
-      "Let's take a quick tour of the platform so you can start exploring voter impact data right away.",
+      "Let's take a quick tour so you can start finding the strongest districts for the issues you campaign on.",
   },
   {
     id: 'account-menu',
     target: '[data-tour="account-menu"]',
     title: 'Your Account',
     description:
-      'Access your profile, orders, saved regions, and settings from this menu.',
+      'Access your profile, requests, saved regions, and settings from this menu.',
     position: 'bottom',
   },
   {
     id: 'mini-map',
     target: '[data-tour="mini-map"]',
-    title: 'Interactive US Map',
+    title: 'National Issue Map',
     description:
-      'Click any state on this map to jump straight to the full interactive map with detailed voter data.',
+      'Click any state to open the full Issue Map with district-level donor and activist data.',
     position: 'bottom',
   },
   {
@@ -37,15 +37,15 @@ export const HOME_TOUR_STEPS: TourStep[] = [
     target: '[data-tour="national-stats"]',
     title: 'National Snapshot',
     description:
-      'These cards show a high-level overview of nationwide Muslim voter data — population, registration rate, and turnout.',
+      'A high-level view of issue-based donor coverage across all 435 congressional districts.',
     position: 'bottom',
   },
   {
     id: 'data-products',
     target: '[data-tour="data-products"]',
-    title: 'Data Products',
+    title: 'Available Audiences',
     description:
-      'Browse available data products — voter lists, donor files, cell phones, and more. Select regions on the map to add them to your cart.',
+      'Browse audiences — issue donor lists, cell phones, addresses. Select regions on the map to add them to a quote request.',
     position: 'top',
   },
 ];
@@ -54,16 +54,16 @@ export const MAP_TOUR_STEPS: TourStep[] = [
   {
     id: 'map-welcome',
     target: null,
-    title: 'The Interactive Voter Impact Map',
+    title: 'The Issue Map',
     description:
-      'This is your main tool for exploring Muslim voter data across every state and congressional district.',
+      'Your main tool for exploring issue-based donor and activist data across every state and congressional district.',
   },
   {
     id: 'metric-controls',
     target: '[data-tour="metric-controls"]',
     title: 'Switch Metrics',
     description:
-      'Toggle between Population, Turnout, Donors, Activists, and Impact views to see different data layers on the map.',
+      'Toggle between donor tiers, cell phones, and addresses to see different data layers for the selected issue.',
     position: 'bottom',
   },
   {
@@ -71,7 +71,7 @@ export const MAP_TOUR_STEPS: TourStep[] = [
     target: '[data-tour="map-canvas"]',
     title: 'Explore States & Districts',
     description:
-      'Click any state to see its data. Zoom in to reveal individual congressional districts with detailed metrics.',
+      'Click any state to drill in. Zoom to reveal individual congressional districts with detailed counts.',
     position: 'top',
   },
   {
@@ -79,15 +79,15 @@ export const MAP_TOUR_STEPS: TourStep[] = [
     target: '[data-tour="region-search"]',
     title: 'Search Regions',
     description:
-      'Quickly find any state or district by name or code using the search tool.',
+      'Quickly find any state or district by name or code.',
     position: 'bottom',
   },
   {
     id: 'cart-icon',
     target: '[data-tour="cart-icon"]',
-    title: 'Your Data Cart',
+    title: 'Your Quote Request',
     description:
-      'As you add data products from the sidebar, they appear here. Review your selections and submit a quote request when ready.',
+      'As you add audiences from the sidebar, they appear here. Review your selections and submit a quote request when ready.',
     position: 'bottom',
   },
 ];

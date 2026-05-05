@@ -217,6 +217,12 @@ export function IssueRegionSidebar({
               </div>
             );
           })}
+
+          {/* Add to quote request */}
+          <AddToQuoteSection
+            region={region}
+            totalForMetric={totalForMetric}
+          />
       </div>
     </>
   );

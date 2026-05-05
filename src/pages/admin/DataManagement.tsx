@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Download, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { VoterImpactDataImport } from '@/components/admin/VoterImpactDataImport';
 import { ElectionResultsImport } from '@/components/admin/ElectionResultsImport';
 
 function useStates() {
@@ -79,7 +78,7 @@ export default function DataManagement() {
       {/* Header */}
       <div>
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold text-foreground tracking-tight">Data Management</h2>
-        <p className="text-sm text-muted-foreground mt-2 max-w-md">State and district voter data management.</p>
+        <p className="text-sm text-muted-foreground mt-2 max-w-md">Election context data (winner, margin, turnout) used by the Issue Map. Issue donor data is uploaded from the Map page.</p>
       </div>
 
       {/* Surgical tabs */}
@@ -256,13 +255,10 @@ export default function DataManagement() {
 
         {/* Import Tab */}
         <TabsContent value="import">
-          <VoterImpactDataImport />
-          <div className="mt-6">
-            <ElectionResultsImport />
-          </div>
+          <ElectionResultsImport />
           <div className="mt-6 p-4 rounded-md border border-white/5 bg-[#1c1c1e]/60 text-xs text-muted-foreground">
             Looking for the <span className="text-foreground font-medium">Issue Donor</span> importer? It now lives on the
-            <a href="/admin/issue-map" className="text-blue-400 hover:underline ml-1">Issue Map page</a>, alongside the map it powers.
+            <a href="/admin/issue-map" className="text-blue-400 hover:underline ml-1">Map page</a>, alongside the map it powers.
           </div>
         </TabsContent>
       </Tabs>

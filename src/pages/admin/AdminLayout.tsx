@@ -17,8 +17,7 @@ const navItems = [
   { title: 'Orders', url: '/admin/orders', icon: ShoppingCart },
   { title: 'Products', url: '/admin/products', icon: Package },
   { title: 'Data', url: '/admin/data', icon: Database },
-  { title: 'Map', url: '/admin/voter-impact-map', icon: Map },
-  { title: 'Issue Map', url: '/admin/issue-map', icon: Target },
+  { title: 'Map', url: '/admin/issue-map', icon: Map },
   { title: 'Live', url: '/admin/live', icon: Activity },
 ];
 
@@ -27,12 +26,11 @@ const mobilePrimary = [
   { title: 'Home', url: '/admin', icon: LayoutDashboard, end: true },
   { title: 'Users', url: '/admin/users', icon: Users },
   { title: 'Orders', url: '/admin/orders', icon: ShoppingCart },
-  { title: 'Map', url: '/admin/voter-impact-map', icon: Map },
+  { title: 'Map', url: '/admin/issue-map', icon: Map },
 ];
 const mobileOverflow = [
   { title: 'Products', url: '/admin/products', icon: Package },
   { title: 'Data', url: '/admin/data', icon: Database },
-  { title: 'Issue Map', url: '/admin/issue-map', icon: Target },
   { title: 'Live Activity', url: '/admin/live', icon: Activity },
 ];
 
@@ -70,8 +68,8 @@ export default function AdminLayout() {
       <header className="fixed top-0 w-full z-nav-bar bg-[#131313]/40 backdrop-blur-xl border-b border-white/10 flex justify-between items-center px-3 sm:px-6 h-14 sm:h-16 shadow-[0_0_20px_rgba(59,130,246,0.05)]">
         <div className="flex items-center gap-8 min-w-0">
           <h1 className="text-base sm:text-xl font-bold text-white tracking-tighter font-display truncate">
-            <span className="hidden sm:inline">Muslim Voter Project</span>
-            <span className="sm:hidden">MVP Admin</span>
+            <span className="hidden sm:inline">Campaign Data Solutions</span>
+            <span className="sm:hidden">CDS Admin</span>
           </h1>
         </div>
         <div className="flex items-center gap-1 sm:gap-4">
@@ -186,7 +184,7 @@ function MobileBottomNav() {
     end ? location.pathname === url : location.pathname.startsWith(url);
 
   // Hide on map pages where the page owns its own bottom UI (legend, sheet)
-  const hideOnMaps = location.pathname.includes('/voter-impact-map') || location.pathname.includes('/issue-map');
+  const hideOnMaps = location.pathname.includes('/issue-map');
   if (hideOnMaps) return null;
 
   return (

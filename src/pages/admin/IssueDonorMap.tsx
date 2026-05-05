@@ -28,7 +28,7 @@ const METRIC_OPTIONS: { key: IssueMetric; label: string; short: string }[] = [
   { key: 'silver_cell_phones', label: 'Silver Cell Phones', short: 'S. Cells' },
 ];
 
-export default function IssueDonorMap() {
+export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: boolean } = {}) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { data: allIssues, isLoading: issuesLoading } = useIssues();
@@ -100,18 +100,20 @@ export default function IssueDonorMap() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/admin')}
+            onClick={() => navigate(isAdminView ? '/admin' : '/home')}
             className="gap-1.5 text-muted-foreground hover:text-foreground px-2 sm:px-3"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Admin</span>
+            <span className="hidden sm:inline">{isAdminView ? 'Admin' : 'Home'}</span>
           </Button>
           <div className="flex items-center gap-2 min-w-0">
             <MapIcon className="h-4 w-4 text-blue-400 shrink-0" />
-            <h1 className="text-sm font-display font-bold tracking-tight truncate">Issue Donor Map</h1>
-            <span className="hidden lg:inline text-[10px] uppercase tracking-[0.15em] text-amber-400 ml-2 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 shrink-0">
-              Admin Preview
-            </span>
+            <h1 className="text-sm font-display font-bold tracking-tight truncate">Issue Map</h1>
+            {isAdminView && (
+              <span className="hidden lg:inline text-[10px] uppercase tracking-[0.15em] text-amber-400 ml-2 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 shrink-0">
+                Admin
+              </span>
+            )}
           </div>
 
           <div className="flex-1" />
@@ -123,17 +125,19 @@ export default function IssueDonorMap() {
             onSelect={(code, type) => setRegion({ code, type })}
           />
 
-          {/* Upload button — icon only on mobile */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setUploadOpen(true)}
-            className="gap-1.5 border-white/10 bg-[#1c1c1e]/80 text-muted-foreground hover:text-foreground hover:bg-white/5 px-2 sm:px-3 min-h-[40px] sm:min-h-0"
-            aria-label="Upload data"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Upload Data</span>
-          </Button>
+          {/* Upload button — admin only */}
+          {isAdminView && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setUploadOpen(true)}
+              className="gap-1.5 border-white/10 bg-[#1c1c1e]/80 text-muted-foreground hover:text-foreground hover:bg-white/5 px-2 sm:px-3 min-h-[40px] sm:min-h-0"
+              aria-label="Upload data"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Upload Data</span>
+            </Button>
+          )}
 
           {/* Desktop metric toggle (≥md) */}
           <div className="hidden md:flex gap-1 bg-[#1c1c1e]/80 backdrop-blur-md rounded-lg border border-white/8 p-1 overflow-x-auto max-w-[60vw]">
@@ -377,7 +381,7 @@ export default function IssueDonorMap() {
           <DialogHeader>
             <DialogTitle className="font-display">Upload Issue Donor Data</DialogTitle>
             <DialogDescription>
-              Upload a multi-sheet XLSX file. Each sheet becomes an issue. This only updates issue donor tables — Muslim voter data is unaffected.
+              Upload a multi-sheet XLSX file. Each sheet becomes an issue.
             </DialogDescription>
           </DialogHeader>
           <IssueDonorImport />

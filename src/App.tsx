@@ -11,7 +11,6 @@ import Home from "./pages/Home.tsx";
 import Signup from "./pages/Signup.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
-import VoterImpactMap from "./pages/admin/VoterImpactMap.tsx";
 import IssueDonorMap from "./pages/admin/IssueDonorMap.tsx";
 import Account from "./pages/Account.tsx";
 import AdminLayout from "./pages/admin/AdminLayout.tsx";
@@ -49,7 +48,7 @@ const App = () => (
 
           {/* Auth-gated routes */}
           <Route path="/home" element={<AuthGuard><Home /></AuthGuard>} />
-          <Route path="/map" element={<AuthGuard><VoterImpactMap /></AuthGuard>} />
+          <Route path="/map" element={<AuthGuard><IssueDonorMap /></AuthGuard>} />
           <Route path="/account" element={<AuthGuard><Account /></AuthGuard>} />
 
           {/* Admin routes — sidebar layout */}
@@ -65,8 +64,7 @@ const App = () => (
             <Route path="orders/:orderId" element={<OrderDetail />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="data" element={<DataManagement />} />
-            <Route path="voter-impact-map" element={<VoterImpactMap />} />
-            <Route path="issue-map" element={<IssueDonorMap />} />
+            <Route path="issue-map" element={<IssueDonorMap isAdminView />} />
             <Route path="live" element={<LiveActivity />} />
           </Route>
 

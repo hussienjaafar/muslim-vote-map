@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { X } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { X, Plus, CheckCircle2 } from 'lucide-react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import type { Issue, IssueDonorDistrict, IssueDonorState, IssueMetric } from '@/hooks/useIssueDonorData';
 import { useVoterDistrictContext, useVoterStateContext } from '@/hooks/useIssueDonorData';
@@ -7,6 +7,8 @@ import { getIssuePalette } from '@/lib/issueColors';
 import { STATE_ABBREVIATIONS } from '@/lib/us-states';
 import { formatNumber, formatPercent } from '@/lib/geoUtils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAuth } from '@/hooks/useAuth';
+import { useAddToCart, useDataProducts } from '@/queries/useDataProductQueries';
 
 interface IssueRegionSidebarProps {
   open: boolean;
@@ -215,6 +217,12 @@ export function IssueRegionSidebar({
               </div>
             );
           })}
+
+          {/* Add to quote request */}
+          <AddToQuoteSection
+            region={region}
+            totalForMetric={totalForMetric}
+          />
       </div>
     </>
   );
@@ -246,6 +254,80 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
         {label}
       </p>
       <p className="tabular-nums text-sm text-foreground mt-0.5">{value}</p>
+    </div>
+  );
+}
+
+function AddToQuoteSection({
+  region,
+  totalForMetric,
+}: {
+  region: { code: string; type: 'state' | 'district' };
+  totalForMetric: number;
+}) {
+  const { user } = useAuth();
+  const { data: products } = useDataProducts();
+  const addToCart = useAddToCart();
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+
+  if (!user || !products?.length) return null;
+
+  const geoName = region.type === 'district'
+    ? `District ${region.code}`
+    : (STATE_ABBREVIATIONS[region.code] || region.code);
+
+  const handleAdd = async (productId: string) => {
+    try {
+      await addToCart.mutateAsync({
+        product_id: productId,
+        geo_type: region.type,
+        geo_code: region.code,
+        geo_name: geoName,
+        record_count: totalForMetric,
+      });
+      setAddedIds(prev => new Set(prev).add(productId));
+      setTimeout(() => {
+        setAddedIds(prev => {
+          const next = new Set(prev);
+          next.delete(productId);
+          return next;
+        });
+      }, 2000);
+    } catch { /* handled by mutation */ }
+  };
+
+  return (
+    <div className="border border-primary/20 rounded-md p-4 bg-primary/[0.04]">
+      <p className="text-[10px] uppercase tracking-[0.15em] text-primary font-display mb-3">
+        Add to Quote Request
+      </p>
+      <div className="space-y-2">
+        {products.map(p => {
+          const added = addedIds.has(p.id);
+          return (
+            <button
+              key={p.id}
+              onClick={() => handleAdd(p.id)}
+              disabled={addToCart.isPending || added}
+              className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all border ${
+                added
+                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                  : 'bg-white/[0.02] text-foreground hover:bg-primary/10 border-white/[0.06] hover:border-primary/30'
+              }`}
+            >
+              <span className="truncate text-left">{p.name}</span>
+              {added ? (
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              ) : (
+                <Plus className="w-3.5 h-3.5 shrink-0 text-primary" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
+        Quote-only — no charge. Submit your request and our team will follow up with pricing and delivery.
+      </p>
     </div>
   );
 }

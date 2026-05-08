@@ -226,7 +226,8 @@ function SecurityTab() {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
-      toast.success('Password reset link sent to your email');
+      toast.success('Password reset code sent — check your email.');
+      navigate(`/reset-password?email=${encodeURIComponent(user.email)}`);
     } catch (err: any) {
       toast.error(err.message);
     } finally {

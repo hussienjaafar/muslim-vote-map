@@ -54,8 +54,8 @@ export default function Login() {
         redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
-      toast.success('Check your email for a password reset link.');
-      setMode('login');
+      toast.success('Check your email for a 6-digit reset code.');
+      navigate(`/reset-password?email=${encodeURIComponent(email)}`);
     } catch (err: any) {
       toast.error(err.message);
     } finally {

@@ -1,57 +1,59 @@
-## Goal
-Eliminate "Muslim voter" framing from the live UI and convert the Home National Overview to issue-scoped donor data, in line with the project memory rule: "NEVER use ... 'Muslim voter' framing. ALWAYS use activate, reach, campaign, audience..."
+# Password recovery — unblock + permanent fix
 
-## Audit findings
+## Part A — Immediate unblock (one-shot)
 
-**Live, user-visible (must fix):**
-- `src/components/home/HomeMiniMap.tsx` — National Overview tooltip says "Michigan: 0 muslim voters", metrics are `population/turnout/donors` from `voter_impact_states.muslim_voters`. This is the screenshot.
-- `src/pages/Home.tsx` line 295 — uses `HomeMiniMap`. (Container only.)
-- `src/lib/colorScales.ts` — `metricLabels.population = 'Muslim Voters'` (powers the tooltip text above).
-- `src/components/landing/MapFlyover.tsx` — landing-page hero animation colored by `muslim_voters`.
+Goal: get `hussein@molitico.com` a working recovery link without going through email (where scanners are pre-consuming the token).
 
-**Legacy / not routed (verify dead, then leave or delete):**
-- `src/components/voter-impact/*` (RegionSidebar, ImpactMap, RegionSearch, ComparePanel, MapControls, DataCart, etc.) — per memory the Voter Impact Map was removed. Confirm no route imports them; if dead, delete.
-- `src/pages/Admin.tsx` — old standalone admin uploader referencing `muslim_voters`/`muslim_registered`. Confirm replaced by `src/pages/admin/*` and remove if unused.
-- `src/hooks/useVoterData.ts`, `src/hooks/useImpactMapLayers.ts` — only used by voter-impact components; remove if those are removed.
+1. Create a temporary edge function `admin-generate-recovery-link`:
+   - Uses `SUPABASE_SERVICE_ROLE_KEY` (already in secrets).
+   - Requires header `x-admin-secret` matching a new secret `ADMIN_TOOLS_SECRET` (one-shot, deleted after use).
+   - Accepts `{ email }`, calls `supabase.auth.admin.generateLink({ type: 'recovery', email, options: { redirectTo: 'https://campaigndata.solutions/reset-password' } })`.
+   - Returns `{ action_link }`.
+2. Deploy it, invoke once for `hussein@molitico.com`, post the link in chat for a single click.
+3. Delete the function and `ADMIN_TOOLS_SECRET` immediately after success.
 
-**Backend / DB (keep, do not touch):**
-- `voter_impact_districts/states.muslim_*` columns — memory: "kept only as read-only election context". Leave columns; just stop surfacing the label.
-- `src/integrations/supabase/types.ts` — auto-generated, do not edit.
-- Migration files — historical, do not edit.
+## Part B — Permanent fix: OTP-code recovery (no clickable link to prefetch)
 
-**Email/branding (separate concern — defer):**
-- `muslimvoterproject.com` URLs and `notify.muslimvoterproject.com` sender across edge functions and email templates. Per memory: "Email sender domain still notify.muslimvoterproject.com — domain rebrand deferred." Skip unless you confirm otherwise.
+Replace the link-only recovery with a 6-digit OTP code so email scanners can't consume the token.
 
-## Plan
+### 1. Email template
+- File: `supabase/functions/_shared/email-templates/recovery.tsx`
+- Show `{token}` prominently (large monospace 6-digit code).
+- Keep the link as a small secondary fallback ("or click here").
+- Subject stays "Reset your password".
 
-### 1. Convert Home National Overview to issue data
-Rewrite `HomeMiniMap.tsx` to:
-- Accept the active issue (read from existing `activeIssueId` state in `Home.tsx` and pass via prop).
-- Pull from `issue_donor_states` (via `useIssueDonorStates([activeIssueId])`) instead of `voter_impact_states`.
-- Replace the metric toggle with issue metrics: **Total Donors / Gold Donors / Silver Donors** (matches `/map`).
-- Tooltip format: `"Michigan: 12,400 total donors"` (no "muslim").
-- Color scale: reuse the issue color palette from `src/lib/issueColors.ts` (already used by IssueMap), keyed off the chosen metric.
-- On click, navigate to `/map?region=XX&type=state&issue=<id>` so context carries through.
+### 2. Auth hook
+- File: `supabase/functions/auth-email-hook/index.ts`
+- Pass `token: payload.data.token` into `RecoveryEmail` props (already wired).
+- Redeploy `auth-email-hook`.
 
-### 2. Update labels in `colorScales.ts`
-- Change `metricLabels.population` from `'Muslim Voters'` to `'Population'` (kept for any remaining legacy reads). If voter-impact components are deleted in step 4, this whole file's `population/turnout/donors` legacy section can go too.
+### 3. Reset password UX
+- `src/pages/Login.tsx` (Forgot flow):
+  - After `resetPasswordForEmail`, navigate to `/reset-password?email=<email>` with toast "Check your email for a 6-digit code".
+- `src/pages/Account.tsx`: same redirect after self-initiated reset.
+- `src/pages/ResetPassword.tsx` rewrite:
+  - Read `?email=` from query.
+  - Step 1: input 6-digit code → `supabase.auth.verifyOtp({ email, token, type: 'recovery' })`.
+  - Step 2 (after verifyOtp success → user is now authenticated): show new-password form → `supabase.auth.updateUser({ password })`.
+  - Keep legacy hash-based path (`type=recovery` in hash) working as a fallback for any in-flight email links.
 
-### 3. Fix landing flyover
-- `MapFlyover.tsx`: switch its color source to neutral state metadata (e.g., paint by `vote_2024_pct` or just an aesthetic gradient by FIPS) so we stop reading `muslim_voters` for marketing visuals.
+### 4. Auth settings
+- Bump recovery OTP TTL from 1h → 24h via `configure_auth` (defense in depth).
 
-### 4. Remove dead voter-impact code (only if unrouted)
-After grepping `App.tsx` and the admin layout, delete any of these that have zero importers:
-- `src/components/voter-impact/` directory
-- `src/hooks/useVoterData.ts`, `src/hooks/useImpactMapLayers.ts`
-- `src/pages/Admin.tsx` (legacy standalone admin), if `src/pages/admin/*` covers everything.
+## Technical notes
 
-If anything is still referenced, leave the file but rename user-facing labels ("Muslim Voters" → "Population" or remove the row entirely).
+- `auth.admin.generateLink` with `type: 'recovery'` returns a single-use link that bypasses email — same token mechanism, just delivered through the agent.
+- OTP codes from Supabase are 6 digits, valid for the recovery TTL, single-use, and not consumable by URL prefetchers.
+- `verifyOtp({ type: 'recovery' })` establishes a session, after which `updateUser({ password })` works exactly like today.
+- No DB schema changes.
 
-### 5. Verification pass
-- Re-run `rg -i muslim src/` — every remaining hit should be either (a) auto-generated `types.ts`, (b) a migration file, or (c) inside a deleted directory. No live UI string should match.
-- Smoke test `/home` (tooltip wording, metric toggle), `/` (landing flyover still renders), `/map` (unchanged).
+## Files touched
+- New (temporary): `supabase/functions/admin-generate-recovery-link/index.ts`
+- `supabase/functions/_shared/email-templates/recovery.tsx`
+- `src/pages/ResetPassword.tsx`
+- `src/pages/Login.tsx`
+- `src/pages/Account.tsx`
 
-## Notes
-- No DB migrations. Data model unchanged.
-- No changes to email infra (deferred per memory).
-- Issue-based metrics on the home overview require an active issue; if no issues are published yet we'll fall back to a neutral grey map with "Select an issue to see donor data" hint.
+## Out of scope
+- Migrating signup / magic-link / email-change to OTP (only recovery is broken).
+- Domain/branding changes.

@@ -32,7 +32,7 @@ function buildReminderHtml(email: string, signupUrl: string, reminderNum: 1 | 2 
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
         <tr>
           <td style="background-color:#0c1018;padding:32px 40px;text-align:center;">
-            <img src="https://muslimvoterproject.com/logo-icon.png" alt="Campaign Data Solutions" width="48" height="48" style="display:block;margin:0 auto 8px auto;border-radius:8px;" />
+            <img src="https://campaigndata.solutions/logo-icon.png" alt="Campaign Data Solutions" width="48" height="48" style="display:block;margin:0 auto 8px auto;border-radius:8px;" />
             <h1 style="color:#e8ecf0;font-size:20px;margin:8px 0 0 0;font-weight:600;">Campaign Data Solutions</h1>
           </td>
         </tr>
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const baseUrl = Deno.env.get("SITE_URL") || "https://muslimvoterproject.com";
+    const baseUrl = Deno.env.get("SITE_URL") || "https://campaigndata.solutions";
 
     // 1. Get all pending invites (not accepted)
     const { data: pendingInvites, error: invError } = await supabase
@@ -194,8 +194,8 @@ Deno.serve(async (req) => {
           idempotency_key: idempotencyKey,
           unsubscribe_token: unsubscribeToken,
           to: email,
-          from: "Campaign Data Solutions <noreply@notify.muslimvoterproject.com>",
-          sender_domain: "notify.muslimvoterproject.com",
+          from: "Campaign Data Solutions <noreply@notify.campaigndata.solutions>",
+          sender_domain: "notify.campaigndata.solutions",
           subject: reminderToBeSent.subject,
           html,
           text: plainText,

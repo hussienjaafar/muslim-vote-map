@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const baseUrl = Deno.env.get("SITE_URL") || "https://muslimvoterproject.com";
+    const baseUrl = Deno.env.get("SITE_URL") || "https://campaigndata.solutions";
     let subject: string;
     let bodyHtml: string;
     let bodyText: string;
@@ -205,8 +205,8 @@ Deno.serve(async (req) => {
           message_id: messageId,
           idempotency_key: messageId,
           to: recipientEmail,
-          from: `Campaign Data Solutions <noreply@notify.muslimvoterproject.com>`,
-          sender_domain: "notify.muslimvoterproject.com",
+          from: `Campaign Data Solutions <noreply@notify.campaigndata.solutions>`,
+          sender_domain: "notify.campaigndata.solutions",
           subject,
           html: fullHtml,
           text: bodyText,
@@ -283,8 +283,8 @@ Deno.serve(async (req) => {
           message_id: messageId,
           idempotency_key: messageId,
           to: adminEmail,
-          from: `Campaign Data Solutions <noreply@notify.muslimvoterproject.com>`,
-          sender_domain: "notify.muslimvoterproject.com",
+          from: `Campaign Data Solutions <noreply@notify.campaigndata.solutions>`,
+          sender_domain: "notify.campaigndata.solutions",
           subject,
           html: fullHtml,
           text: bodyText,

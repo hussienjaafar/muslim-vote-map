@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const baseUrl = Deno.env.get("SITE_URL") || "https://muslimvoterproject.com";
+    const baseUrl = Deno.env.get("SITE_URL") || "https://campaigndata.solutions";
     const signupUrl = `${baseUrl}/signup?email=${encodeURIComponent(email)}`;
     const isAdminInvite = inviteType === "admin";
     const subject = isAdminInvite
@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
         <!-- Header -->
         <tr>
           <td style="background-color:#0c1018;padding:32px 40px;text-align:center;">
-            <img src="https://muslimvoterproject.com/logo-icon.png" alt="Campaign Data Solutions" width="48" height="48" style="display:block;margin:0 auto 8px auto;border-radius:8px;" />
+            <img src="https://campaigndata.solutions/logo-icon.png" alt="Campaign Data Solutions" width="48" height="48" style="display:block;margin:0 auto 8px auto;border-radius:8px;" />
             <h1 style="color:#e8ecf0;font-size:20px;margin:8px 0 0 0;font-weight:600;">Campaign Data Solutions</h1>
           </td>
         </tr>
@@ -159,8 +159,8 @@ Deno.serve(async (req) => {
         idempotency_key: messageId,
         unsubscribe_token: unsubscribeToken,
         to: email,
-        from: `Campaign Data Solutions <noreply@notify.muslimvoterproject.com>`,
-        sender_domain: "notify.muslimvoterproject.com",
+        from: `Campaign Data Solutions <noreply@notify.campaigndata.solutions>`,
+        sender_domain: "notify.campaigndata.solutions",
         subject,
         html,
         text: plainText,

@@ -32,6 +32,7 @@ const METRIC_OPTIONS: { key: IssueMetric; label: string; short: string }[] = [
 export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: boolean } = {}) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { isAdmin } = useAuth();
   const { data: allIssues, isLoading: issuesLoading } = useIssues();
   const [selectedIssueIds, setSelectedIssueIds] = useState<string[]>([]);
   const [metric, setMetric] = useState<IssueMetric>('total_donors');

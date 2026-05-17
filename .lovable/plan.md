@@ -1,37 +1,19 @@
-## Issue
+## Problem
 
-The auth-email-hook (password reset, magic link, etc.) was rebranded to `notify.campaigndata.solutions`, but the **invite + admin notification + invite-reminder** flows were missed. They still send from `noreply@notify.muslimvoterproject.com`, link to `https://muslimvoterproject.com/signup?...`, and embed a logo from `https://muslimvoterproject.com/logo-icon.png`. That's the MVP branding the user is seeing in invite emails.
+On `/map` (the Issue Map for regular users), the back button takes the user to `/home`. There's no way for a system admin viewing `/map` to jump to `/admin`. They have to manually edit the URL.
 
-A few shared `_shared/email-templates/*.tsx` files (signup, magic-link, invite, email-change, reauthentication) also still reference the MVP logo URL, though most aren't actively sent (recovery.tsx was already updated). Cleaning them up keeps the codebase consistent.
+## Fix
 
-## Files to update
+In `src/pages/admin/IssueDonorMap.tsx`, when `isAdminView` is `false` (i.e., user-facing `/map`), check `useAuth().isAdmin`. If true, render a small **"Admin"** shortcut button in the top header that navigates to `/admin`.
 
-**Active senders (must change — these are what the user sees):**
-1. `supabase/functions/send-invite-email/index.ts`
-   - `SITE_URL` default → `https://campaigndata.solutions`
-   - Logo `<img src>` → `https://campaigndata.solutions/logo-icon.png`
-   - `from` → `Campaign Data Solutions <noreply@notify.campaigndata.solutions>`
-   - `sender_domain` → `notify.campaigndata.solutions`
-2. `supabase/functions/notify-admins/index.ts` — same four changes (two `from`/`sender_domain` blocks)
-3. `supabase/functions/process-invite-reminders/index.ts` — same four changes
-4. `supabase/functions/auth-email-hook/index.ts` — update `SAMPLE_PROJECT_URL` constant for consistency
+Placement: in the existing top-bar action row, just before the "Upload Data" slot (which is admin-only on the admin view). Use the same `variant="outline" size="sm"` styling as the Upload Data button for visual consistency. Icon: `Shield` from lucide-react. Label hidden on mobile (`hidden sm:inline`) to match the existing pattern.
 
-**Shared templates (cosmetic — update logo URL only):**
-5. `_shared/email-templates/signup.tsx`
-6. `_shared/email-templates/magic-link.tsx`
-7. `_shared/email-templates/invite.tsx`
-8. `_shared/email-templates/email-change.tsx`
-9. `_shared/email-templates/reauthentication.tsx`
+No behavior change for non-admins or for the admin route `/admin/issue-map` (which already has sidebar nav).
 
-## Deploy
+## Files
 
-Redeploy: `send-invite-email`, `notify-admins`, `process-invite-reminders`, `auth-email-hook`.
-
-## Verify
-
-Re-send a test invite from the admin panel and confirm the From address, logo, and signup link all show `campaigndata.solutions`.
+- `src/pages/admin/IssueDonorMap.tsx` — import `useAuth`, import `Shield` icon, add conditional button.
 
 ## Out of scope
 
-- `public/robots.txt` sitemap line (separate concern — points to `campaigndatasolutions.com` without dot, may also be wrong but not invite-related).
-- No DB or RLS changes.
+Nothing else. No route changes, no auth changes, no styling overhaul.

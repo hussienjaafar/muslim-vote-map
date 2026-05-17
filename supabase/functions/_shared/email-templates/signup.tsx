@@ -33,7 +33,7 @@ export const SignupEmail = ({
     <Preview>Confirm your email for Campaign Data Solutions</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Img src="https://muslimvoterproject.com/logo-icon.png" alt="Campaign Data Solutions" width="48" height="48" style={logo} />
+        <Img src="https://campaigndata.solutions/logo-icon.png" alt="Campaign Data Solutions" width="48" height="48" style={logo} />
         <Heading style={h1}>Confirm your email</Heading>
         <Text style={text}>
           Thanks for signing up for{' '}

@@ -1,59 +1,37 @@
-# Password recovery — unblock + permanent fix
+## Issue
 
-## Part A — Immediate unblock (one-shot)
+The auth-email-hook (password reset, magic link, etc.) was rebranded to `notify.campaigndata.solutions`, but the **invite + admin notification + invite-reminder** flows were missed. They still send from `noreply@notify.muslimvoterproject.com`, link to `https://muslimvoterproject.com/signup?...`, and embed a logo from `https://muslimvoterproject.com/logo-icon.png`. That's the MVP branding the user is seeing in invite emails.
 
-Goal: get `hussein@molitico.com` a working recovery link without going through email (where scanners are pre-consuming the token).
+A few shared `_shared/email-templates/*.tsx` files (signup, magic-link, invite, email-change, reauthentication) also still reference the MVP logo URL, though most aren't actively sent (recovery.tsx was already updated). Cleaning them up keeps the codebase consistent.
 
-1. Create a temporary edge function `admin-generate-recovery-link`:
-   - Uses `SUPABASE_SERVICE_ROLE_KEY` (already in secrets).
-   - Requires header `x-admin-secret` matching a new secret `ADMIN_TOOLS_SECRET` (one-shot, deleted after use).
-   - Accepts `{ email }`, calls `supabase.auth.admin.generateLink({ type: 'recovery', email, options: { redirectTo: 'https://campaigndata.solutions/reset-password' } })`.
-   - Returns `{ action_link }`.
-2. Deploy it, invoke once for `hussein@molitico.com`, post the link in chat for a single click.
-3. Delete the function and `ADMIN_TOOLS_SECRET` immediately after success.
+## Files to update
 
-## Part B — Permanent fix: OTP-code recovery (no clickable link to prefetch)
+**Active senders (must change — these are what the user sees):**
+1. `supabase/functions/send-invite-email/index.ts`
+   - `SITE_URL` default → `https://campaigndata.solutions`
+   - Logo `<img src>` → `https://campaigndata.solutions/logo-icon.png`
+   - `from` → `Campaign Data Solutions <noreply@notify.campaigndata.solutions>`
+   - `sender_domain` → `notify.campaigndata.solutions`
+2. `supabase/functions/notify-admins/index.ts` — same four changes (two `from`/`sender_domain` blocks)
+3. `supabase/functions/process-invite-reminders/index.ts` — same four changes
+4. `supabase/functions/auth-email-hook/index.ts` — update `SAMPLE_PROJECT_URL` constant for consistency
 
-Replace the link-only recovery with a 6-digit OTP code so email scanners can't consume the token.
+**Shared templates (cosmetic — update logo URL only):**
+5. `_shared/email-templates/signup.tsx`
+6. `_shared/email-templates/magic-link.tsx`
+7. `_shared/email-templates/invite.tsx`
+8. `_shared/email-templates/email-change.tsx`
+9. `_shared/email-templates/reauthentication.tsx`
 
-### 1. Email template
-- File: `supabase/functions/_shared/email-templates/recovery.tsx`
-- Show `{token}` prominently (large monospace 6-digit code).
-- Keep the link as a small secondary fallback ("or click here").
-- Subject stays "Reset your password".
+## Deploy
 
-### 2. Auth hook
-- File: `supabase/functions/auth-email-hook/index.ts`
-- Pass `token: payload.data.token` into `RecoveryEmail` props (already wired).
-- Redeploy `auth-email-hook`.
+Redeploy: `send-invite-email`, `notify-admins`, `process-invite-reminders`, `auth-email-hook`.
 
-### 3. Reset password UX
-- `src/pages/Login.tsx` (Forgot flow):
-  - After `resetPasswordForEmail`, navigate to `/reset-password?email=<email>` with toast "Check your email for a 6-digit code".
-- `src/pages/Account.tsx`: same redirect after self-initiated reset.
-- `src/pages/ResetPassword.tsx` rewrite:
-  - Read `?email=` from query.
-  - Step 1: input 6-digit code → `supabase.auth.verifyOtp({ email, token, type: 'recovery' })`.
-  - Step 2 (after verifyOtp success → user is now authenticated): show new-password form → `supabase.auth.updateUser({ password })`.
-  - Keep legacy hash-based path (`type=recovery` in hash) working as a fallback for any in-flight email links.
+## Verify
 
-### 4. Auth settings
-- Bump recovery OTP TTL from 1h → 24h via `configure_auth` (defense in depth).
-
-## Technical notes
-
-- `auth.admin.generateLink` with `type: 'recovery'` returns a single-use link that bypasses email — same token mechanism, just delivered through the agent.
-- OTP codes from Supabase are 6 digits, valid for the recovery TTL, single-use, and not consumable by URL prefetchers.
-- `verifyOtp({ type: 'recovery' })` establishes a session, after which `updateUser({ password })` works exactly like today.
-- No DB schema changes.
-
-## Files touched
-- New (temporary): `supabase/functions/admin-generate-recovery-link/index.ts`
-- `supabase/functions/_shared/email-templates/recovery.tsx`
-- `src/pages/ResetPassword.tsx`
-- `src/pages/Login.tsx`
-- `src/pages/Account.tsx`
+Re-send a test invite from the admin panel and confirm the From address, logo, and signup link all show `campaigndata.solutions`.
 
 ## Out of scope
-- Migrating signup / magic-link / email-change to OTP (only recovery is broken).
-- Domain/branding changes.
+
+- `public/robots.txt` sitemap line (separate concern — points to `campaigndatasolutions.com` without dot, may also be wrong but not invite-related).
+- No DB or RLS changes.

@@ -1,19 +1,35 @@
-## Problem
+## Diagnosis
 
-On `/map` (the Issue Map for regular users), the back button takes the user to `/home`. There's no way for a system admin viewing `/map` to jump to `/admin`. They have to manually edit the URL.
+Mo Maraqa (`mo@molitico.com`, auth user `ecdcb787-47bc-4d0a-a2a5-e6a75d3f8f90`) successfully signed up and confirmed his email at 22:28 UTC, but he doesn't appear in the Users list because:
 
-## Fix
+1. **No `profiles` row exists for him.** The `public.handle_new_user()` function is defined, but the trigger that fires it on `auth.users INSERT` is missing (the schema shows "There are no triggers in the database"). So no signup since the trigger was lost has been backfilled into `profiles`.
+2. **`invited_emails.accepted_at` is still NULL** for the same reason.
+3. He has no row in `user_roles`, so he isn't an admin.
 
-In `src/pages/admin/IssueDonorMap.tsx`, when `isAdminView` is `false` (i.e., user-facing `/map`), check `useAuth().isAdmin`. If true, render a small **"Admin"** shortcut button in the top header that navigates to `/admin`.
+The admin UI lists users from `profiles`, which is why he's invisible.
 
-Placement: in the existing top-bar action row, just before the "Upload Data" slot (which is admin-only on the admin view). Use the same `variant="outline" size="sm"` styling as the Upload Data button for visual consistency. Icon: `Shield` from lucide-react. Label hidden on mobile (`hidden sm:inline`) to match the existing pattern.
+## Plan
 
-No behavior change for non-admins or for the admin route `/admin/issue-map` (which already has sidebar nav).
+One migration that does all of the following:
 
-## Files
-
-- `src/pages/admin/IssueDonorMap.tsx` — import `useAuth`, import `Shield` icon, add conditional button.
+1. **Backfill Mo's profile**
+   - `INSERT INTO public.profiles (id, email, full_name) VALUES ('ecdcb787-…', 'mo@molitico.com', 'Mo Maraqa') ON CONFLICT (id) DO NOTHING;`
+2. **Mark his invite accepted**
+   - `UPDATE public.invited_emails SET accepted_at = now() WHERE email = 'mo@molitico.com' AND accepted_at IS NULL;`
+3. **Grant admin role**
+   - `INSERT INTO public.user_roles (user_id, role) VALUES ('ecdcb787-…', 'admin') ON CONFLICT DO NOTHING;`
+4. **Restore the missing trigger** so future signups auto-create profiles and mark invites accepted:
+   ```sql
+   CREATE TRIGGER on_auth_user_created
+   AFTER INSERT ON auth.users
+   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+   ```
+   (Also backfill any other auth.users without a profile in the same migration, so we don't have to chase other ghost signups.)
 
 ## Out of scope
 
-Nothing else. No route changes, no auth changes, no styling overhaul.
+- No UI changes.
+- No edits to the existing `handle_new_user` function body.
+- No email re-send.
+
+After the migration, Mo will appear in `/admin/users`, show as an Admin, and can hit `/admin` directly. Future signups will work without manual backfill.

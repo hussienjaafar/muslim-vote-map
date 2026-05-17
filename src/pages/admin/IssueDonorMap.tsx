@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Map as MapIcon, Upload, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Map as MapIcon, Upload, ChevronDown, ChevronUp, Shield } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { IssueSelector } from '@/components/issue-donor/IssueSelector';

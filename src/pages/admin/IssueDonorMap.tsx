@@ -127,6 +127,20 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
             onSelect={(code, type) => setRegion({ code, type })}
           />
 
+          {/* Admin shortcut — shown to admins on the user-facing map */}
+          {!isAdminView && isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/admin')}
+              className="gap-1.5 border-amber-500/20 bg-amber-500/10 text-amber-300 hover:text-amber-200 hover:bg-amber-500/15 px-2 sm:px-3 min-h-[40px] sm:min-h-0"
+              aria-label="Go to Admin dashboard"
+            >
+              <Shield className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Admin</span>
+            </Button>
+          )}
+
           {/* Upload button — admin only */}
           {isAdminView && (
             <Button

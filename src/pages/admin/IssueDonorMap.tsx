@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Map as MapIcon, Upload, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Map as MapIcon, Upload, ChevronDown, ChevronUp, Shield } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { IssueSelector } from '@/components/issue-donor/IssueSelector';
@@ -31,6 +32,7 @@ const METRIC_OPTIONS: { key: IssueMetric; label: string; short: string }[] = [
 export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: boolean } = {}) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { isAdmin } = useAuth();
   const { data: allIssues, isLoading: issuesLoading } = useIssues();
   const [selectedIssueIds, setSelectedIssueIds] = useState<string[]>([]);
   const [metric, setMetric] = useState<IssueMetric>('total_donors');
@@ -124,6 +126,20 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
             districtsData={allDistrictsDir ?? null}
             onSelect={(code, type) => setRegion({ code, type })}
           />
+
+          {/* Admin shortcut — shown to admins on the user-facing map */}
+          {!isAdminView && isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/admin')}
+              className="gap-1.5 border-amber-500/20 bg-amber-500/10 text-amber-300 hover:text-amber-200 hover:bg-amber-500/15 px-2 sm:px-3 min-h-[40px] sm:min-h-0"
+              aria-label="Go to Admin dashboard"
+            >
+              <Shield className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Admin</span>
+            </Button>
+          )}
 
           {/* Upload button — admin only */}
           {isAdminView && (

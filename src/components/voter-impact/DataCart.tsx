@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCartItems, useRemoveFromCart, useClearCart } from '@/queries/useDataProductQueries';
 import { useAuth } from '@/hooks/useAuth';
+import { useOrg } from '@/contexts/OrgContext';
 import { supabase } from '@/integrations/supabase/client';
 import { formatNumber } from '@/lib/geoUtils';
 import { logActivity } from '@/lib/logActivity';
@@ -23,6 +24,7 @@ export function DataCart({ open, onOpenChange }: DataCartProps) {
   const removeItem = useRemoveFromCart();
   const clearCart = useClearCart();
   const { user } = useAuth();
+  const { activeOrg } = useOrg();
   const [submitting, setSubmitting] = useState(false);
 
   const grouped = React.useMemo(() => {
@@ -44,6 +46,7 @@ export function DataCart({ open, onOpenChange }: DataCartProps) {
       const { error: orderError } = await supabase.from('data_orders').insert({
         id: orderId,
         user_id: user.id,
+        organization_id: activeOrg?.id ?? null,
         status: 'pending',
         delivery_email: user.email,
       });

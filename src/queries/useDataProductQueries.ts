@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useOrg } from '@/contexts/OrgContext';
 import { logActivity } from '@/lib/logActivity';
 import { trackAddToCart } from '@/lib/metaPixel';
 
@@ -39,6 +40,7 @@ export function useCartItems() {
 export function useAddToCart() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { activeOrg } = useOrg();
   return useMutation({
     mutationFn: async (item: {
       product_id: string;
@@ -51,7 +53,7 @@ export function useAddToCart() {
       const { error } = await supabase
         .from('data_cart_items')
         .upsert(
-          { ...item, user_id: user.id },
+          { ...item, user_id: user.id, organization_id: activeOrg?.id ?? null },
           { onConflict: 'user_id,product_id,geo_type,geo_code' }
         );
       if (error) throw error;

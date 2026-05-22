@@ -1,100 +1,92 @@
 
-# Phase 0 — Molitico → CDS port mapping
+# Phase 1 — Multi-tenant foundation
 
-No code changes in this phase. This is the inventory and reconciliation document. Approve to move to Phase 1.
+Goal: CDS gains organizations, memberships, seats, and an active-org context that downstream phases can rely on. Additive only — no destructive changes.
 
-## 1. What gets ported (by area)
+## 1. Schema migration (one atomic migration)
 
-### Pages (Molitico → CDS route)
-| Molitico file | CDS route after port | Notes |
-|---|---|---|
-| `src/pages/ClientDashboard.tsx` | `/dashboard` | Replaces nothing visible today; CDS has `/home`. `/home` stays in Phase 1–6, evaluated for removal in Phase 7. |
-| `src/pages/Integrations.tsx` | `/integrations` | New |
-| `src/pages/MetaOAuthCallback.tsx` | `/meta-oauth-callback` | New |
-| `src/pages/ClientSettings.tsx` | **skip** | CDS already has `/account` |
-| `src/pages/admin/OrganizationDetail.tsx` | `/admin/organizations/:organizationId` | New + `/admin/organizations` list page (new, built in Phase 6) |
-| `src/pages/admin/UserDetail.tsx` | merged INTO existing CDS `/admin/users/:userId` | Phase 6 — add Molitico tabs (sessions, login history, location), keep CDS invite/application controls |
-| `src/pages/admin/OnboardingV2.tsx` | `/admin/onboarding` | New |
-| `src/pages/Admin.tsx`, `Auth.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx`, `AcceptInvitation.tsx`, `AccessDenied.tsx`, `Unsubscribe.tsx`, `PrivacyPolicy.tsx`, `NotFound.tsx` | **skip** | CDS owns auth + chrome |
+### New tables (all with RLS on)
+- `client_organizations` — id, name, slug unique, logo_url, settings jsonb default '{}', created_at, updated_at.
+- `organization_memberships` — id, organization_id fk → client_organizations on delete cascade, user_id uuid, role text check in (`'owner','admin','member','viewer'`), created_at, **unique (organization_id, user_id)**.
+- `seat_requests` — ported 1:1 from Molitico (organization_id, requested_by, status, notes, created_at, decided_at, decided_by, seats_requested int).
+- `seat_change_log` — ported 1:1 (organization_id, changed_by, delta int, reason text, created_at).
+- `organization_profiles`, `organization_quotas`, `organization_meta_settings`, `org_activity_log`, `org_onboarding_state` — column shapes copied from Molitico. Skip rows that no ported code touches; final list confirmed when we read Molitico's migrations.
 
-### Components (port verbatim, preserve paths)
-- `src/components/v3/*` (29 files) — design system the dashboard depends on. Lives at `src/components/v3/` in CDS.
-- `src/components/client/*` — all except `OrganizationPicker.tsx` and `OrganizationSelector.tsx` (Phase 1 → `src/components/org/OrgPicker.tsx`) and `AppSidebar.tsx` (sidebar merged into CDS's AdminLayout/ClientLayout, not copied).
-- `src/components/dashboard/*` (PerformanceControlsToolbar, DashboardHeader, widgets/, …)
-- `src/components/integrations/*` (MetaAuthOptions, MetaOAuthFlow)
-- `src/components/portal/*`, `src/components/notifications/*`, `src/components/charts/*`
-- `src/components/admin/organization/*`, `src/components/admin/onboarding-cds/*`, `src/components/admin/integrations/*`, `src/components/admin/security/*`, `src/components/admin/PlatformAdminsManager.tsx` — Phase 6.
-- `src/contexts/ImpersonationContext.tsx`, `src/components/ImpersonationBanner.tsx`, `RoleSwitcher` — Phase 6.
+### Additive columns on existing CDS tables
+- `data_orders`, `data_cart_items`, `saved_regions`, `saved_lists`, `access_requests`: + `organization_id uuid NULL` (nullable; backfilled below; never required for legacy rows).
 
-### Hooks (port to `src/hooks/`)
-Port: `useClientOrganization`, `useUserRoles`, `useDashboardMetricsV2`, `useActBlueMetrics`, `useIntegrationHealth`, `useIsAdmin`, `usePIIAccess`, `useActivityTracker`, `useAnomalyDetection`, `useAutoRefreshOnSync`, `useBackfillStatus`, `useChannelSummaries`, `useClientDashboardHealth`, `useClientOnboardingSummary`, `useDataFreshness`, `useDebounce(d)`, `useFilterOptions`, `useHourlyMetrics`, `useInactivityReset`, `useIntegrationSummary`, `useIntersectionObserver`, `useKeyboardShortcut`, `useLocalStorage`, `useMetaDataFreshness`, `useMetaReconnect`, `useOnboardingTasks`, `useOnboardingWizard`, `useOrgAttributionConfig`, `usePipelineFreshness`, `useRealtimeMetrics(.tsx)`, `useReducedMotion`, `useResponsiveDateFormat`, `useSessionManager`, `useSingleDay*Metrics`, `useSmartRefresh`, `useSwipeGesture`.
-**Skip duplicates** — CDS keeps its own `use-toast`, `use-mobile`, `useAuth`.
+### `user_roles` / `has_role`
+- CDS's `app_role` enum currently only has `admin`. Extend with `member`. (Owner/admin/viewer live on memberships, not app_role; app_role stays the platform-level admin flag.)
+- Keep CDS's existing `has_role(_user_id uuid, _role app_role)` SECURITY DEFINER — already correct.
 
-### Edge functions (Phase 3)
-Port these 40 functions verbatim, deploy in one batch:
-`actblue-webhook, backfill-actblue-conversions, backfill-actblue-csv-orchestrator, process-actblue-chunk, reconcile-actblue-data, refcode-reconcile, clickid-reconcile, auto-match-attribution, match-touchpoints-to-donors, calculate-attribution, calculate-attribution-models, calculate-roi, probabilistic-attribution, run-attribution-backfill, backfill-click-attribution, backfill-daily-metrics, monitor-attribution-health, check-data-freshness, check-integration-health, detect-spikes, meta-oauth-init, meta-oauth-callback, meta-save-connection, meta-list-assets, admin-sync-meta, backfill-meta-ads, refresh-meta-tokens, reprocess-failed-webhooks, recover-stuck-chunks, cancel-backfill, geolocate-ip, get-client-ip, health-check, run-diagnostics, run-scheduled-jobs, ops-alerts, cleanup-sms-events, reconcile-sms-refcodes, backfill-sms-refcodes, db-proxy.`
+### New helper functions (SECURITY DEFINER, `SET search_path = public`)
+- `user_belongs_to_org(_user_id uuid, _org_id uuid) returns boolean` — exists in organization_memberships.
+- `user_org_role(_user_id uuid, _org_id uuid) returns text` — returns membership role or null.
+- `can_access_organization_data(_user_id uuid, _org_id uuid) returns boolean` — true if admin OR member of org.
 
-**Skip (CDS owns or doesn't need):** `auth-email-hook, process-email-queue, request-password-reset, reset-admin-password, reset-client-password, accept-invitation-signup, manage-invitation, handle-email-suppression, handle-email-unsubscribe, create-client-user, batch-create-users, preview-transactional-email, send-admin-invite, send-notification-email, send-spike-alerts, send-transactional-email, send-user-invitation, request-account-deletion, export-user-data, terminate-user-sessions, unlock-account, log-user-activity, smart-alerting, data-retention-cleanup, cleanup-old-cache, ttl-cleanup, update-data-freshness, validate-attribution, validate-switchboard-data, switchboard-*, sync-actblue-csv, sync-meta-*, sync-sms-*, sync-switchboard-sms, tiered-meta-sync, test-integration, backfill-onboarding-state, revoke-admin-role (will port in Phase 6)`.
+### Triggers
+- Reuse `update_updated_at_column()` for `client_organizations` `updated_at`.
 
-Some of the "skip" list (switchboard-*, sync-meta-*, smart-alerting, etc.) are not explicitly excluded by the brief — they implement SMS/Meta sync. **Open question A**: do you want these too, or is SMS/Meta sync triggered only by webhooks + scheduled `admin-sync-meta`? I'll default to **skip** unless you say otherwise; we can add them in a Phase 3 follow-up.
+### Backfill (in same migration)
+For every `profiles` row where `organization` is non-null and non-empty:
+1. Upsert one `client_organizations` row (name = profiles.organization, slug = lower kebab-cased name, dedup by name).
+2. Insert one `organization_memberships` row (org_id, user_id = profiles.id, role = 'owner') on conflict do nothing.
 
-## 2. CDS routes that change
-| Route | Before | After (end of port) |
-|---|---|---|
-| `/` | Index marketing page | unchanged in Phase 1–6; Phase 7: if signed in + member of org → redirect to `/dashboard` |
-| `/dashboard` | — | new (Phase 4) |
-| `/integrations` | — | new (Phase 4) |
-| `/meta-oauth-callback` | — | new (Phase 4) |
-| `/results` | — | new (Phase 5) |
-| `/admin/organizations`, `/admin/organizations/:id` | — | new (Phase 6) |
-| `/admin/onboarding` | — | new (Phase 6) |
-| `/admin/integrations-health` | — | new (Phase 6) |
-| `/admin/pipelines` | — | new (Phase 6) |
-| `/admin/users/:userId` | CDS UserDetail | extended with Molitico tabs (Phase 6) |
-| `/admin/orders/:orderId` | CDS OrderDetail | gains Attribution + Performance panels (Phase 5) |
-| `/home` | CDS Home | unchanged until Phase 7 — ask before removing |
+Then for each table with the new `organization_id` column, backfill: set `organization_id` to the owner's first organization where possible (`data_orders.user_id` → membership). Rows whose user has no org stay NULL.
 
-CDS's existing routes (`/map`, `/account`, `/admin`, `/admin/users`, `/admin/orders`, `/admin/products`, `/admin/data`, `/admin/live`, `/login`, `/signup`, `/reset-password`, `/request-access`, `/application-status`) are not removed or rerouted.
+### RLS policies
+**New tables.** Every new table gets:
+- Admin all: `using/with check ( has_role(auth.uid(),'admin') )`.
+- Member read: `using ( user_belongs_to_org(auth.uid(), organization_id) )`.
+- Owner/admin write (on membership-managing tables): `using ( user_org_role(auth.uid(), organization_id) in ('owner','admin') )`.
 
-## 3. Naming collisions and reconciliation
+**Existing tables — additive policies only.** For `data_orders`, `data_cart_items`, `saved_regions`, `saved_lists`:
+- Keep existing `auth.uid() = user_id` policies.
+- ADD `"Org members can view org rows"` SELECT policy with `( organization_id is not null and user_belongs_to_org(auth.uid(), organization_id) )`.
+- ADD matching INSERT/UPDATE/DELETE policies scoped by org so org admins/owners can manage shared records.
 
-### Tables that exist in both (CDS wins, additive only)
-| Table | CDS columns kept | Molitico-only columns | Action |
-|---|---|---|---|
-| `profiles` | id, email, full_name, organization, phone, suspended*, has_completed_tour | varies | Add columns only if a ported feature needs them; never replace. |
-| `email_send_log` | CDS schema | Molitico variant | **Do not port.** Keep CDS. |
-| `email_send_state` | CDS schema | Molitico variant | Keep CDS. |
-| `suppressed_emails` | CDS schema | Molitico variant | Keep CDS. |
-| `email_unsubscribe_tokens` | CDS schema | Molitico variant | Keep CDS. |
-| `user_roles` + `has_role()` | CDS app_role enum (`admin`), SECURITY DEFINER func | Molitico may add `member`/`platform_admin` | Phase 1: extend enum with `member` (and any roles Molitico uses); reuse CDS `has_role`. Never store roles on profiles. |
+`access_requests` keeps current policies; the org column is informational.
 
-### Membership model — important divergence
-Molitico uses a single-org-per-user table called **`client_users`** (each user belongs to one org via `client_users.organization_id`). You asked for a true many-to-many **`organization_memberships`** with roles owner/admin/member/viewer. **Open question B**: confirm we go with `organization_memberships` (your spec) and treat Molitico's `client_users` as a legacy shape — ported hooks like `useClientOrganization` will be rewritten to read from `organization_memberships` instead of `client_users`. I assume yes.
+## 2. Frontend changes
 
-### New tables (no collisions)
-`client_organizations`, `organization_memberships`, `seat_requests`, `seat_change_log`, `organization_profiles`, `organization_quotas`, `organization_meta_settings`, `org_activity_log`, `org_onboarding_state` — plus all Phase 2 fundraising tables (actblue_*, meta_*, sms_*, attribution_*, pipeline_*, webhook_*, client_api_credentials, notifications, etc.). All net-new, no collisions.
+### New files
+- `src/contexts/OrgContext.tsx` — `OrgProvider` + `useOrg()`. Loads memberships via `organization_memberships` join with `client_organizations`. Persists active-org id to `localStorage` key `cds:activeOrgId` and exposes `{ activeOrg, organizations, setActiveOrg, isLoading, isOrgAdmin, isOrgOwner }`. No Molitico `proxyQuery` — use `@/integrations/supabase/client` directly.
+- `src/hooks/useClientOrganization.tsx` — thin port adapted to CDS: returns `{ organizationId, isLoading }` reading from `OrgContext` (no impersonation yet — that lands in Phase 6). Keeps the export shape Molitico code expects.
+- `src/hooks/useUserRoles.tsx` — port adapted to read from `organization_memberships` instead of `client_users`, returns `{ isAdmin, isClientUser, organizations, hasMultipleRoles, loading, refresh }`.
+- `src/components/org/OrgPicker.tsx` — ported from Molitico's `OrganizationPicker.tsx`, retheming CSS vars from `--portal-*` to CDS tokens (`--background`, `--card`, `--border`, `--primary`, etc.).
+- `src/components/org/OrgSwitcher.tsx` — small trigger button (current org name + chevron) that opens `OrgPicker`. Hidden when user has 0 or 1 orgs.
 
-### Additive columns to existing CDS tables (Phase 1 & 5)
-- `data_orders`: + `organization_id uuid`, `refcode text`, `meta_campaign_ids text[]`, `sms_campaign_ids text[]`
-- `data_cart_items`: + `organization_id uuid`
-- `saved_regions`, `saved_lists`, `access_requests`: + `organization_id uuid` (nullable)
+### Wired in
+- `src/App.tsx`: wrap `<BrowserRouter>` children with `<OrgProvider>` (inside `AuthGuard` so it has a user).
+- Header mount: CDS doesn't have a single global header — `AdminLayout` has the admin sidebar, and `/map`, `/home`, `/account` each have their own top bar. Phase 1 mounts `OrgSwitcher` in two places:
+  - `src/pages/admin/AdminLayout.tsx` top bar (next to the existing user menu).
+  - `src/pages/Home.tsx` top bar.
+  Other surfaces gain it in Phase 4 when the new shell lands.
+- `src/pages/admin/IssueDonorMap.tsx`: no UI change (Issue Map is org-agnostic per non-negotiable rules). Skipped intentionally.
 
-### Helper functions
-Port from Molitico verbatim if present: `is_admin`, `can_access_organization_data`, `check_org_membership`, `user_belongs_to_org`, `has_pii_access`. Keep CDS's existing `has_role`.
+### Writes scoped to active org
+- `src/components/voter-impact/DataCart.tsx` (and any cart insert paths): include `organization_id: activeOrg?.id ?? null` on insert.
+- Order creation (Orders flow): same.
+- Saved regions / saved lists inserts: same.
 
-### Imports / framework
-- `ThemeProvider` from Molitico — **skip**, CDS owns theming.
-- `supabase` client — Molitico uses `proxyQuery`/`proxyRpc` via `db-proxy` edge function. We port `db-proxy` and `src/lib/supabaseProxy.ts` so ported hooks resolve, but new CDS code keeps using `@/integrations/supabase/client` directly.
-- `lazy` + `Suspense` route loading — adopt for the new heavy pages (`/dashboard`, `/integrations`, `/results`).
+If `activeOrg` is null (legacy single-tenant user), inserts pass null and policies still allow because the existing `user_id` policy stays in place.
 
-## 4. Risks called out now
-1. `proxyQuery`/`db-proxy` exists because Molitico hit a CORS edge case. Bringing it in adds an indirection layer for ported code. Acceptable, but flagged.
-2. Molitico's V3 components are dark-theme tuned. CDS is already dark (surgical-glass #0e0e0e); spot-check tokens in Phase 4.
-3. Many ported hooks pull from tables that don't exist yet — Phase 4 cannot start before Phase 2 migration runs.
-4. Edge functions referencing email/auth utilities will fail to import — Phase 3 will need small adapter shims (or call CDS's existing `enqueue_email`).
+## 3. What is intentionally not done in Phase 1
+- No impersonation (Phase 6 brings ImpersonationContext).
+- No seat-request UI — table exists, UI later.
+- No new admin pages for orgs — Phase 6.
+- No data_orders/cart UI changes besides the hidden `organization_id` field.
+- Issue Donor Map untouched.
 
-## 5. Two questions before Phase 1
-- **A.** Switchboard / `sync-meta-*` / `sync-sms-*` / `smart-alerting` edge functions — port them or skip? (Defaulting to skip.)
-- **B.** Confirm `organization_memberships` (many-to-many w/ roles) is the model — Molitico's `client_users` (single org per user) is treated as legacy and not ported.
+## 4. Migration ordering / safety
+- Single migration file. All `CREATE TABLE` + enum extension + helper functions + RLS first; ALTER TABLE columns next; backfill last so policies are in place before data lands.
+- Backfill uses `ON CONFLICT DO NOTHING`. No destructive ops. No DROP/RENAME.
+- After migration: run `supabase--linter`, fix anything new it flags.
 
-Reply "continue" (with answers to A/B) and I'll execute Phase 1.
+## 5. Acceptance for Phase 1
+- A signed-in user with a profile organization sees one org auto-created and is its owner.
+- New users created later via the existing signup flow won't get an org until they're invited to one or one is created for them — that's expected (covered in Phase 6 admin UI).
+- `OrgSwitcher` renders for admins (who can see all orgs via RLS admin policy is **not** what we want — admins still see only orgs they're members of in the switcher; cross-org admin browsing is Phase 6).
+- CDS preview still loads `/`, `/login`, `/map`, `/home`, `/admin` with no regressions.
+
+Reply "continue" to ship Phase 1.

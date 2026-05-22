@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { RouteTracker } from "@/components/RouteTracker";
+import { OrgProvider } from "@/contexts/OrgContext";
 import Index from "./pages/Index.tsx";
 import Login from "./pages/Login.tsx";
 import Home from "./pages/Home.tsx";
@@ -37,6 +38,7 @@ const App = () => (
       <Sonner position="top-center" />
       <BrowserRouter>
         <RouteTracker />
+        <OrgProvider>
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<Index />} />
@@ -70,6 +72,7 @@ const App = () => (
 
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </OrgProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

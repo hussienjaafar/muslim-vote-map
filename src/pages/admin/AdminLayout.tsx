@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { CommandDialog, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { OrgSwitcher } from '@/components/org/OrgSwitcher';
 
 const navItems = [
   { title: 'Dashboard', url: '/admin', icon: LayoutDashboard, end: true },
@@ -73,6 +74,9 @@ export default function AdminLayout() {
           </h1>
         </div>
         <div className="flex items-center gap-1 sm:gap-4">
+          {/* Org switcher (only shows when user has 2+ orgs) */}
+          <OrgSwitcher className="hidden sm:inline-flex" />
+
           {/* Search — Command Palette */}
           <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} aria-label="Search (⌘K)" className="h-10 w-10">
             <Search className="w-5 h-5" />

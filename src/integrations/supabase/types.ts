@@ -21,6 +21,7 @@ export type Database = {
           full_name: string
           id: string
           organization: string
+          organization_id: string | null
           reviewed_at: string | null
           reviewer_id: string | null
           reviewer_notes: string | null
@@ -37,6 +38,7 @@ export type Database = {
           full_name: string
           id?: string
           organization: string
+          organization_id?: string | null
           reviewed_at?: string | null
           reviewer_id?: string | null
           reviewer_notes?: string | null
@@ -53,6 +55,7 @@ export type Database = {
           full_name?: string
           id?: string
           organization?: string
+          organization_id?: string | null
           reviewed_at?: string | null
           reviewer_id?: string | null
           reviewer_notes?: string | null
@@ -63,7 +66,15 @@ export type Database = {
           use_case?: string
           website?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "access_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       announcements: {
         Row: {
@@ -98,6 +109,39 @@ export type Database = {
         }
         Relationships: []
       }
+      client_organizations: {
+        Row: {
+          created_at: string
+          id: string
+          logo_url: string | null
+          name: string
+          seat_limit: number
+          settings: Json
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name: string
+          seat_limit?: number
+          settings?: Json
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name?: string
+          seat_limit?: number
+          settings?: Json
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       data_cart_items: {
         Row: {
           created_at: string | null
@@ -106,6 +150,7 @@ export type Database = {
           geo_name: string | null
           geo_type: string
           id: string
+          organization_id: string | null
           product_id: string
           quantity: number | null
           record_count: number | null
@@ -118,6 +163,7 @@ export type Database = {
           geo_name?: string | null
           geo_type: string
           id?: string
+          organization_id?: string | null
           product_id: string
           quantity?: number | null
           record_count?: number | null
@@ -130,12 +176,20 @@ export type Database = {
           geo_name?: string | null
           geo_type?: string
           id?: string
+          organization_id?: string | null
           product_id?: string
           quantity?: number | null
           record_count?: number | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "data_cart_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "data_cart_items_product_id_fkey"
             columns: ["product_id"]
@@ -205,6 +259,7 @@ export type Database = {
           delivery_email: string | null
           fulfilled_at: string | null
           id: string
+          organization_id: string | null
           status: string
           stripe_checkout_session_id: string | null
           stripe_payment_intent_id: string | null
@@ -219,6 +274,7 @@ export type Database = {
           delivery_email?: string | null
           fulfilled_at?: string | null
           id?: string
+          organization_id?: string | null
           status?: string
           stripe_checkout_session_id?: string | null
           stripe_payment_intent_id?: string | null
@@ -233,13 +289,22 @@ export type Database = {
           delivery_email?: string | null
           fulfilled_at?: string | null
           id?: string
+          organization_id?: string | null
           status?: string
           stripe_checkout_session_id?: string | null
           stripe_payment_intent_id?: string | null
           total_amount?: number | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "data_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       data_products: {
         Row: {
@@ -571,6 +636,38 @@ export type Database = {
         }
         Relationships: []
       }
+      organization_memberships: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_memberships_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -619,6 +716,7 @@ export type Database = {
           id: string
           items: Json
           name: string
+          organization_id: string | null
           user_id: string
         }
         Insert: {
@@ -626,6 +724,7 @@ export type Database = {
           id?: string
           items?: Json
           name: string
+          organization_id?: string | null
           user_id: string
         }
         Update: {
@@ -633,14 +732,24 @@ export type Database = {
           id?: string
           items?: Json
           name?: string
+          organization_id?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "saved_lists_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       saved_regions: {
         Row: {
           created_at: string
           id: string
+          organization_id: string | null
           region_code: string
           region_name: string | null
           region_type: string
@@ -649,6 +758,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          organization_id?: string | null
           region_code: string
           region_name?: string | null
           region_type: string
@@ -657,12 +767,115 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          organization_id?: string | null
           region_code?: string
           region_name?: string | null
           region_type?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "saved_regions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seat_change_log: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          delta: number
+          id: string
+          new_limit: number
+          organization_id: string
+          previous_limit: number
+          reason: string | null
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          delta: number
+          id?: string
+          new_limit: number
+          organization_id: string
+          previous_limit: number
+          reason?: string | null
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          delta?: number
+          id?: string
+          new_limit?: number
+          organization_id?: string
+          previous_limit?: number
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seat_change_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seat_requests: {
+        Row: {
+          admin_notes: string | null
+          created_at: string
+          current_seat_limit: number
+          id: string
+          organization_id: string
+          processed_at: string | null
+          processed_by: string | null
+          reason: string | null
+          requested_by: string
+          requested_seats: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string
+          current_seat_limit: number
+          id?: string
+          organization_id: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          requested_by: string
+          requested_seats: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string
+          current_seat_limit?: number
+          id?: string
+          organization_id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          requested_by?: string
+          requested_seats?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seat_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       suppressed_emails: {
         Row: {
@@ -949,6 +1162,10 @@ export type Database = {
         Args: { target_user_id: string }
         Returns: undefined
       }
+      can_access_organization_data: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
       check_application_status: {
         Args: { check_token: string }
         Returns: {
@@ -998,6 +1215,14 @@ export type Database = {
       toggle_email_suppression: {
         Args: { suppress: boolean }
         Returns: undefined
+      }
+      user_belongs_to_org: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
+      user_org_role: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: string
       }
     }
     Enums: {

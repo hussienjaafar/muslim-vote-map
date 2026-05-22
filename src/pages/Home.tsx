@@ -29,6 +29,7 @@ import { HOME_TOUR_STEPS } from '@/components/tour/tourSteps';
 import { useTourStatus } from '@/hooks/useTourStatus';
 import { YourRegionsWidget } from '@/components/home/YourRegionsWidget';
 import { RecommendedDistricts } from '@/components/home/RecommendedDistricts';
+import { OrgSwitcher } from '@/components/org/OrgSwitcher';
 
 const statusColor: Record<string, string> = {
   pending: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
@@ -230,6 +231,8 @@ export default function Home() {
             <img src="/logo-icon.png" alt="CDS" className="h-7 w-7 rounded-md" />
             <span className="font-display text-sm font-semibold text-foreground hidden sm:inline">Campaign Data Solutions</span>
           </div>
+          <div className="flex items-center gap-2">
+          <OrgSwitcher />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="focus:outline-none" data-tour="account-menu">
@@ -251,6 +254,7 @@ export default function Home() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
       </header>
 

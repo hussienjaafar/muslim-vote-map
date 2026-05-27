@@ -76,6 +76,59 @@ export type Database = {
           },
         ]
       }
+      actblue_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          donor_email: string | null
+          donor_name: string | null
+          id: string
+          is_recurring: boolean
+          organization_id: string
+          refcode: string | null
+          source_campaign: string | null
+          transaction_date: string
+          transaction_id: string
+          transaction_type: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          donor_email?: string | null
+          donor_name?: string | null
+          id?: string
+          is_recurring?: boolean
+          organization_id: string
+          refcode?: string | null
+          source_campaign?: string | null
+          transaction_date: string
+          transaction_id: string
+          transaction_type?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          donor_email?: string | null
+          donor_name?: string | null
+          id?: string
+          is_recurring?: boolean
+          organization_id?: string
+          refcode?: string | null
+          source_campaign?: string | null
+          transaction_date?: string
+          transaction_id?: string
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "actblue_transactions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       announcements: {
         Row: {
           body: string
@@ -109,6 +162,94 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_attribution: {
+        Row: {
+          created_at: string
+          id: string
+          meta_campaign_id: string | null
+          organization_id: string
+          refcode: string | null
+          switchboard_campaign_id: string | null
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          meta_campaign_id?: string | null
+          organization_id: string
+          refcode?: string | null
+          switchboard_campaign_id?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          meta_campaign_id?: string | null
+          organization_id?: string
+          refcode?: string | null
+          switchboard_campaign_id?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_attribution_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_api_credentials: {
+        Row: {
+          created_at: string
+          encrypted_credentials: Json
+          id: string
+          is_active: boolean
+          last_sync_at: string | null
+          last_sync_status: string | null
+          organization_id: string
+          platform: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          encrypted_credentials: Json
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          organization_id: string
+          platform: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          encrypted_credentials?: Json
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          organization_id?: string
+          platform?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_api_credentials_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_organizations: {
         Row: {
           created_at: string
@@ -141,6 +282,65 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      daily_aggregated_metrics: {
+        Row: {
+          calculated_at: string
+          date: string
+          id: string
+          meta_clicks: number
+          meta_impressions: number
+          new_donors: number
+          organization_id: string
+          roi_percentage: number | null
+          sms_conversions: number
+          sms_sent: number
+          total_ad_spend: number
+          total_donations: number
+          total_funds_raised: number
+          total_sms_cost: number
+        }
+        Insert: {
+          calculated_at?: string
+          date: string
+          id?: string
+          meta_clicks?: number
+          meta_impressions?: number
+          new_donors?: number
+          organization_id: string
+          roi_percentage?: number | null
+          sms_conversions?: number
+          sms_sent?: number
+          total_ad_spend?: number
+          total_donations?: number
+          total_funds_raised?: number
+          total_sms_cost?: number
+        }
+        Update: {
+          calculated_at?: string
+          date?: string
+          id?: string
+          meta_clicks?: number
+          meta_impressions?: number
+          new_donors?: number
+          organization_id?: string
+          roi_percentage?: number | null
+          sms_conversions?: number
+          sms_sent?: number
+          total_ad_spend?: number
+          total_donations?: number
+          total_funds_raised?: number
+          total_sms_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_aggregated_metrics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       data_cart_items: {
         Row: {
@@ -636,6 +836,124 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_ad_metrics: {
+        Row: {
+          ad_id: string | null
+          ad_set_id: string | null
+          campaign_id: string
+          clicks: number
+          conversion_value: number
+          conversions: number
+          cpc: number | null
+          cpm: number | null
+          ctr: number | null
+          date: string
+          id: string
+          impressions: number
+          organization_id: string
+          reach: number
+          roas: number | null
+          spend: number
+          synced_at: string
+        }
+        Insert: {
+          ad_id?: string | null
+          ad_set_id?: string | null
+          campaign_id: string
+          clicks?: number
+          conversion_value?: number
+          conversions?: number
+          cpc?: number | null
+          cpm?: number | null
+          ctr?: number | null
+          date: string
+          id?: string
+          impressions?: number
+          organization_id: string
+          reach?: number
+          roas?: number | null
+          spend?: number
+          synced_at?: string
+        }
+        Update: {
+          ad_id?: string | null
+          ad_set_id?: string | null
+          campaign_id?: string
+          clicks?: number
+          conversion_value?: number
+          conversions?: number
+          cpc?: number | null
+          cpm?: number | null
+          ctr?: number | null
+          date?: string
+          id?: string
+          impressions?: number
+          organization_id?: string
+          reach?: number
+          roas?: number | null
+          spend?: number
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_ad_metrics_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_campaigns: {
+        Row: {
+          campaign_id: string
+          campaign_name: string | null
+          daily_budget: number | null
+          end_date: string | null
+          id: string
+          lifetime_budget: number | null
+          objective: string | null
+          organization_id: string
+          start_date: string | null
+          status: string | null
+          synced_at: string
+        }
+        Insert: {
+          campaign_id: string
+          campaign_name?: string | null
+          daily_budget?: number | null
+          end_date?: string | null
+          id?: string
+          lifetime_budget?: number | null
+          objective?: string | null
+          organization_id: string
+          start_date?: string | null
+          status?: string | null
+          synced_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          campaign_name?: string | null
+          daily_budget?: number | null
+          end_date?: string | null
+          id?: string
+          lifetime_budget?: number | null
+          objective?: string | null
+          organization_id?: string
+          start_date?: string | null
+          status?: string | null
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_campaigns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_memberships: {
         Row: {
           created_at: string
@@ -870,6 +1188,65 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "seat_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_campaign_metrics: {
+        Row: {
+          amount_raised: number
+          campaign_id: string
+          campaign_name: string | null
+          clicks: number
+          conversions: number
+          cost: number
+          date: string
+          id: string
+          messages_delivered: number
+          messages_failed: number
+          messages_sent: number
+          opt_outs: number
+          organization_id: string
+          synced_at: string
+        }
+        Insert: {
+          amount_raised?: number
+          campaign_id: string
+          campaign_name?: string | null
+          clicks?: number
+          conversions?: number
+          cost?: number
+          date: string
+          id?: string
+          messages_delivered?: number
+          messages_failed?: number
+          messages_sent?: number
+          opt_outs?: number
+          organization_id: string
+          synced_at?: string
+        }
+        Update: {
+          amount_raised?: number
+          campaign_id?: string
+          campaign_name?: string | null
+          clicks?: number
+          conversions?: number
+          cost?: number
+          date?: string
+          id?: string
+          messages_delivered?: number
+          messages_failed?: number
+          messages_sent?: number
+          opt_outs?: number
+          organization_id?: string
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_campaign_metrics_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "client_organizations"

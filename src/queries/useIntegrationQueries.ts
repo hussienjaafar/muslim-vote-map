@@ -60,9 +60,10 @@ export function useDisconnectCredentials(orgId: string | undefined) {
 export function useRunSync(orgId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (sinceDays = 30) => {
+    mutationFn: async (sinceDays: number | void) => {
+      const days = typeof sinceDays === 'number' ? sinceDays : 30;
       const { data, error } = await supabase.functions.invoke('sync-org', {
-        body: { organizationId: orgId, sinceDays },
+        body: { organizationId: orgId, sinceDays: days },
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);

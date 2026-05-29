@@ -14,7 +14,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { ArrowLeft, Building2, Users, Trash2, UserPlus, Check, X, TicketCheck } from 'lucide-react';
+import { ArrowLeft, Building2, Users, Trash2, UserPlus, Check, X, TicketCheck, Eye } from 'lucide-react';
+import { useOrg } from '@/contexts/OrgContext';
 import {
   useAdminOrganization, useOrgMembers, useUpdateMemberRole, useRemoveMember, useAddMember,
   useSeatRequests, useProcessSeatRequest, useUpdateSeatLimit, type OrgRole, type OrgMember,

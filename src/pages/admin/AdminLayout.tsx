@@ -31,6 +31,7 @@ const mobilePrimary = [
   { title: 'Map', url: '/admin/issue-map', icon: Map },
 ];
 const mobileOverflow = [
+  { title: 'Organizations', url: '/admin/orgs', icon: Building2 },
   { title: 'Products', url: '/admin/products', icon: Package },
   { title: 'Data', url: '/admin/data', icon: Database },
   { title: 'Live Activity', url: '/admin/live', icon: Activity },

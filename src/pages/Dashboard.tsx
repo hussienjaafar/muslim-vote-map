@@ -43,7 +43,7 @@ export default function Dashboard() {
     );
   }
 
-  if (!activeOrg || organizations.length === 0) {
+  if (!activeOrg) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6">
         <div className="surgical-glass p-10 max-w-md text-center space-y-4">

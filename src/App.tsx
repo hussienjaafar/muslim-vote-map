@@ -43,6 +43,7 @@ const App = () => (
       <BrowserRouter>
         <RouteTracker />
         <OrgProvider>
+        <ImpersonationBanner />
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<Index />} />

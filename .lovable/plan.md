@@ -2,9 +2,9 @@
 
 - **Phase 0** — Mapping doc ✅
 - **Phase 1** — Multi-tenant foundation ✅ (orgs, memberships, seats, OrgContext, OrgSwitcher)
-- **Phase 2** — Fundraising data schema ✅ (this phase)
-- **Phase 3** — Dashboard UI (client fundraising dashboard) — next
-- **Phase 4** — Admin org management UI
+- **Phase 2** — Fundraising data schema ✅
+- **Phase 3** — Dashboard UI ✅ (client fundraising dashboard at `/dashboard`)
+- **Phase 4** — Admin org management UI — next
 - **Phase 5** — Sync edge functions (skipped per user — A: skip)
 - **Phase 6** — Impersonation + cross-org admin
 

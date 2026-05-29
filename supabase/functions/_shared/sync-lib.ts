@@ -1,0 +1,393 @@
+// Shared fundraising sync logic, used by sync-org and sync-all-orgs.
+import { decryptJson, type EncryptedPayload } from './crypto.ts';
+
+// deno-lint-ignore no-explicit-any
+type SupabaseClient = any;
+
+type Platform = 'meta' | 'switchboard' | 'actblue';
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+function isoDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+function num(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+export type PlatformResult = { platform: Platform; ok: boolean; rows: number; error?: string };
+
+/**
+ * Meta Ads sync. Pulls campaign-level daily insights via the Graph API.
+ * Expected credentials: { access_token, ad_account_id }
+ */
+async function syncMeta(
+  admin: SupabaseClient,
+  orgId: string,
+  creds: Record<string, string>,
+  sinceDays: number,
+): Promise<PlatformResult> {
+  const token = creds.access_token;
+  const account = creds.ad_account_id;
+  if (!token || !account) {
+    return { platform: 'meta', ok: false, rows: 0, error: 'Missing access_token or ad_account_id' };
+  }
+  const acct = account.startsWith('act_') ? account : `act_${account}`;
+  const since = isoDaysAgo(sinceDays);
+  const until = todayIso();
+
+  const params = new URLSearchParams({
+    level: 'campaign',
+    time_increment: '1',
+    time_range: JSON.stringify({ since, until }),
+    fields:
+      'campaign_id,campaign_name,spend,impressions,clicks,reach,cpc,cpm,ctr,actions,action_values',
+    limit: '500',
+    access_token: token,
+  });
+  const url = `https://graph.facebook.com/v19.0/${acct}/insights?${params.toString()}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text();
+    return { platform: 'meta', ok: false, rows: 0, error: `Meta API ${res.status}: ${text.slice(0, 200)}` };
+  }
+  const payload = await res.json();
+  const rows: Record<string, unknown>[] = [];
+  for (const r of payload.data ?? []) {
+    let conversions = 0;
+    let conversionValue = 0;
+    for (const a of r.actions ?? []) {
+      if (String(a.action_type).includes('purchase') || String(a.action_type).includes('donate')) {
+        conversions += num(a.value);
+      }
+    }
+    for (const a of r.action_values ?? []) {
+      if (String(a.action_type).includes('purchase') || String(a.action_type).includes('donate')) {
+        conversionValue += num(a.value);
+      }
+    }
+    rows.push({
+      organization_id: orgId,
+      campaign_id: String(r.campaign_id),
+      ad_set_id: null,
+      ad_id: null,
+      date: r.date_start,
+      spend: num(r.spend),
+      impressions: num(r.impressions),
+      clicks: num(r.clicks),
+      reach: num(r.reach),
+      cpc: num(r.cpc),
+      cpm: num(r.cpm),
+      ctr: num(r.ctr),
+      conversions,
+      conversion_value: conversionValue,
+      roas: num(r.spend) > 0 ? conversionValue / num(r.spend) : null,
+      synced_at: new Date().toISOString(),
+    });
+  }
+
+  if (rows.length) {
+    const { error } = await admin
+      .from('meta_ad_metrics')
+      .upsert(rows, { onConflict: 'organization_id,campaign_id,ad_set_id,ad_id,date' });
+    if (error) return { platform: 'meta', ok: false, rows: 0, error: error.message };
+  }
+  return { platform: 'meta', ok: true, rows: rows.length };
+}
+
+/**
+ * Switchboard SMS sync. Pulls campaign daily metrics.
+ * Expected credentials: { api_key, account_id? }
+ */
+async function syncSwitchboard(
+  admin: SupabaseClient,
+  orgId: string,
+  creds: Record<string, string>,
+  sinceDays: number,
+): Promise<PlatformResult> {
+  const apiKey = creds.api_key;
+  if (!apiKey) return { platform: 'switchboard', ok: false, rows: 0, error: 'Missing api_key' };
+
+  const since = isoDaysAgo(sinceDays);
+  const base = creds.base_url?.replace(/\/$/, '') || 'https://api.oneswitchboard.com';
+  const url = `${base}/v1/campaigns/metrics?since=${since}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    return {
+      platform: 'switchboard',
+      ok: false,
+      rows: 0,
+      error: `Switchboard API ${res.status}: ${text.slice(0, 200)}`,
+    };
+  }
+  const payload = await res.json();
+  const items: Record<string, unknown>[] = payload.data ?? payload.campaigns ?? payload ?? [];
+  const rows = (Array.isArray(items) ? items : []).map((r) => ({
+    organization_id: orgId,
+    campaign_id: String(r.campaign_id ?? r.id),
+    campaign_name: r.campaign_name ?? r.name ?? null,
+    date: String(r.date ?? r.day ?? todayIso()).slice(0, 10),
+    messages_sent: num(r.messages_sent ?? r.sent),
+    messages_delivered: num(r.messages_delivered ?? r.delivered),
+    messages_failed: num(r.messages_failed ?? r.failed),
+    opt_outs: num(r.opt_outs ?? r.opt_out),
+    clicks: num(r.clicks),
+    conversions: num(r.conversions),
+    amount_raised: num(r.amount_raised ?? r.raised),
+    cost: num(r.cost ?? r.spend),
+    synced_at: new Date().toISOString(),
+  }));
+
+  if (rows.length) {
+    const { error } = await admin
+      .from('sms_campaign_metrics')
+      .upsert(rows, { onConflict: 'organization_id,campaign_id,date' });
+    if (error) return { platform: 'switchboard', ok: false, rows: 0, error: error.message };
+  }
+  return { platform: 'switchboard', ok: true, rows: rows.length };
+}
+
+/**
+ * ActBlue sync. Pulls recent contributions via the CSV API / webhook backfill.
+ * Expected credentials: { client_uuid, client_secret }
+ */
+async function syncActblue(
+  admin: SupabaseClient,
+  orgId: string,
+  creds: Record<string, string>,
+  sinceDays: number,
+): Promise<PlatformResult> {
+  const clientUuid = creds.client_uuid;
+  const clientSecret = creds.client_secret;
+  if (!clientUuid || !clientSecret) {
+    return { platform: 'actblue', ok: false, rows: 0, error: 'Missing client_uuid or client_secret' };
+  }
+
+  const auth = 'Basic ' + btoa(`${clientUuid}:${clientSecret}`);
+  const base = 'https://secure.actblue.com/api/v1';
+
+  // Request a CSV export for the window, then poll for the download URL.
+  const reqRes = await fetch(`${base}/csvs`, {
+    method: 'POST',
+    headers: { Authorization: auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ csv_type: 'paid_contributions', date_range_start: isoDaysAgo(sinceDays) }),
+  });
+  if (!reqRes.ok) {
+    const text = await reqRes.text();
+    return { platform: 'actblue', ok: false, rows: 0, error: `ActBlue API ${reqRes.status}: ${text.slice(0, 200)}` };
+  }
+  const reqJson = await reqRes.json();
+  const csvId = reqJson.id;
+  let downloadUrl: string | null = null;
+  for (let i = 0; i < 6 && !downloadUrl; i++) {
+    await new Promise((r) => setTimeout(r, 2500));
+    const poll = await fetch(`${base}/csvs/${csvId}`, { headers: { Authorization: auth } });
+    if (!poll.ok) continue;
+    const pj = await poll.json();
+    if (pj.status === 'complete' && pj.download_url) downloadUrl = pj.download_url;
+  }
+  if (!downloadUrl) {
+    return { platform: 'actblue', ok: false, rows: 0, error: 'ActBlue CSV not ready (timeout)' };
+  }
+
+  const csvRes = await fetch(downloadUrl);
+  const csvText = await csvRes.text();
+  const rows = parseActblueCsv(csvText, orgId);
+
+  if (rows.length) {
+    const { error } = await admin
+      .from('actblue_transactions')
+      .upsert(rows, { onConflict: 'organization_id,transaction_id' });
+    if (error) return { platform: 'actblue', ok: false, rows: 0, error: error.message };
+  }
+  return { platform: 'actblue', ok: true, rows: rows.length };
+}
+
+function parseActblueCsv(text: string, orgId: string): Record<string, unknown>[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const header = splitCsvLine(lines[0]).map((h) => h.trim().toLowerCase());
+  const idx = (name: string) => header.indexOf(name);
+  const out: Record<string, unknown>[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = splitCsvLine(lines[i]);
+    const get = (name: string) => {
+      const j = idx(name);
+      return j >= 0 ? cells[j] : '';
+    };
+    const txId = get('receipt id') || get('lineitem id') || get('order number');
+    if (!txId) continue;
+    const first = get('donor first name');
+    const last = get('donor last name');
+    out.push({
+      organization_id: orgId,
+      transaction_id: String(txId),
+      donor_email: get('donor email') || null,
+      donor_name: [first, last].filter(Boolean).join(' ') || null,
+      amount: num(get('amount')),
+      refcode: get('refcode') || get('refcode2') || null,
+      source_campaign: get('fundraising page') || null,
+      transaction_type: 'donation',
+      is_recurring: /yes|true|1/i.test(get('recurring total months') || get('recurrence number') || ''),
+      transaction_date: parseDate(get('date')),
+    });
+  }
+  return out;
+}
+
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else cur += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ',') { out.push(cur); cur = ''; }
+      else cur += c;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function parseDate(s: string): string {
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
+
+/** Recomputes daily_aggregated_metrics for an org over the window. */
+async function aggregateDaily(admin: SupabaseClient, orgId: string, sinceDays: number): Promise<number> {
+  const since = isoDaysAgo(sinceDays);
+
+  const [meta, sms, donations] = await Promise.all([
+    admin.from('meta_ad_metrics').select('date, spend, impressions, clicks').eq('organization_id', orgId).gte('date', since),
+    admin.from('sms_campaign_metrics').select('date, cost, amount_raised, messages_sent, conversions').eq('organization_id', orgId).gte('date', since),
+    admin.from('actblue_transactions').select('transaction_date, amount, donor_email').eq('organization_id', orgId).gte('transaction_date', since),
+  ]);
+
+  const byDate: Record<string, {
+    ad_spend: number; sms_cost: number; funds: number; donations: number;
+    meta_impressions: number; meta_clicks: number; sms_sent: number; sms_conversions: number; new_donors: number;
+  }> = {};
+  const ensure = (d: string) => (byDate[d] ??= {
+    ad_spend: 0, sms_cost: 0, funds: 0, donations: 0,
+    meta_impressions: 0, meta_clicks: 0, sms_sent: 0, sms_conversions: 0, new_donors: 0,
+  });
+
+  for (const r of meta.data ?? []) {
+    const d = ensure(r.date);
+    d.ad_spend += num(r.spend);
+    d.meta_impressions += num(r.impressions);
+    d.meta_clicks += num(r.clicks);
+  }
+  for (const r of sms.data ?? []) {
+    const d = ensure(r.date);
+    d.sms_cost += num(r.cost);
+    d.funds += num(r.amount_raised);
+    d.sms_sent += num(r.messages_sent);
+    d.sms_conversions += num(r.conversions);
+  }
+
+  // First-seen date per donor email (across all history) to compute new donors.
+  const firstSeen = new Map<string, string>();
+  const { data: allDonors } = await admin
+    .from('actblue_transactions')
+    .select('donor_email, transaction_date')
+    .eq('organization_id', orgId)
+    .not('donor_email', 'is', null)
+    .order('transaction_date', { ascending: true });
+  for (const r of allDonors ?? []) {
+    const email = String(r.donor_email).toLowerCase();
+    if (!firstSeen.has(email)) firstSeen.set(email, String(r.transaction_date).slice(0, 10));
+  }
+
+  for (const r of donations.data ?? []) {
+    const day = String(r.transaction_date).slice(0, 10);
+    const d = ensure(day);
+    d.funds += num(r.amount);
+    d.donations += 1;
+    if (r.donor_email && firstSeen.get(String(r.donor_email).toLowerCase()) === day) {
+      d.new_donors += 1;
+    }
+  }
+
+  const rows = Object.entries(byDate).map(([date, v]) => {
+    const totalSpend = v.ad_spend + v.sms_cost;
+    return {
+      organization_id: orgId,
+      date,
+      total_ad_spend: v.ad_spend,
+      total_sms_cost: v.sms_cost,
+      total_funds_raised: v.funds,
+      total_donations: v.donations,
+      new_donors: v.new_donors,
+      roi_percentage: totalSpend > 0 ? ((v.funds - totalSpend) / totalSpend) * 100 : null,
+      meta_impressions: v.meta_impressions,
+      meta_clicks: v.meta_clicks,
+      sms_sent: v.sms_sent,
+      sms_conversions: v.sms_conversions,
+      calculated_at: new Date().toISOString(),
+    };
+  });
+
+  if (rows.length) {
+    await admin.from('daily_aggregated_metrics').upsert(rows, { onConflict: 'organization_id,date' });
+  }
+  return rows.length;
+}
+
+/** Runs all configured platform syncs for an org, then aggregates. */
+export async function runOrgSync(
+  admin: SupabaseClient,
+  orgId: string,
+  sinceDays = 30,
+): Promise<{ org_id: string; results: PlatformResult[]; aggregated: number }> {
+  const { data: creds } = await admin
+    .from('client_api_credentials')
+    .select('platform, encrypted_credentials, is_active')
+    .eq('organization_id', orgId)
+    .eq('is_active', true);
+
+  const results: PlatformResult[] = [];
+  for (const row of creds ?? []) {
+    let decrypted: Record<string, string>;
+    try {
+      decrypted = await decryptJson<Record<string, string>>(row.encrypted_credentials as EncryptedPayload);
+    } catch (e) {
+      results.push({ platform: row.platform, ok: false, rows: 0, error: 'Decrypt failed: ' + (e as Error).message });
+      continue;
+    }
+
+    let result: PlatformResult;
+    if (row.platform === 'meta') result = await syncMeta(admin, orgId, decrypted, sinceDays);
+    else if (row.platform === 'switchboard') result = await syncSwitchboard(admin, orgId, decrypted, sinceDays);
+    else if (row.platform === 'actblue') result = await syncActblue(admin, orgId, decrypted, sinceDays);
+    else result = { platform: row.platform, ok: false, rows: 0, error: 'Unknown platform' };
+
+    results.push(result);
+
+    await admin
+      .from('client_api_credentials')
+      .update({
+        last_sync_at: new Date().toISOString(),
+        last_sync_status: result.ok ? 'success' : `error: ${result.error ?? 'unknown'}`.slice(0, 280),
+      })
+      .eq('organization_id', orgId)
+      .eq('platform', row.platform);
+  }
+
+  const aggregated = await aggregateDaily(admin, orgId, sinceDays);
+  return { org_id: orgId, results, aggregated };
+}

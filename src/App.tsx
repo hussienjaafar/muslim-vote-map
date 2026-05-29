@@ -14,6 +14,7 @@ import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import IssueDonorMap from "./pages/admin/IssueDonorMap.tsx";
 import Account from "./pages/Account.tsx";
+import FundraisingDashboard from "./pages/Dashboard.tsx";
 import AdminLayout from "./pages/admin/AdminLayout.tsx";
 import Dashboard from "./pages/admin/Dashboard.tsx";
 import UsersLayout from "./pages/admin/UsersLayout.tsx";
@@ -52,6 +53,7 @@ const App = () => (
           <Route path="/home" element={<AuthGuard><Home /></AuthGuard>} />
           <Route path="/map" element={<AuthGuard><IssueDonorMap /></AuthGuard>} />
           <Route path="/account" element={<AuthGuard><Account /></AuthGuard>} />
+          <Route path="/dashboard" element={<AuthGuard><FundraisingDashboard /></AuthGuard>} />
 
           {/* Admin routes — sidebar layout */}
           <Route path="/admin" element={<AuthGuard requireAdmin><AdminLayout /></AuthGuard>}>

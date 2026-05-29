@@ -14,7 +14,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { ArrowLeft, Building2, Users, Trash2, UserPlus, Check, X, TicketCheck } from 'lucide-react';
+import { ArrowLeft, Building2, Users, Trash2, UserPlus, Check, X, TicketCheck, Eye } from 'lucide-react';
+import { useOrg } from '@/contexts/OrgContext';
 import {
   useAdminOrganization, useOrgMembers, useUpdateMemberRole, useRemoveMember, useAddMember,
   useSeatRequests, useProcessSeatRequest, useUpdateSeatLimit, type OrgRole, type OrgMember,
@@ -37,6 +38,8 @@ const roleBadge: Record<OrgRole, string> = {
 export default function OrganizationDetail() {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
+  const { startImpersonation } = useOrg();
+
 
   const { data: org, isLoading } = useAdminOrganization(orgId);
   const { data: members } = useOrgMembers(orgId);
@@ -112,9 +115,21 @@ export default function OrganizationDetail() {
           <h2 className="text-2xl font-display font-bold text-foreground">{org.name}</h2>
           <p className="text-xs text-muted-foreground">{org.slug}</p>
         </div>
-        <Badge className={`ml-auto ${seatsFull ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-primary/15 text-primary border-primary/30'}`}>
-          <Users className="w-3 h-3 mr-1" />{memberCount}/{org.seat_limit} seats
-        </Badge>
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => {
+              startImpersonation({ id: org.id, name: org.name, logo_url: org.logo_url });
+              navigate('/dashboard');
+            }}
+          >
+            <Eye className="w-4 h-4" /> View dashboard as org
+          </Button>
+          <Badge className={seatsFull ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-primary/15 text-primary border-primary/30'}>
+            <Users className="w-3 h-3 mr-1" />{memberCount}/{org.seat_limit} seats
+          </Badge>
+        </div>
       </div>
 
       {/* Seat management */}

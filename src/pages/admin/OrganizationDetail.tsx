@@ -171,6 +171,9 @@ export default function OrganizationDetail() {
         </CardContent>
       </Card>
 
+      {/* Integrations */}
+      <OrgIntegrations orgId={org.id} />
+
       {/* Add member */}
       <Card>
         <CardHeader><CardTitle className="text-base">Add member</CardTitle></CardHeader>

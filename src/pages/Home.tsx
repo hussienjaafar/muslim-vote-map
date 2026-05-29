@@ -30,6 +30,7 @@ import { useTourStatus } from '@/hooks/useTourStatus';
 import { YourRegionsWidget } from '@/components/home/YourRegionsWidget';
 import { RecommendedDistricts } from '@/components/home/RecommendedDistricts';
 import { OrgSwitcher } from '@/components/org/OrgSwitcher';
+import { useOrg } from '@/contexts/OrgContext';
 
 const statusColor: Record<string, string> = {
   pending: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
@@ -232,6 +233,11 @@ export default function Home() {
             <span className="font-display text-sm font-semibold text-foreground hidden sm:inline">Campaign Data Solutions</span>
           </div>
           <div className="flex items-center gap-2">
+          {hasOrg && (
+            <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')} className="gap-1.5">
+              <TrendingUp className="w-4 h-4" /> <span className="hidden sm:inline">Dashboard</span>
+            </Button>
+          )}
           <OrgSwitcher />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

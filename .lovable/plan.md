@@ -6,7 +6,7 @@
 - **Phase 3** — Dashboard UI ✅ (client fundraising dashboard at `/dashboard`)
 - **Phase 4** — Admin org management UI ✅ (`/admin/orgs` list + detail: members, roles, seats, seat requests)
 - **Phase 5** — Sync edge functions (skipped per user — A: skip)
-- **Phase 6** — Impersonation + cross-org admin — next
+- **Phase 6** — Impersonation + cross-org admin ✅ (admin "View dashboard as org" → impersonation banner, OrgContext impersonation state)
 
 ---
 

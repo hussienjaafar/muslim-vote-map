@@ -26,6 +26,8 @@ import OrderDetail from "./pages/admin/OrderDetail.tsx";
 import ProductsPage from "./pages/admin/Products.tsx";
 import DataManagement from "./pages/admin/DataManagement.tsx";
 import LiveActivity from "./pages/admin/LiveActivity.tsx";
+import Organizations from "./pages/admin/Organizations.tsx";
+import OrganizationDetail from "./pages/admin/OrganizationDetail.tsx";
 import RequestAccess from "./pages/RequestAccess.tsx";
 import ApplicationStatus from "./pages/ApplicationStatus.tsx";
 import ApplicationsList from "./pages/admin/users/ApplicationsList.tsx";
@@ -68,6 +70,8 @@ const App = () => (
             <Route path="orders/:orderId" element={<OrderDetail />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="data" element={<DataManagement />} />
+            <Route path="orgs" element={<Organizations />} />
+            <Route path="orgs/:orgId" element={<OrganizationDetail />} />
             <Route path="issue-map" element={<IssueDonorMap isAdminView />} />
             <Route path="live" element={<LiveActivity />} />
           </Route>

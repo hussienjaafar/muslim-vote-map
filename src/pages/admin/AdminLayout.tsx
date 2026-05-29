@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, ShoppingCart, Package, Database, Map, LogOut, Search, User, Activity, Target, MoreHorizontal } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, Package, Database, Map, LogOut, Search, User, Activity, Target, MoreHorizontal, Building2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,6 +15,7 @@ import { OrgSwitcher } from '@/components/org/OrgSwitcher';
 const navItems = [
   { title: 'Dashboard', url: '/admin', icon: LayoutDashboard, end: true },
   { title: 'Users', url: '/admin/users', icon: Users },
+  { title: 'Orgs', url: '/admin/orgs', icon: Building2 },
   { title: 'Orders', url: '/admin/orders', icon: ShoppingCart },
   { title: 'Products', url: '/admin/products', icon: Package },
   { title: 'Data', url: '/admin/data', icon: Database },
@@ -30,6 +31,7 @@ const mobilePrimary = [
   { title: 'Map', url: '/admin/issue-map', icon: Map },
 ];
 const mobileOverflow = [
+  { title: 'Organizations', url: '/admin/orgs', icon: Building2 },
   { title: 'Products', url: '/admin/products', icon: Package },
   { title: 'Data', url: '/admin/data', icon: Database },
   { title: 'Live Activity', url: '/admin/live', icon: Activity },

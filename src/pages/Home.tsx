@@ -103,6 +103,8 @@ function QuickAddButton({ district, product }: {
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { organizations } = useOrg();
+  const hasOrg = organizations.length > 0;
 
   const { data: profile } = useQuery({
     queryKey: ['profile', user?.id],

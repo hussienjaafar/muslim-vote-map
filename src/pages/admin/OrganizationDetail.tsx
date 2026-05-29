@@ -38,6 +38,8 @@ const roleBadge: Record<OrgRole, string> = {
 export default function OrganizationDetail() {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
+  const { startImpersonation } = useOrg();
+
 
   const { data: org, isLoading } = useAdminOrganization(orgId);
   const { data: members } = useOrgMembers(orgId);

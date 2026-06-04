@@ -16,6 +16,37 @@ import {
 
 type Field = { key: string; label: string; placeholder?: string };
 
+const ACTBLUE_WEBHOOK_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/actblue-webhook`;
+
+function WebhookUrlField({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success('Webhook URL copied');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Could not copy URL');
+    }
+  };
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">Webhook endpoint URL</Label>
+      <div className="flex gap-2">
+        <Input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="h-9 font-mono text-xs" />
+        <Button type="button" size="sm" variant="outline" className="h-9 shrink-0 gap-1.5" onClick={copy}>
+          {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+          {copied ? 'Copied' : 'Copy'}
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Paste this as the webhook URL when configuring your ActBlue webhook.
+      </p>
+    </div>
+  );
+}
+
 const PLATFORMS: { id: Platform; name: string; icon: typeof Plug; fields: Field[]; help?: string }[] = [
   {
     id: 'meta', name: 'Meta Ads', icon: Megaphone,

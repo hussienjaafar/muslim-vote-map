@@ -50,6 +50,7 @@ export default function MetaOAuthCallback() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
+    if (isPopup) return; // popup relays to opener; opener handles the exchange
     if (oauthError) {
       setError(oauthError);
       return;

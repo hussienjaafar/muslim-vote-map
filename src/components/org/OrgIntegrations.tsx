@@ -58,6 +58,7 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
 
   const popupRef = useRef<Window | null>(null);
   const [accounts, setAccounts] = useState<MetaAdAccount[] | null>(null);
+  const [accountSearch, setAccountSearch] = useState('');
   const [exchanging, setExchanging] = useState(false);
 
   // Listen for the OAuth result posted back from the popup window.

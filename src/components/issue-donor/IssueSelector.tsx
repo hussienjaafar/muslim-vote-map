@@ -110,6 +110,16 @@ export function IssueSelector({ allIssues, selectedIds, onChange, onManage, maxS
                 <Badge variant="secondary" className="h-4 text-[9px] px-1.5 bg-emerald-500/20 text-emerald-300 border-0">
                   Live
                 </Badge>
+              ) : isAdmin ? (
+                <button
+                  onClick={() => publishIssue.mutate(issue.id)}
+                  disabled={publishIssue.isPending}
+                  className="flex items-center gap-1 h-5 px-1.5 rounded text-[9px] font-medium bg-amber-500/20 text-amber-300 hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors disabled:opacity-50"
+                  title="Publish this issue (make it Live)"
+                >
+                  <UploadCloud className="h-2.5 w-2.5" />
+                  Publish
+                </button>
               ) : (
                 <Badge variant="secondary" className="h-4 text-[9px] px-1.5 bg-amber-500/20 text-amber-300 border-0">
                   Draft

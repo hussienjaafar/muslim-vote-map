@@ -53,6 +53,7 @@ const App = () => (
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/request-access" element={<RequestAccess />} />
           <Route path="/application-status" element={<ApplicationStatus />} />
+          <Route path="/meta-oauth-callback" element={<AuthGuard><MetaOAuthCallback /></AuthGuard>} />
 
           {/* Auth-gated routes */}
           <Route path="/home" element={<AuthGuard><Home /></AuthGuard>} />

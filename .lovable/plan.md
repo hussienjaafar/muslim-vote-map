@@ -1,62 +1,72 @@
-# Phase 5 — Fundraising Data Pipeline
+# Connect CDS to the Meta Marketing API (OAuth)
 
-This is the missing data layer. Today every fundraising table exists but nothing fills them, so the dashboard always shows zeros. Phase 5 connects each org's ActBlue, Meta Ads, and Switchboard accounts, pulls their data on a schedule, and rolls it up for the dashboard.
+Replicate Molitico's "Connect with Facebook" experience inside CDS so admins can link a client org's Meta ad account without copy‑pasting tokens. OAuth becomes the primary path; the existing manual token fields stay as a fallback. Credentials continue to be stored AES‑GCM encrypted (CDS's existing `crypto.ts`), unlike Molitico which stored them in plaintext JSONB.
 
-## What gets built
+## How it works (end to end)
 
-### 1. Secure credential storage
-- Org owners/admins enter their ActBlue / Meta / Switchboard API keys in a new **Connections** screen.
-- Keys are NEVER stored in plaintext or held in the browser. The screen calls a `save-credentials` edge function that encrypts them (AES-GCM) before writing to the existing `client_api_credentials.encrypted_credentials` column.
-- A single project secret holds the encryption key. The UI only ever shows connection status (Connected / Not connected / Last synced), never the secret values.
+```text
+Admin clicks "Connect with Facebook" (OrgIntegrations, Meta card)
+        │
+        ▼
+ meta-oauth-init  ──► returns Facebook OAuth dialog URL (Marketing scopes)
+        │
+        ▼
+ Popup opens facebook.com → admin authorizes
+        │
+        ▼
+ Redirect to  /meta-oauth-callback  (new CDS route)
+        │  (page posts code+state back to opener, then calls)
+        ▼
+ meta-oauth-callback ──► exchange code → long-lived 60-day token
+                         discover all ad accounts (user + business)
+                         ENCRYPT with crypto.ts → upsert client_api_credentials
+        │
+        ▼
+ Admin picks the ad account in the Meta card
+        │
+        ▼
+ meta-save-connection ──► re-encrypt creds with chosen ad_account_id
+        │
+        ▼
+ Existing "Sync now" / daily cron uses the token like before
+```
 
-### 2. Connections UI (`/dashboard/connections`)
-- One card per platform (Meta Ads, Switchboard SMS, ActBlue) with connect / update / disconnect, a status badge, and last-sync time.
-- A global **Sync now** button that triggers an immediate pull for the active org.
-- Owner/admin only (members see a read-only status).
+## Reused Meta App
+Reuse Molitico's Meta App. Two secrets are added to CDS: `META_APP_ID` and `META_APP_SECRET`. You must add the CDS callback URL to that app's **Valid OAuth Redirect URIs** in the Meta for Developers dashboard:
+- `https://www.campaigndata.solutions/meta-oauth-callback`
+- `https://campaigndata.solutions/meta-oauth-callback`
+- `https://muslim-vote-map.lovable.app/meta-oauth-callback` (published)
+- the preview origin + `/meta-oauth-callback` (for testing)
 
-### 3. Sync edge functions
-- `sync-meta-ads` — pulls campaign + daily insight data from the Meta Graph API into `meta_campaigns` and `meta_ad_metrics`.
-- `sync-switchboard` — pulls SMS campaign daily metrics into `sms_campaign_metrics`.
-- `sync-actblue` — pulls recent donations into `actblue_transactions`.
-- `aggregate-daily-metrics` — rolls all three sources up into `daily_aggregated_metrics` (ad spend, SMS cost, funds raised, donations, new donors, ROI) per day.
-- `sync-org` — orchestrator: decrypts that org's creds, runs the platform syncs it has configured, then runs the aggregation, and stamps `last_sync_at` / `last_sync_status`.
-- `sync-all-orgs` — loops every org with active credentials and calls the per-org flow; this is what the daily schedule calls.
+## Changes
 
-### 4. ActBlue webhook (real-time donations)
-- A public `actblue-webhook` endpoint (no JWT) that validates a per-org shared secret, then upserts incoming donations into `actblue_transactions` immediately, so the dashboard reflects gifts as they happen between scheduled pulls.
+### 1. Secrets
+- Add `META_APP_ID` and `META_APP_SECRET` (values from the existing Molitico Meta App).
 
-### 5. Scheduled daily sync
-- A `pg_cron` job (using `pg_net`) calls `sync-all-orgs` once a day. Set up via the data tool (not a migration) because it embeds the project URL + key.
+### 2. New edge functions
+- `supabase/functions/meta-oauth-init/index.ts` — validates the caller is a platform admin, builds the `facebook.com/v19.0/dialog/oauth` URL with scopes `ads_read, ads_management, business_management, pages_read_engagement, pages_show_list`, and a signed `state` (orgId + userId + timestamp). Returns `authUrl`.
+- `supabase/functions/meta-oauth-callback/index.ts` — verifies JWT + admin, validates `state`, exchanges `code` → token → long‑lived token, fetches all user/business ad accounts, then **encrypts via `_shared/crypto.ts` (`encryptJson`)** and upserts into `client_api_credentials` (`platform='meta'`). Returns the ad‑account list (token never returned to the browser).
+- `supabase/functions/meta-save-connection/index.ts` — admin picks an ad account; decrypts stored creds, merges `ad_account_id`/`ad_account_name`, re‑encrypts and saves.
 
-### 6. Dashboard wiring
-- Add the **Connections** link + **Sync now** to the dashboard, and surface "Last synced X ago" and an empty-state nudge ("Connect an account to see data") on `/dashboard`.
+These follow CDS conventions (Lovable-managed deploy; `verify_jwt=false` default with in-code `getClaims` + `has_role` admin check). No `config.toml` change needed (these are not public webhooks).
 
-## Technical details
+### 3. Storage shape
+Keep using the existing `encrypted_credentials` (AES‑GCM `{iv, ciphertext}`) column — the decrypted JSON for Meta will now hold `{ access_token, ad_account_id, ad_account_name, ad_accounts[], meta_user_id, token_expires_at }`. `sync-lib.ts` already reads `access_token` + `ad_account_id`, so syncing keeps working unchanged. No schema migration is strictly required; the token expiry is stored inside the encrypted JSON.
 
-**Encryption.** New project secret `CREDENTIALS_ENCRYPTION_KEY` (32-byte base64). Edge functions use Web Crypto AES-GCM. `encrypted_credentials` stores `{ iv, ciphertext }` per platform. Decryption only happens server-side inside sync functions; the anon/authenticated client never receives plaintext (RLS already blocks members from reading the column, and we'll keep raw reads to service role + the save function).
+### 4. Frontend
+- New route `/meta-oauth-callback` in `src/App.tsx` → a small `MetaOAuthCallback` page that reads `code`+`state` from the URL, calls `meta-oauth-callback`, posts result to `window.opener`, and closes the popup.
+- Update `src/components/org/OrgIntegrations.tsx` Meta card:
+  - Add a primary **"Connect with Facebook"** button that calls `meta-oauth-init` and opens the popup.
+  - After OAuth, show a select of discovered ad accounts → calls `meta-save-connection`.
+  - Keep the existing manual `access_token` / `ad_account_id` fields below, collapsed as "Enter token manually" fallback.
+- Add the three mutations/queries to `src/queries/useIntegrationQueries.ts` (`useMetaOAuthInit`, `useMetaSaveConnection`).
 
-**Upsert keys (idempotent syncs).**
-- `meta_ad_metrics`: existing unique index on (org, campaign, ad_set, ad, date).
-- `sms_campaign_metrics`: upsert on (org, campaign_id, date) — add a unique index.
-- `actblue_transactions`: upsert on (org, transaction_id) — add a unique index.
-- `daily_aggregated_metrics`: upsert on (org, date) — add a unique index.
-- `meta_campaigns`: upsert on (org, campaign_id) — add a unique index.
+### 5. Token refresh (optional but recommended)
+Long‑lived tokens last ~60 days. Either rely on admins reconnecting, or add a `refresh-meta-tokens` edge function + pg_cron job (like Molitico) to proactively exchange tokens nearing expiry. I'll include this as a follow‑on step unless you'd rather skip it.
 
-These unique indexes are the only schema change (one migration). Everything else is edge functions + frontend.
+## Out of scope
+- No changes to the sync pulling logic itself (already built in Phase 5).
+- No client-user self-serve connect (admins only, per your choice).
 
-**Aggregation formula** (matches the dashboard hook): per day, `total_ad_spend` = sum Meta spend, `total_sms_cost` = sum SMS cost, `total_funds_raised` = ActBlue donations + SMS amount_raised, `total_donations` = count, `roi_percentage` = (raised − (adSpend+smsCost)) / (adSpend+smsCost) × 100. `new_donors` = donors whose first-ever gift falls on that day.
-
-**Function config.** All sync/webhook functions deploy with `verify_jwt = false`; auth is enforced in code (`getClaims` for user-triggered ones like `save-credentials` / `sync-org`; shared-secret for the webhook; service-role/cron auth for `sync-all-orgs`).
-
-**Secrets required from you.** Only `CREDENTIALS_ENCRYPTION_KEY` (I generate the value and request it). All platform API keys are entered per-org in the Connections UI — no global Meta/ActBlue/Switchboard secrets.
-
-## Build order
-1. Migration: add the unique indexes for idempotent upserts.
-2. Request `CREDENTIALS_ENCRYPTION_KEY` secret.
-3. `save-credentials` + `sync-*` + `aggregate` + orchestrator + `actblue-webhook` edge functions.
-4. Connections UI + dashboard wiring (Sync now, last-synced, empty states).
-5. Schedule `sync-all-orgs` daily via cron.
-6. Verify: connect a test org, run Sync now, confirm rows + dashboard populate.
-
-## Open question on external APIs
-The real Meta Graph / Switchboard / ActBlue request shapes depend on each provider's current API. I'll implement against their documented endpoints; if any provider's account/credential format differs from the standard, that platform's sync may need a small follow-up tweak once tested with live keys.
+## Verification
+- Deploy functions, add redirect URIs, click Connect on a test org, authorize, confirm ad accounts list appears, select one, run "Sync now" and confirm `meta_ad_metrics` / `daily_aggregated_metrics` populate.

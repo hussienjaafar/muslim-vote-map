@@ -1,5 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, X, Settings2 } from 'lucide-react';
+import { Plus, X, Settings2, UploadCloud } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,

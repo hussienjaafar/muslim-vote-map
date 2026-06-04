@@ -195,9 +195,11 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
                     size="sm"
                     className="gap-2 bg-[#1877F2] hover:bg-[#1877F2]/90 text-white"
                     onClick={handleConnectMeta}
-                    disabled={metaInit.isPending}
+                    disabled={metaInit.isPending || exchanging}
                   >
-                    <Facebook className="w-3.5 h-3.5" />
+                    {metaInit.isPending || exchanging
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <Facebook className="w-3.5 h-3.5" />}
                     {connected ? 'Reconnect with Facebook' : 'Connect with Facebook'}
                   </Button>
                   <p className="text-[11px] text-muted-foreground">

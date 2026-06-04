@@ -23,6 +23,20 @@ interface IssueSelectorProps {
 
 export function IssueSelector({ allIssues, selectedIds, onChange, onManage, maxSelected = 3, compact, onExpand }: IssueSelectorProps) {
   const [open, setOpen] = useState(false);
+  const { isAdmin } = useAuth();
+  const qc = useQueryClient();
+
+  const publishIssue = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('issues').update({ is_published: true }).eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['issues'] });
+      toast.success('Issue published');
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
 
   const selected = useMemo(
     () => selectedIds.map(id => allIssues.find(i => i.id === id)).filter(Boolean) as Issue[],

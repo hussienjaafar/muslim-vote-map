@@ -50,6 +50,18 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
   const save = useSaveCredentials(orgId);
   const disconnect = useDisconnectCredentials(orgId);
   const runSync = useRunSync(orgId);
+  const metaInit = useMetaOAuthInit(orgId);
+
+  const handleConnectMeta = async () => {
+    try {
+      const redirectUri = `${window.location.origin}/meta-oauth-callback`;
+      sessionStorage.setItem('meta_oauth_org', orgId);
+      const { authorizeUrl } = await metaInit.mutateAsync(redirectUri);
+      window.location.href = authorizeUrl;
+    } catch (e: any) {
+      toast.error(e.message ?? 'Could not start Meta connection');
+    }
+  };
 
   const [drafts, setDrafts] = useState<Record<string, Record<string, string>>>({});
 

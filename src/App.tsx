@@ -32,6 +32,7 @@ import OrganizationDetail from "./pages/admin/OrganizationDetail.tsx";
 import RequestAccess from "./pages/RequestAccess.tsx";
 import ApplicationStatus from "./pages/ApplicationStatus.tsx";
 import ApplicationsList from "./pages/admin/users/ApplicationsList.tsx";
+import MetaOAuthCallback from "./pages/MetaOAuthCallback.tsx";
 
 const queryClient = new QueryClient();
 

@@ -6,9 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { Plug, RefreshCw, Megaphone, MessageSquare, HeartHandshake } from 'lucide-react';
+import { Plug, RefreshCw, Megaphone, MessageSquare, HeartHandshake, Facebook } from 'lucide-react';
 import {
-  useOrgCredentials, useSaveCredentials, useDisconnectCredentials, useRunSync,
+  useOrgCredentials, useSaveCredentials, useDisconnectCredentials, useRunSync, useMetaOAuthInit,
   type Platform, type CredentialStatus,
 } from '@/queries/useIntegrationQueries';
 

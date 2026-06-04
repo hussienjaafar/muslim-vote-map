@@ -58,6 +58,7 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
 
   const popupRef = useRef<Window | null>(null);
   const [accounts, setAccounts] = useState<MetaAdAccount[] | null>(null);
+  const [accountSearch, setAccountSearch] = useState('');
   const [exchanging, setExchanging] = useState(false);
 
   // Listen for the OAuth result posted back from the popup window.
@@ -247,32 +248,47 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
         </p>
       </CardContent>
 
-      <Dialog open={!!accounts} onOpenChange={(o) => { if (!o) setAccounts(null); }}>
-        <DialogContent>
+      <Dialog open={!!accounts} onOpenChange={(o) => { if (!o) { setAccounts(null); setAccountSearch(''); } }}>
+        <DialogContent className="max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <Megaphone className="w-4 h-4 text-primary" /> Choose an ad account
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Select the ad account to sync for this organization:</p>
-            {accounts?.map((a) => (
-              <Button
-                key={a.id}
-                variant="outline"
-                className="w-full justify-between h-auto py-2.5"
-                disabled={metaSave.isPending}
-                onClick={() => handleSelectAccount(a)}
-              >
-                <span className="text-left">
-                  <span className="block text-sm font-medium">{a.name}</span>
-                  <span className="block text-[11px] text-muted-foreground">
-                    {a.id}{a.currency ? ` · ${a.currency}` : ''}
+          <p className="text-sm text-muted-foreground">Select the ad account to sync for this organization:</p>
+          <Input
+            placeholder="Search by name or account ID..."
+            value={accountSearch}
+            onChange={(e) => setAccountSearch(e.target.value)}
+            className="mt-1"
+          />
+          <div className="space-y-2 overflow-y-auto flex-1 -mr-2 pr-2">
+            {(() => {
+              const q = accountSearch.trim().toLowerCase();
+              const filtered = (accounts ?? []).filter(
+                (a) => a.name.toLowerCase().includes(q) || a.id.toLowerCase().includes(q),
+              );
+              if (!filtered.length) {
+                return <p className="text-sm text-muted-foreground py-4 text-center">No ad accounts match your search.</p>;
+              }
+              return filtered.map((a) => (
+                <Button
+                  key={a.id}
+                  variant="outline"
+                  className="w-full justify-between h-auto py-2.5"
+                  disabled={metaSave.isPending}
+                  onClick={() => handleSelectAccount(a)}
+                >
+                  <span className="text-left">
+                    <span className="block text-sm font-medium">{a.name}</span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      {a.id}{a.currency ? ` · ${a.currency}` : ''}
+                    </span>
                   </span>
-                </span>
-                {metaSave.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              </Button>
-            ))}
+                  {metaSave.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                </Button>
+              ));
+            })()}
           </div>
         </DialogContent>
       </Dialog>

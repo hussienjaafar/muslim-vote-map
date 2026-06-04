@@ -1,15 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { Plug, RefreshCw, Megaphone, MessageSquare, HeartHandshake, Facebook } from 'lucide-react';
+import { Plug, RefreshCw, Megaphone, MessageSquare, HeartHandshake, Facebook, Loader2 } from 'lucide-react';
 import {
-  useOrgCredentials, useSaveCredentials, useDisconnectCredentials, useRunSync, useMetaOAuthInit,
-  type Platform, type CredentialStatus,
+  useOrgCredentials, useSaveCredentials, useDisconnectCredentials, useRunSync,
+  useMetaOAuthInit, useMetaOAuthCallback, useMetaSaveConnection,
+  type Platform, type CredentialStatus, type MetaAdAccount,
 } from '@/queries/useIntegrationQueries';
 
 type Field = { key: string; label: string; placeholder?: string };
@@ -51,16 +53,78 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
   const disconnect = useDisconnectCredentials(orgId);
   const runSync = useRunSync(orgId);
   const metaInit = useMetaOAuthInit(orgId);
+  const metaCallback = useMetaOAuthCallback(orgId);
+  const metaSave = useMetaSaveConnection(orgId);
+
+  const popupRef = useRef<Window | null>(null);
+  const [accounts, setAccounts] = useState<MetaAdAccount[] | null>(null);
+  const [exchanging, setExchanging] = useState(false);
+
+  // Listen for the OAuth result posted back from the popup window.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (!data || data.type !== 'meta-oauth') return;
+      popupRef.current?.close();
+      popupRef.current = null;
+      if (data.error) {
+        toast.error(typeof data.error === 'string' ? data.error : 'Facebook connection was cancelled');
+        return;
+      }
+      if (!data.code || !data.state) {
+        toast.error('Missing authorization code. Please try again.');
+        return;
+      }
+      setExchanging(true);
+      metaCallback.mutate(
+        { code: data.code, state: data.state },
+        {
+          onSuccess: (res) => {
+            if (!res.adAccounts.length) toast.error('No ad accounts were found for this Facebook user.');
+            else setAccounts(res.adAccounts);
+          },
+          onError: (e: any) => toast.error(e.message ?? 'Connection failed'),
+          onSettled: () => setExchanging(false),
+        },
+      );
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId]);
 
   const handleConnectMeta = async () => {
     try {
       const redirectUri = `${window.location.origin}/meta-oauth-callback`;
-      sessionStorage.setItem('meta_oauth_org', orgId);
       const { authorizeUrl } = await metaInit.mutateAsync(redirectUri);
-      window.location.href = authorizeUrl;
+      const w = 600;
+      const h = 750;
+      const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+      const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+      const popup = window.open(
+        authorizeUrl,
+        'meta-oauth',
+        `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`,
+      );
+      if (!popup) {
+        toast.error('Popup blocked. Please allow popups for this site and try again.');
+        return;
+      }
+      popupRef.current = popup;
     } catch (e: any) {
       toast.error(e.message ?? 'Could not start Meta connection');
     }
+  };
+
+  const handleSelectAccount = (acct: MetaAdAccount) => {
+    metaSave.mutate(acct.id, {
+      onSuccess: () => {
+        toast.success(`Connected ${acct.name}`);
+        setAccounts(null);
+      },
+      onError: (e: any) => toast.error(e.message ?? 'Failed to save selection'),
+    });
   };
 
   const [drafts, setDrafts] = useState<Record<string, Record<string, string>>>({});
@@ -131,9 +195,11 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
                     size="sm"
                     className="gap-2 bg-[#1877F2] hover:bg-[#1877F2]/90 text-white"
                     onClick={handleConnectMeta}
-                    disabled={metaInit.isPending}
+                    disabled={metaInit.isPending || exchanging}
                   >
-                    <Facebook className="w-3.5 h-3.5" />
+                    {metaInit.isPending || exchanging
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <Facebook className="w-3.5 h-3.5" />}
                     {connected ? 'Reconnect with Facebook' : 'Connect with Facebook'}
                   </Button>
                   <p className="text-[11px] text-muted-foreground">
@@ -180,6 +246,36 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
           Keys are encrypted before storage and never displayed again. Re-enter to update.
         </p>
       </CardContent>
+
+      <Dialog open={!!accounts} onOpenChange={(o) => { if (!o) setAccounts(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Megaphone className="w-4 h-4 text-primary" /> Choose an ad account
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Select the ad account to sync for this organization:</p>
+            {accounts?.map((a) => (
+              <Button
+                key={a.id}
+                variant="outline"
+                className="w-full justify-between h-auto py-2.5"
+                disabled={metaSave.isPending}
+                onClick={() => handleSelectAccount(a)}
+              >
+                <span className="text-left">
+                  <span className="block text-sm font-medium">{a.name}</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {a.id}{a.currency ? ` · ${a.currency}` : ''}
+                  </span>
+                </span>
+                {metaSave.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

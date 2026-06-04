@@ -16,6 +16,30 @@ export default function MetaOAuthCallback() {
   const state = params.get('state');
   const oauthError = params.get('error_description') || params.get('error');
 
+  // If this page is running inside the OAuth popup, relay the result back to the
+  // opener window and close. The opener handles the token exchange + account picker.
+  const isPopup = useMemo(() => {
+    try {
+      return !!window.opener && window.opener !== window;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isPopup) return;
+    try {
+      window.opener.postMessage(
+        { type: 'meta-oauth', code, state, error: oauthError },
+        window.location.origin,
+      );
+    } catch {
+      /* ignore */
+    }
+    window.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPopup]);
+
   const orgId = useMemo(() => sessionStorage.getItem('meta_oauth_org') ?? undefined, []);
 
   const callback = useMetaOAuthCallback(orgId);
@@ -26,6 +50,7 @@ export default function MetaOAuthCallback() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
+    if (isPopup) return; // popup relays to opener; opener handles the exchange
     if (oauthError) {
       setError(oauthError);
       return;
@@ -62,6 +87,16 @@ export default function MetaOAuthCallback() {
       onError: (e: any) => toast.error(e.message ?? 'Failed to save selection'),
     });
   };
+
+  if (isPopup) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" /> Completing connection… you can close this window.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background">

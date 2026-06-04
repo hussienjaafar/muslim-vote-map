@@ -2,12 +2,53 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { decryptJson, type EncryptedPayload } from '../_shared/crypto.ts';
 
 // Public endpoint (no JWT). ActBlue posts contributions here in real time.
-// Configure in ActBlue with URL: <fn-url>?org=<organization_id>
-// and HTTP Basic Auth matching the org's stored webhook_username / webhook_password.
+// Configure in ActBlue with this function URL.
+// The organization is identified by the `entity_id` in the payload (matched against stored credentials).
+// Authentication is either:
+//   1. HMAC: X-ActBlue-Signature: sha256=<hex> validated against the org's webhook_secret
+//   2. HTTP Basic Auth matching the org's basic_auth_username / basic_auth_password
 
 function num(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+async function computeHmac(body: string, secret: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(body));
+  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return result === 0;
+}
+
+async function validateHmac(header: string | null, body: string, secret: string): Promise<boolean> {
+  if (!header || !secret) return false;
+  const parts = header.split('=');
+  if (parts.length !== 2 || parts[0] !== 'sha256') return false;
+  const computed = await computeHmac(body, secret);
+  return timingSafeEqual(parts[1], computed);
+}
+
+function validateBasicAuth(header: string | null, user: string, pass: string): boolean {
+  if (!header || !header.startsWith('Basic ')) return false;
+  try {
+    const [u, p] = atob(header.slice(6)).split(':');
+    return u === user && p === pass;
+  } catch {
+    return false;
+  }
+}
+
+function extractEntityId(c: any, body: any): string | null {
+  const raw = c?.entityId ?? c?.entity_id ?? body?.entityId ?? body?.entity_id ??
+    body?.contribution?.entityId ?? body?.contribution?.entity_id ?? null;
+  return raw != null ? String(raw) : null;
 }
 
 Deno.serve(async (req) => {
@@ -15,58 +56,74 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
   }
   try {
-    const url = new URL(req.url);
-    const orgId = url.searchParams.get('org');
-    if (!orgId) return new Response(JSON.stringify({ error: 'Missing org' }), { status: 400 });
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const admin = createClient(supabaseUrl, service);
 
-    const { data: credRow } = await admin
-      .from('client_api_credentials')
-      .select('encrypted_credentials, is_active')
-      .eq('organization_id', orgId)
-      .eq('platform', 'actblue')
-      .maybeSingle();
-
-    if (!credRow || !credRow.is_active) {
-      return new Response(JSON.stringify({ error: 'Not configured' }), { status: 404 });
-    }
-
-    let creds: Record<string, string>;
-    try {
-      creds = await decryptJson<Record<string, string>>(credRow.encrypted_credentials as EncryptedPayload);
-    } catch {
-      return new Response(JSON.stringify({ error: 'Server error' }), { status: 500 });
-    }
-
-    // Validate HTTP Basic Auth against stored webhook credentials.
-    const expectedUser = creds.webhook_username;
-    const expectedPass = creds.webhook_password;
-    if (!expectedUser || !expectedPass) {
-      return new Response(JSON.stringify({ error: 'Webhook auth not set' }), { status: 401 });
-    }
-    const authHeader = req.headers.get('Authorization') ?? '';
-    const ok = (() => {
-      if (!authHeader.startsWith('Basic ')) return false;
+    // Read the raw body once (needed for HMAC verification).
+    const rawBody = await req.text();
+    const body = (() => {
       try {
-        const [u, p] = atob(authHeader.slice(6)).split(':');
-        return u === expectedUser && p === expectedPass;
+        return JSON.parse(rawBody);
       } catch {
-        return false;
+        return null;
       }
     })();
-    if (!ok) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'WWW-Authenticate': 'Basic realm="actblue"' },
-      });
-    }
+    if (!body) return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400 });
 
-    const body = await req.json().catch(() => null);
     const c = body?.contribution ?? body?.lineitem ?? body;
     if (!c) return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400 });
+
+    const entityId = extractEntityId(c, body);
+    if (!entityId) return new Response(JSON.stringify({ error: 'Missing entity_id' }), { status: 400 });
+
+    // Find the org whose stored credentials match this entity_id.
+    const { data: rows } = await admin
+      .from('client_api_credentials')
+      .select('organization_id, encrypted_credentials, is_active')
+      .eq('platform', 'actblue')
+      .eq('is_active', true);
+
+    let orgId: string | null = null;
+    let creds: Record<string, string> | null = null;
+    for (const r of rows ?? []) {
+      try {
+        const dec = await decryptJson<Record<string, string>>(r.encrypted_credentials as EncryptedPayload);
+        if (dec.entity_id && String(dec.entity_id) === entityId) {
+          orgId = r.organization_id as string;
+          creds = dec;
+          break;
+        }
+      } catch {
+        // Skip undecryptable rows.
+      }
+    }
+
+    if (!orgId || !creds) {
+      return new Response(JSON.stringify({ error: 'No matching organization' }), { status: 404 });
+    }
+
+    // Authenticate: HMAC signature first, then Basic Auth fallback.
+    const signatureHeader = req.headers.get('X-ActBlue-Signature');
+    const authHeader = req.headers.get('Authorization');
+    let authenticated = false;
+
+    if (creds.webhook_secret) {
+      authenticated = await validateHmac(signatureHeader, rawBody, creds.webhook_secret);
+    }
+    if (!authenticated && creds.basic_auth_username && creds.basic_auth_password) {
+      authenticated = validateBasicAuth(authHeader, creds.basic_auth_username, creds.basic_auth_password);
+    }
+
+    if (!authenticated) {
+      return new Response(
+        JSON.stringify({
+          error: 'Unauthorized',
+          hint: 'Configure webhook_secret (HMAC) or basic_auth_username/password in API credentials',
+        }),
+        { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="actblue"' } },
+      );
+    }
 
     const donor = body?.donor ?? c?.donor ?? {};
     const txId = String(c.orderNumber ?? c.receiptId ?? c.lineitemId ?? c.id ?? crypto.randomUUID());

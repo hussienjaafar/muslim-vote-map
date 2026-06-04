@@ -175,8 +175,8 @@ async function syncSwitchboard(
 }
 
 /**
- * ActBlue sync. Pulls recent contributions via the CSV API / webhook backfill.
- * Expected credentials: { client_uuid, client_secret }
+ * ActBlue sync. Pulls recent contributions via the CSV API.
+ * Expected credentials: { username, password, entity_id }
  */
 async function syncActblue(
   admin: SupabaseClient,
@@ -184,13 +184,14 @@ async function syncActblue(
   creds: Record<string, string>,
   sinceDays: number,
 ): Promise<PlatformResult> {
-  const clientUuid = creds.client_uuid;
-  const clientSecret = creds.client_secret;
-  if (!clientUuid || !clientSecret) {
-    return { platform: 'actblue', ok: false, rows: 0, error: 'Missing client_uuid or client_secret' };
+  const username = creds.username;
+  const password = creds.password;
+  const entityId = creds.entity_id;
+  if (!username || !password || !entityId) {
+    return { platform: 'actblue', ok: false, rows: 0, error: 'Missing username, password or entity_id' };
   }
 
-  const auth = 'Basic ' + btoa(`${clientUuid}:${clientSecret}`);
+  const auth = 'Basic ' + btoa(`${username}:${password}`);
   const base = 'https://secure.actblue.com/api/v1';
 
   // Request a CSV export for the window, then poll for the download URL.

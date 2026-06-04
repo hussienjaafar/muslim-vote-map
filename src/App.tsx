@@ -32,6 +32,7 @@ import OrganizationDetail from "./pages/admin/OrganizationDetail.tsx";
 import RequestAccess from "./pages/RequestAccess.tsx";
 import ApplicationStatus from "./pages/ApplicationStatus.tsx";
 import ApplicationsList from "./pages/admin/users/ApplicationsList.tsx";
+import MetaOAuthCallback from "./pages/MetaOAuthCallback.tsx";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ const App = () => (
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/request-access" element={<RequestAccess />} />
           <Route path="/application-status" element={<ApplicationStatus />} />
+          <Route path="/meta-oauth-callback" element={<AuthGuard><MetaOAuthCallback /></AuthGuard>} />
 
           {/* Auth-gated routes */}
           <Route path="/home" element={<AuthGuard><Home /></AuthGuard>} />

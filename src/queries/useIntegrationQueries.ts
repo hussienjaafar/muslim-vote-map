@@ -57,6 +57,52 @@ export function useDisconnectCredentials(orgId: string | undefined) {
   });
 }
 
+export type MetaAdAccount = { id: string; account_id: string; name: string; currency?: string };
+
+/** Starts the Meta OAuth flow and returns the Facebook authorize URL. */
+export function useMetaOAuthInit(orgId: string | undefined) {
+  return useMutation({
+    mutationFn: async (redirectUri: string) => {
+      const { data, error } = await supabase.functions.invoke('meta-oauth-init', {
+        body: { organizationId: orgId, redirectUri },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as { authorizeUrl: string };
+    },
+  });
+}
+
+/** Exchanges the OAuth code, stores the encrypted token, and returns available ad accounts. */
+export function useMetaOAuthCallback(orgId: string | undefined) {
+  return useMutation({
+    mutationFn: async (vars: { code: string; state: string }) => {
+      const { data, error } = await supabase.functions.invoke('meta-oauth-callback', {
+        body: vars,
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as { adAccounts: MetaAdAccount[]; metaUser: { id: string | null; name: string | null } };
+    },
+  });
+}
+
+/** Finalizes the Meta connection by selecting an ad account. */
+export function useMetaSaveConnection(orgId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (adAccountId: string) => {
+      const { data, error } = await supabase.functions.invoke('meta-save-connection', {
+        body: { organizationId: orgId, adAccountId },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as { adAccount: { id: string; name: string } };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['org-credentials', orgId] }),
+  });
+}
+
 export function useRunSync(orgId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({

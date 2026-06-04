@@ -246,6 +246,36 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
           Keys are encrypted before storage and never displayed again. Re-enter to update.
         </p>
       </CardContent>
+
+      <Dialog open={!!accounts} onOpenChange={(o) => { if (!o) setAccounts(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Megaphone className="w-4 h-4 text-primary" /> Choose an ad account
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Select the ad account to sync for this organization:</p>
+            {accounts?.map((a) => (
+              <Button
+                key={a.id}
+                variant="outline"
+                className="w-full justify-between h-auto py-2.5"
+                disabled={metaSave.isPending}
+                onClick={() => handleSelectAccount(a)}
+              >
+                <span className="text-left">
+                  <span className="block text-sm font-medium">{a.name}</span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    {a.id}{a.currency ? ` · ${a.currency}` : ''}
+                  </span>
+                </span>
+                {metaSave.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

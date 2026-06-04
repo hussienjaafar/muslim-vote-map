@@ -16,6 +16,30 @@ export default function MetaOAuthCallback() {
   const state = params.get('state');
   const oauthError = params.get('error_description') || params.get('error');
 
+  // If this page is running inside the OAuth popup, relay the result back to the
+  // opener window and close. The opener handles the token exchange + account picker.
+  const isPopup = useMemo(() => {
+    try {
+      return !!window.opener && window.opener !== window;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isPopup) return;
+    try {
+      window.opener.postMessage(
+        { type: 'meta-oauth', code, state, error: oauthError },
+        window.location.origin,
+      );
+    } catch {
+      /* ignore */
+    }
+    window.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPopup]);
+
   const orgId = useMemo(() => sessionStorage.getItem('meta_oauth_org') ?? undefined, []);
 
   const callback = useMetaOAuthCallback(orgId);

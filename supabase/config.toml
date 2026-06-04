@@ -8,3 +8,12 @@ verify_jwt = false
 
 [functions.sync-all-orgs]
 verify_jwt = false
+
+[functions.meta-oauth-init]
+verify_jwt = false
+
+[functions.meta-oauth-callback]
+verify_jwt = false
+
+[functions.meta-save-connection]
+verify_jwt = false

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { Plug, RefreshCw, Megaphone, MessageSquare, HeartHandshake, Facebook, Loader2 } from 'lucide-react';
+import { Plug, RefreshCw, Megaphone, MessageSquare, HeartHandshake, Facebook, Loader2, Copy, Check } from 'lucide-react';
 import {
   useOrgCredentials, useSaveCredentials, useDisconnectCredentials, useRunSync,
   useMetaOAuthInit, useMetaOAuthCallback, useMetaSaveConnection,

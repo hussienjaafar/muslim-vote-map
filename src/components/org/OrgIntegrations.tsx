@@ -27,20 +27,24 @@ const PLATFORMS: { id: Platform; name: string; icon: typeof Plug; fields: Field[
   {
     id: 'switchboard', name: 'Switchboard SMS', icon: MessageSquare,
     fields: [
-      { key: 'api_key', label: 'API key', placeholder: 'sb_live_...' },
-      { key: 'base_url', label: 'Base URL (optional)', placeholder: 'https://api.oneswitchboard.com' },
+      { key: 'account_id', label: 'Account ID', placeholder: 'Switchboard account ID' },
+      { key: 'api_key', label: 'Secret key', placeholder: 'sb_live_...' },
     ],
+    help: 'Account ID and Secret key authenticate against the Switchboard API to sync SMS broadcasts.',
   },
   {
     id: 'actblue', name: 'ActBlue', icon: HeartHandshake,
     fields: [
-      { key: 'client_uuid', label: 'Client UUID', placeholder: 'CSV API username' },
-      { key: 'client_secret', label: 'Client secret', placeholder: 'CSV API password' },
-      { key: 'webhook_username', label: 'Webhook username (optional)' },
-      { key: 'webhook_password', label: 'Webhook password (optional)' },
+      { key: 'username', label: 'CSV API username', placeholder: 'CSV API username' },
+      { key: 'password', label: 'CSV API password', placeholder: 'CSV API password' },
+      { key: 'entity_id', label: 'Entity ID', placeholder: 'ActBlue entity ID' },
+      { key: 'webhook_secret', label: 'Webhook secret (optional)' },
+      { key: 'basic_auth_username', label: 'Webhook username (optional)' },
+      { key: 'basic_auth_password', label: 'Webhook password (optional)' },
     ],
-    help: 'CSV API powers scheduled pulls; webhook credentials enable real-time donations.',
+    help: 'CSV username, password & Entity ID power scheduled pulls. Add a webhook secret (HMAC) or webhook username/password to enable real-time donations.',
   },
+
 ];
 
 function statusFor(creds: CredentialStatus[] | undefined, p: Platform) {

@@ -125,7 +125,24 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
               {st?.last_sync_status && st.last_sync_status.startsWith('error') && (
                 <p className="text-[11px] text-destructive">{st.last_sync_status}</p>
               )}
+              {p.id === 'meta' && (
+                <div className="space-y-2">
+                  <Button
+                    size="sm"
+                    className="gap-2 bg-[#1877F2] hover:bg-[#1877F2]/90 text-white"
+                    onClick={handleConnectMeta}
+                    disabled={metaInit.isPending}
+                  >
+                    <Facebook className="w-3.5 h-3.5" />
+                    {connected ? 'Reconnect with Facebook' : 'Connect with Facebook'}
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    Recommended: sign in with Facebook to pick an ad account automatically. Or paste a token manually below.
+                  </p>
+                </div>
+              )}
               <div className="grid sm:grid-cols-2 gap-3">
+
                 {p.fields.map((f) => (
                   <div key={f.key} className="space-y-1.5">
                     <Label className="text-xs">{f.label}</Label>

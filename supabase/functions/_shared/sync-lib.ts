@@ -100,8 +100,9 @@ async function syncMeta(
 }
 
 /**
- * Switchboard SMS sync. Pulls campaign daily metrics.
- * Expected credentials: { api_key, account_id? }
+ * Switchboard SMS sync. Pulls broadcasts and aggregates daily metrics.
+ * Expected credentials: { account_id, api_key }
+ * Auth: HTTP Basic base64(account_id:api_key) against https://api.oneswitchboard.com
  */
 async function syncSwitchboard(
   admin: SupabaseClient,
@@ -109,41 +110,60 @@ async function syncSwitchboard(
   creds: Record<string, string>,
   sinceDays: number,
 ): Promise<PlatformResult> {
+  const accountId = creds.account_id;
   const apiKey = creds.api_key;
-  if (!apiKey) return { platform: 'switchboard', ok: false, rows: 0, error: 'Missing api_key' };
-
-  const since = isoDaysAgo(sinceDays);
-  const base = creds.base_url?.replace(/\/$/, '') || 'https://api.oneswitchboard.com';
-  const url = `${base}/v1/campaigns/metrics?since=${since}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    return {
-      platform: 'switchboard',
-      ok: false,
-      rows: 0,
-      error: `Switchboard API ${res.status}: ${text.slice(0, 200)}`,
-    };
+  if (!accountId || !apiKey) {
+    return { platform: 'switchboard', ok: false, rows: 0, error: 'Missing account_id or api_key' };
   }
-  const payload = await res.json();
-  const items: Record<string, unknown>[] = payload.data ?? payload.campaigns ?? payload ?? [];
-  const rows = (Array.isArray(items) ? items : []).map((r) => ({
-    organization_id: orgId,
-    campaign_id: String(r.campaign_id ?? r.id),
-    campaign_name: r.campaign_name ?? r.name ?? null,
-    date: String(r.date ?? r.day ?? todayIso()).slice(0, 10),
-    messages_sent: num(r.messages_sent ?? r.sent),
-    messages_delivered: num(r.messages_delivered ?? r.delivered),
-    messages_failed: num(r.messages_failed ?? r.failed),
-    opt_outs: num(r.opt_outs ?? r.opt_out),
-    clicks: num(r.clicks),
-    conversions: num(r.conversions),
-    amount_raised: num(r.amount_raised ?? r.raised),
-    cost: num(r.cost ?? r.spend),
-    synced_at: new Date().toISOString(),
-  }));
+
+  const auth = 'Basic ' + btoa(`${accountId}:${apiKey}`);
+  const sinceMs = Date.now() - sinceDays * 24 * 60 * 60 * 1000;
+
+  // Page through broadcasts.
+  const broadcasts: Record<string, unknown>[] = [];
+  let next: string | null = 'https://api.oneswitchboard.com/v1/broadcasts';
+  let guard = 0;
+  while (next && guard < 50) {
+    guard++;
+    const res = await fetch(next, {
+      headers: { Authorization: auth, 'Content-Type': 'application/json', Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return {
+        platform: 'switchboard',
+        ok: false,
+        rows: 0,
+        error: `Switchboard API ${res.status}: ${text.slice(0, 200)}`,
+      };
+    }
+    const payload = await res.json();
+    const items: Record<string, unknown>[] = payload.data ?? payload.broadcasts ?? [];
+    if (Array.isArray(items)) broadcasts.push(...items);
+    next = payload.next ?? payload.links?.next ?? payload.next_page ?? null;
+  }
+
+  const rows = broadcasts
+    .map((b) => {
+      const attrs = (b.attributes ?? b) as Record<string, unknown>;
+      const date = String(attrs.sent_at ?? attrs.scheduled_at ?? attrs.created_at ?? todayIso()).slice(0, 10);
+      return {
+        organization_id: orgId,
+        campaign_id: String(b.id ?? attrs.id),
+        campaign_name: attrs.name ?? attrs.title ?? null,
+        date,
+        messages_sent: num(attrs.messages_sent ?? attrs.sent ?? attrs.total_sent),
+        messages_delivered: num(attrs.messages_delivered ?? attrs.delivered),
+        messages_failed: num(attrs.messages_failed ?? attrs.failed),
+        opt_outs: num(attrs.opt_outs ?? attrs.opt_out ?? attrs.unsubscribes),
+        clicks: num(attrs.clicks),
+        conversions: num(attrs.conversions),
+        amount_raised: num(attrs.amount_raised ?? attrs.raised),
+        cost: num(attrs.cost ?? attrs.spend),
+        synced_at: new Date().toISOString(),
+      };
+    })
+    .filter((r) => new Date(r.date).getTime() >= sinceMs - 24 * 60 * 60 * 1000);
 
   if (rows.length) {
     const { error } = await admin

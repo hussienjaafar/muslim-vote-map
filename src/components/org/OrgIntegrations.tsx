@@ -53,16 +53,78 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
   const disconnect = useDisconnectCredentials(orgId);
   const runSync = useRunSync(orgId);
   const metaInit = useMetaOAuthInit(orgId);
+  const metaCallback = useMetaOAuthCallback(orgId);
+  const metaSave = useMetaSaveConnection(orgId);
+
+  const popupRef = useRef<Window | null>(null);
+  const [accounts, setAccounts] = useState<MetaAdAccount[] | null>(null);
+  const [exchanging, setExchanging] = useState(false);
+
+  // Listen for the OAuth result posted back from the popup window.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (!data || data.type !== 'meta-oauth') return;
+      popupRef.current?.close();
+      popupRef.current = null;
+      if (data.error) {
+        toast.error(typeof data.error === 'string' ? data.error : 'Facebook connection was cancelled');
+        return;
+      }
+      if (!data.code || !data.state) {
+        toast.error('Missing authorization code. Please try again.');
+        return;
+      }
+      setExchanging(true);
+      metaCallback.mutate(
+        { code: data.code, state: data.state },
+        {
+          onSuccess: (res) => {
+            if (!res.adAccounts.length) toast.error('No ad accounts were found for this Facebook user.');
+            else setAccounts(res.adAccounts);
+          },
+          onError: (e: any) => toast.error(e.message ?? 'Connection failed'),
+          onSettled: () => setExchanging(false),
+        },
+      );
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId]);
 
   const handleConnectMeta = async () => {
     try {
       const redirectUri = `${window.location.origin}/meta-oauth-callback`;
-      sessionStorage.setItem('meta_oauth_org', orgId);
       const { authorizeUrl } = await metaInit.mutateAsync(redirectUri);
-      window.location.href = authorizeUrl;
+      const w = 600;
+      const h = 750;
+      const left = window.screenX + Math.max(0, (window.outerWidth - w) / 2);
+      const top = window.screenY + Math.max(0, (window.outerHeight - h) / 2);
+      const popup = window.open(
+        authorizeUrl,
+        'meta-oauth',
+        `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no`,
+      );
+      if (!popup) {
+        toast.error('Popup blocked. Please allow popups for this site and try again.');
+        return;
+      }
+      popupRef.current = popup;
     } catch (e: any) {
       toast.error(e.message ?? 'Could not start Meta connection');
     }
+  };
+
+  const handleSelectAccount = (acct: MetaAdAccount) => {
+    metaSave.mutate(acct.id, {
+      onSuccess: () => {
+        toast.success(`Connected ${acct.name}`);
+        setAccounts(null);
+      },
+      onError: (e: any) => toast.error(e.message ?? 'Failed to save selection'),
+    });
   };
 
   const [drafts, setDrafts] = useState<Record<string, Record<string, string>>>({});

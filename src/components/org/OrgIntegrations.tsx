@@ -243,7 +243,9 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
                   </p>
                 </div>
               )}
+              {p.id === 'actblue' && <WebhookUrlField url={ACTBLUE_WEBHOOK_URL} />}
               <div className="grid sm:grid-cols-2 gap-3">
+
 
                 {p.fields.map((f) => (
                   <div key={f.key} className="space-y-1.5">

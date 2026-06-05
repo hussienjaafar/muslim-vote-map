@@ -133,6 +133,13 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
             onSelect={(code, type) => setRegion({ code, type })}
           />
 
+          {/* Cart — opens the quote request drawer */}
+          {!isAdminView && (
+            <DataCartIcon count={cartCount} onClick={() => setCartOpen(true)} />
+          )}
+
+
+
           {/* Admin shortcut — shown to admins on the user-facing map */}
           {!isAdminView && isAdmin && (
             <Button

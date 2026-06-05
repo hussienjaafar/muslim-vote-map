@@ -59,6 +59,11 @@ export function IssueSelector({ allIssues, selectedIds, onChange, onManage, maxS
 
   const remove = (id: string) => onChange(selectedIds.filter(s => s !== id));
 
+  const swap = (oldId: string, newId: string) => {
+    onChange(selectedIds.map(s => (s === oldId ? newId : s)));
+    setSwapOpenId(null);
+  };
+
   if (compact) {
     const firstPalette = selected.length > 0 ? getIssuePalette(0) : null;
     return (

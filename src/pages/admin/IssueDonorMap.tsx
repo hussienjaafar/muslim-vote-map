@@ -11,6 +11,9 @@ import { IssueRegionSidebar } from '@/components/issue-donor/IssueRegionSidebar'
 import { IssueRegionSearch } from '@/components/issue-donor/IssueRegionSearch';
 import { ManageIssuesDrawer } from '@/components/issue-donor/ManageIssuesDrawer';
 import { IssueDonorImport } from '@/components/admin/IssueDonorImport';
+import { DataCartIcon } from '@/components/voter-impact/DataCartIcon';
+import { DataCart } from '@/components/voter-impact/DataCart';
+import { useCartItems } from '@/queries/useDataProductQueries';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -52,6 +55,9 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
     return localStorage.getItem('issueMap.metricRowCollapsed') === '1';
   });
   const [hintDismissed, setHintDismissed] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+  const { data: cartItems } = useCartItems();
+  const cartCount = cartItems?.length ?? 0;
 
   // Mobile bottom-sheet snap state (mirrors Voter Map)
   // Only 2 snap points now: half + nearly-full. Sheet is hidden until a region is selected.
@@ -126,6 +132,13 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
             districtsData={allDistrictsDir ?? null}
             onSelect={(code, type) => setRegion({ code, type })}
           />
+
+          {/* Cart — opens the quote request drawer */}
+          {!isAdminView && (
+            <DataCartIcon count={cartCount} onClick={() => setCartOpen(true)} />
+          )}
+
+
 
           {/* Admin shortcut — shown to admins on the user-facing map */}
           {!isAdminView && isAdmin && (
@@ -383,6 +396,9 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
           </SheetContent>
         </Sheet>
       )}
+
+      {/* Cart / quote request drawer */}
+      {!isAdminView && <DataCart open={cartOpen} onOpenChange={setCartOpen} />}
 
       {/* Manage drawer */}
       <ManageIssuesDrawer

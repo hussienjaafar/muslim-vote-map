@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, Plus, CheckCircle2 } from 'lucide-react';
+import { X, Plus, CheckCircle2, MousePointerClick } from 'lucide-react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import type { Issue, IssueDonorDistrict, IssueDonorState, IssueMetric } from '@/hooks/useIssueDonorData';
 import { useVoterDistrictContext, useVoterStateContext } from '@/hooks/useIssueDonorData';

@@ -221,8 +221,9 @@ export function IssueRegionSidebar({
           {/* Add to quote request */}
           <AddToQuoteSection
             region={region}
-            totalForMetric={totalForMetric}
+            rows={selectedIssues.map(i => rowsByIssue.get(i.id)).filter(Boolean)}
           />
+
       </div>
     </>
   );

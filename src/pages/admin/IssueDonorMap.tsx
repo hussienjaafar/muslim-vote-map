@@ -11,6 +11,9 @@ import { IssueRegionSidebar } from '@/components/issue-donor/IssueRegionSidebar'
 import { IssueRegionSearch } from '@/components/issue-donor/IssueRegionSearch';
 import { ManageIssuesDrawer } from '@/components/issue-donor/ManageIssuesDrawer';
 import { IssueDonorImport } from '@/components/admin/IssueDonorImport';
+import { DataCartIcon } from '@/components/voter-impact/DataCartIcon';
+import { DataCart } from '@/components/voter-impact/DataCart';
+import { useCartItems } from '@/queries/useDataProductQueries';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useIsMobile } from '@/hooks/use-mobile';

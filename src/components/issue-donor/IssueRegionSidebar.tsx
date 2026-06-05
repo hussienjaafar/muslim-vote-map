@@ -261,10 +261,10 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 
 function AddToQuoteSection({
   region,
-  totalForMetric,
+  rows,
 }: {
   region: { code: string; type: 'state' | 'district' };
-  totalForMetric: number;
+  rows: any[];
 }) {
   const { user } = useAuth();
   const { data: products } = useDataProducts();
@@ -277,14 +277,19 @@ function AddToQuoteSection({
     ? `District ${region.code}`
     : (STATE_ABBREVIATIONS[region.code] || region.code);
 
-  const handleAdd = async (productId: string) => {
+  const recordsForProduct = (sourceField?: string | null): number => {
+    if (!sourceField) return 0;
+    return rows.reduce((sum, row) => sum + (Number(row?.[sourceField]) || 0), 0);
+  };
+
+  const handleAdd = async (productId: string, recordCount: number) => {
     try {
       await addToCart.mutateAsync({
         product_id: productId,
         geo_type: region.type,
         geo_code: region.code,
         geo_name: geoName,
-        record_count: totalForMetric,
+        record_count: recordCount,
       });
       setAddedIds(prev => new Set(prev).add(productId));
       setTimeout(() => {
@@ -296,6 +301,7 @@ function AddToQuoteSection({
       }, 2000);
     } catch { /* handled by mutation */ }
   };
+
 
   return (
     <div className="border border-primary/20 rounded-md p-4 bg-primary/[0.04]">

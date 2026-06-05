@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, X, Settings2, UploadCloud } from 'lucide-react';
+import { Plus, X, Settings2, UploadCloud, ChevronDown } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,6 +23,7 @@ interface IssueSelectorProps {
 
 export function IssueSelector({ allIssues, selectedIds, onChange, onManage, maxSelected = 3, compact, onExpand }: IssueSelectorProps) {
   const [open, setOpen] = useState(false);
+  const [swapOpenId, setSwapOpenId] = useState<string | null>(null);
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
 
@@ -57,6 +58,11 @@ export function IssueSelector({ allIssues, selectedIds, onChange, onManage, maxS
   };
 
   const remove = (id: string) => onChange(selectedIds.filter(s => s !== id));
+
+  const swap = (oldId: string, newId: string) => {
+    onChange(selectedIds.map(s => (s === oldId ? newId : s)));
+    setSwapOpenId(null);
+  };
 
   if (compact) {
     const firstPalette = selected.length > 0 ? getIssuePalette(0) : null;
@@ -101,11 +107,38 @@ export function IssueSelector({ allIssues, selectedIds, onChange, onManage, maxS
               key={issue.id}
               className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-white/5 border border-white/5"
             >
-              <span
-                className="h-2.5 w-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: palette.swatch }}
-              />
-              <span className="text-xs text-foreground flex-1 truncate">{issue.name}</span>
+              <DropdownMenu
+                open={swapOpenId === issue.id}
+                onOpenChange={(o) => setSwapOpenId(o ? issue.id : null)}
+              >
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="group flex items-center gap-2 flex-1 min-w-0 rounded -mx-1 px-1 py-0.5 hover:bg-white/5 transition-colors"
+                    title="Click to switch issue"
+                  >
+                    <span
+                      className="h-2.5 w-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: palette.swatch }}
+                    />
+                    <span className="text-xs text-foreground flex-1 truncate text-left">{issue.name}</span>
+                    <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-50 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64 max-h-72 overflow-y-auto">
+                  {remaining.length === 0 ? (
+                    <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                      No other issues available.
+                    </div>
+                  ) : remaining.map(r => (
+                    <DropdownMenuItem key={r.id} onSelect={() => swap(issue.id, r.id)} className="flex items-center justify-between gap-2">
+                      <span className="text-sm">{r.name}</span>
+                      {!r.is_published && (
+                        <span className="text-[9px] uppercase tracking-wider text-amber-400">Draft</span>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
               {issue.is_published ? (
                 <Badge variant="secondary" className="h-4 text-[9px] px-1.5 bg-emerald-500/20 text-emerald-300 border-0">
                   Live

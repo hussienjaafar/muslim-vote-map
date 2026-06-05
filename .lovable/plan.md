@@ -1,27 +1,18 @@
-## Fix: Soften the district panel overlay on desktop
+## Click an issue to swap it in place
 
-### Problem
-When a district is selected on the Issue Map (desktop), the shared `SheetContent` component renders a full-screen `bg-black/80` overlay. This makes the rest of the map very dark and hard to read.
+### Goal
+Let users replace the issue they're viewing without removing it and adding another. Clicking a selected issue's name opens the issue list and picks a replacement in place.
 
-### Solution
-Add an optional `overlayClassName` prop to the shared `SheetContent` component, then pass a lighter overlay class (`bg-black/20`) from the `IssueRegionSidebar` desktop usage so the map stays readable while the panel is open.
+### Change (single file: `src/components/issue-donor/IssueSelector.tsx`)
+For each selected issue row, wrap the issue name (the swatch + name area) in a `DropdownMenu` whose trigger is the name button. Opening it shows the list of **other** issues (the same `remaining` list used by "Add another issue"). Selecting one replaces that issue at its position via `onChange`, preserving order.
 
-### Scope
-- Desktop only. Mobile already uses a custom persistent bottom sheet with no overlay.
-- Only the region detail panel. Other Sheets (issue picker, cart drawer) keep their existing dark overlay.
-
-### Changes
-1. **src/components/ui/sheet.tsx**
-   - Accept optional `overlayClassName?: string` on `SheetContentProps`
-   - Forward it to `<SheetOverlay className={cn(...)}>` so callers can override the overlay style
-
-2. **src/components/issue-donor/IssueRegionSidebar.tsx**
-   - On desktop (`!bareContent`), pass `overlayClassName="bg-black/20"` to `SheetContent`
+Details:
+- Add a `swap(oldId, newId)` helper that maps `selectedIds`, replacing `oldId` with `newId` at the same index.
+- Track which row's dropdown is open (e.g. `swapOpenId` state) so only one opens at a time.
+- Trigger = the swatch + name made into a button with a subtle hover affordance and a small chevron icon to signal it's interactive; keep the Live/Publish/Draft badge and the X remove button unchanged.
+- Dropdown content lists `remaining` issues (exclude already-selected), same draft labeling as the existing add menu. Empty state: "No other issues available."
+- Keep the existing "Add an issue / Add another issue" button for stacking additional issues — only the swap-in-place behavior is added.
 
 ### Verification
-- Re-run the same district selection flow (e.g., CA-013) on desktop and confirm the map is no longer dark behind the panel.
-- Confirm the overlay still exists and clicking outside the panel still closes it.
-- Confirm other Sheet uses (mobile issue picker, cart drawer) are unaffected.
-
-### No changes needed
-- Mobile layout, mobile sheet, or any backend / data logic.
+- On `/map` with one issue (e.g. Asian), click the issue name → list opens → pick another → map re-renders with the new issue, count stays 1/3.
+- Confirm X remove and Publish/Live badges still work, and "Add another issue" still stacks.

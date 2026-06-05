@@ -107,11 +107,38 @@ export function IssueSelector({ allIssues, selectedIds, onChange, onManage, maxS
               key={issue.id}
               className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-white/5 border border-white/5"
             >
-              <span
-                className="h-2.5 w-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: palette.swatch }}
-              />
-              <span className="text-xs text-foreground flex-1 truncate">{issue.name}</span>
+              <DropdownMenu
+                open={swapOpenId === issue.id}
+                onOpenChange={(o) => setSwapOpenId(o ? issue.id : null)}
+              >
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="group flex items-center gap-2 flex-1 min-w-0 rounded -mx-1 px-1 py-0.5 hover:bg-white/5 transition-colors"
+                    title="Click to switch issue"
+                  >
+                    <span
+                      className="h-2.5 w-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: palette.swatch }}
+                    />
+                    <span className="text-xs text-foreground flex-1 truncate text-left">{issue.name}</span>
+                    <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-50 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64 max-h-72 overflow-y-auto">
+                  {remaining.length === 0 ? (
+                    <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                      No other issues available.
+                    </div>
+                  ) : remaining.map(r => (
+                    <DropdownMenuItem key={r.id} onSelect={() => swap(issue.id, r.id)} className="flex items-center justify-between gap-2">
+                      <span className="text-sm">{r.name}</span>
+                      {!r.is_published && (
+                        <span className="text-[9px] uppercase tracking-wider text-amber-400">Draft</span>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
               {issue.is_published ? (
                 <Badge variant="secondary" className="h-4 text-[9px] px-1.5 bg-emerald-500/20 text-emerald-300 border-0">
                   Live

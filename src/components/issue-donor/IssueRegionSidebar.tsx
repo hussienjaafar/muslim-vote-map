@@ -236,6 +236,7 @@ export function IssueRegionSidebar({
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <SheetContent
         side={isMobile ? 'bottom' : 'right'}
+        overlayClassName={isMobile ? undefined : 'bg-black/20'}
         className={
           isMobile
             ? 'h-[85vh] w-full bg-[#0e0e0e] border-t border-white/10 text-foreground p-0 overflow-y-auto'

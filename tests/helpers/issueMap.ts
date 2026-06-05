@@ -1,4 +1,5 @@
-import { Page, expect } from "../../playwright-fixture";
+import type { Page } from "@playwright/test";
+import { expect } from "../../playwright-fixture";
 
 /**
  * Shared helpers for the Issue Map UX regression suite.

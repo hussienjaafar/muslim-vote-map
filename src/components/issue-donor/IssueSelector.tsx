@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, X, Settings2, UploadCloud } from 'lucide-react';
+import { Plus, X, Settings2, UploadCloud, ChevronDown } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';

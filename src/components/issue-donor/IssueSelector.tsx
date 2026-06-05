@@ -121,7 +121,7 @@ export function IssueSelector({ allIssues, selectedIds, onChange, onManage, maxS
                       style={{ backgroundColor: palette.swatch }}
                     />
                     <span className="text-xs text-foreground flex-1 truncate text-left">{issue.name}</span>
-                    <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-50 group-hover:opacity-100 transition-opacity" />
+                    <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-64 max-h-72 overflow-y-auto">

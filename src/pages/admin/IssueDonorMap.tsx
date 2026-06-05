@@ -55,6 +55,18 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
     return localStorage.getItem('issueMap.metricRowCollapsed') === '1';
   });
   const [hintDismissed, setHintDismissed] = useState(false);
+  const [desktopHintDismissed, setDesktopHintDismissed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('issueMap.desktopHintDismissed') === '1';
+  });
+
+  // Dismiss the desktop hint once a region is selected (and remember it)
+  useEffect(() => {
+    if (region && !desktopHintDismissed) {
+      setDesktopHintDismissed(true);
+      try { localStorage.setItem('issueMap.desktopHintDismissed', '1'); } catch { /* ignore */ }
+    }
+  }, [region, desktopHintDismissed]);
   const [cartOpen, setCartOpen] = useState(false);
   const { data: cartItems } = useCartItems();
   const cartCount = cartItems?.length ?? 0;

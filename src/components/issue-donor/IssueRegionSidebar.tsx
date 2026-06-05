@@ -311,10 +311,11 @@ function AddToQuoteSection({
       <div className="space-y-2">
         {products.map(p => {
           const added = addedIds.has(p.id);
+          const records = recordsForProduct((p as any).source_field);
           return (
             <button
               key={p.id}
-              onClick={() => handleAdd(p.id)}
+              onClick={() => handleAdd(p.id, records)}
               disabled={addToCart.isPending || added}
               className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all border ${
                 added
@@ -322,7 +323,8 @@ function AddToQuoteSection({
                   : 'bg-white/[0.02] text-foreground hover:bg-primary/10 border-white/[0.06] hover:border-primary/30'
               }`}
             >
-              <span className="truncate text-left">{p.name}</span>
+              <span className="truncate text-left flex-1">{p.name}</span>
+              <span className="tabular-nums text-muted-foreground shrink-0">{fmt(records)}</span>
               {added ? (
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
               ) : (
@@ -331,6 +333,7 @@ function AddToQuoteSection({
             </button>
           );
         })}
+
       </div>
       <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
         Quote-only — no charge. Submit your request and our team will follow up with pricing and delivery.

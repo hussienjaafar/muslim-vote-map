@@ -169,20 +169,23 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
           )}
 
           {/* Desktop metric toggle (≥md) */}
-          <div className="hidden md:flex gap-1 bg-[#1c1c1e]/80 backdrop-blur-md rounded-lg border border-white/8 p-1 overflow-x-auto max-w-[60vw]">
-            {METRIC_OPTIONS.map(opt => (
-              <button
-                key={opt.key}
-                onClick={() => setMetric(opt.key)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
-                  metric === opt.key
-                    ? 'bg-blue-600 text-white'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                }`}
-              >
-                <span className="font-display">{opt.label}</span>
-              </button>
-            ))}
+          <div className="hidden md:flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground font-display shrink-0">Metric</span>
+            <div className="flex gap-1 bg-[#1c1c1e]/80 backdrop-blur-md rounded-lg border border-white/8 p-1 overflow-x-auto max-w-[55vw]">
+              {METRIC_OPTIONS.map(opt => (
+                <button
+                  key={opt.key}
+                  onClick={() => setMetric(opt.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                    metric === opt.key
+                      ? 'bg-blue-600 text-white'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                  }`}
+                >
+                  <span className="font-display">{opt.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

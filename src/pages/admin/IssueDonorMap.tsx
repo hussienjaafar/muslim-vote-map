@@ -55,6 +55,9 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
     return localStorage.getItem('issueMap.metricRowCollapsed') === '1';
   });
   const [hintDismissed, setHintDismissed] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+  const { data: cartItems } = useCartItems();
+  const cartCount = cartItems?.length ?? 0;
 
   // Mobile bottom-sheet snap state (mirrors Voter Map)
   // Only 2 snap points now: half + nearly-full. Sheet is hidden until a region is selected.

@@ -397,6 +397,9 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
         </Sheet>
       )}
 
+      {/* Cart / quote request drawer */}
+      {!isAdminView && <DataCart open={cartOpen} onOpenChange={setCartOpen} />}
+
       {/* Manage drawer */}
       <ManageIssuesDrawer
         open={manageOpen}

@@ -23,6 +23,7 @@ interface IssueSelectorProps {
 
 export function IssueSelector({ allIssues, selectedIds, onChange, onManage, maxSelected = 3, compact, onExpand }: IssueSelectorProps) {
   const [open, setOpen] = useState(false);
+  const [swapOpenId, setSwapOpenId] = useState<string | null>(null);
   const { isAdmin } = useAuth();
   const qc = useQueryClient();
 

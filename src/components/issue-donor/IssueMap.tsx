@@ -337,7 +337,7 @@ function MapInner({
       <NavigationControl position="bottom-right" />
 
       {!showDistricts && (
-        <div className="absolute bottom-[7.5rem] left-4 z-10 flex flex-col gap-2">
+        <div className="absolute bottom-[8.5rem] left-4 z-10 flex flex-col gap-2 max-[640px]:bottom-[7.5rem]">
           <IssueMiniCard
             stateCode="AK"
             color={selectedIssues[akData.paletteIdx] && akData.value > 0 ? getIssuePalette(akData.paletteIdx).swatch : '#1a1a1a'}

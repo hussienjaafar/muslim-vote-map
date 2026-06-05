@@ -1,18 +1,36 @@
-## Click an issue to swap it in place
+# Issue Map — Small UX Polish
 
-### Goal
-Let users replace the issue they're viewing without removing it and adding another. Clicking a selected issue's name opens the issue list and picks a replacement in place.
+From an end-to-end test of `/map`, the core flows work well: metric switching updates the legend and AK/HI cards live, hover tooltips are clear, the issue swap-in-place works, and the softened dimming reads nicely. Below are small, low-risk tweaks that make the tool friendlier — no business-logic or data changes.
 
-### Change (single file: `src/components/issue-donor/IssueSelector.tsx`)
-For each selected issue row, wrap the issue name (the swatch + name area) in a `DropdownMenu` whose trigger is the name button. Opening it shows the list of **other** issues (the same `remaining` list used by "Add another issue"). Selecting one replaces that issue at its position via `onChange`, preserving order.
+## Proposed tweaks
 
-Details:
-- Add a `swap(oldId, newId)` helper that maps `selectedIds`, replacing `oldId` with `newId` at the same index.
-- Track which row's dropdown is open (e.g. `swapOpenId` state) so only one opens at a time.
-- Trigger = the swatch + name made into a button with a subtle hover affordance and a small chevron icon to signal it's interactive; keep the Live/Publish/Draft badge and the X remove button unchanged.
-- Dropdown content lists `remaining` issues (exclude already-selected), same draft labeling as the existing add menu. Empty state: "No other issues available."
-- Keep the existing "Add an issue / Add another issue" button for stacking additional issues — only the swap-in-place behavior is added.
+### 1. Desktop "explore" hint (discoverability)
+Mobile shows a "Tap a region to explore" pill, but desktop gets nothing. New users don't know a state is clickable or that clicking drills into congressional districts.
+- Add a subtle, dismissible hint near the map (e.g. bottom-center) on desktop: "Click a state to drill into its districts."
+- Auto-dismiss on first region selection; remember dismissal in `localStorage` so it doesn't nag on return visits.
 
-### Verification
-- On `/map` with one issue (e.g. Asian), click the issue name → list opens → pick another → map re-renders with the new issue, count stays 1/3.
-- Confirm X remove and Publish/Live badges still work, and "Add another issue" still stacks.
+### 2. Clearer swap affordance on selected issues
+The issue name is a dropdown to swap issues, but the only cue is a faint chevron that brightens on hover. Make it obvious it's interactive:
+- Always show the chevron at low opacity (not only on hover) and add a `title`/tooltip "Click to switch issue" (title already present).
+- Tiny hover background already exists — keep it, just raise the resting chevron opacity.
+
+### 3. Label the metric tabs
+The five metric tabs (Total Donors, Gold Donors, …) sit in the top bar next to "Home" and "Admin", so they can read like site navigation rather than map controls.
+- Add a small "Metric" label/caption before the tab group on desktop (the mobile collapsed view already says "Metric").
+
+### 4. "Drill into districts" prompt in the sidebar
+When a state is selected, there's no on-screen cue that a second click (or zoom) reveals districts; users rely on discovering the toast.
+- Add a small inline hint at the top of the state sidebar: "Click the state again to view its congressional districts." Hidden once in district view.
+
+### 5. Minor consistency
+- Ensure the AK/HI mini-cards and the legend never visually collide at short viewport heights (add a small bottom offset/guard).
+
+## Technical notes
+- All changes live in presentation components: `src/pages/admin/IssueDonorMap.tsx` (desktop hint, metric label), `src/components/issue-donor/IssueSelector.tsx` (chevron opacity), `src/components/issue-donor/IssueRegionSidebar.tsx` (drill-in hint), and `src/components/issue-donor/IssueMap.tsx` (only if needed for the hint placement / mini-card offset).
+- Use existing semantic tokens and the established surgical-glass styling; no new colors.
+- `localStorage` keys follow the existing `issueMap.*` convention (e.g. `issueMap.desktopHintDismissed`).
+
+## Out of scope
+No changes to data, metrics math, pricing/quote flow, or terminology.
+
+Want all five, or a subset? I can also drop any you consider unnecessary.

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, Plus, CheckCircle2 } from 'lucide-react';
+import { X, Plus, CheckCircle2, MousePointerClick } from 'lucide-react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import type { Issue, IssueDonorDistrict, IssueDonorState, IssueMetric } from '@/hooks/useIssueDonorData';
 import { useVoterDistrictContext, useVoterStateContext } from '@/hooks/useIssueDonorData';
@@ -114,6 +114,14 @@ export function IssueRegionSidebar({
       </div>
 
       <div className="p-5 space-y-5">
+          {/* Drill-in hint — state view only */}
+          {region.type === 'state' && (
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground border border-primary/15 bg-primary/[0.04] rounded-md px-3 py-2">
+              <MousePointerClick className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span>Click the state again to view its congressional districts.</span>
+            </div>
+          )}
+
           {/* Last election results — district only */}
           {region.type === 'district' && districtCtx && districtCtx.winner && (
             <div className="border border-white/5 rounded-md p-4 bg-white/[0.02]">

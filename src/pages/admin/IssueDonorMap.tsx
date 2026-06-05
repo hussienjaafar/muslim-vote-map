@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Map as MapIcon, Upload, ChevronDown, ChevronUp, Shield } from 'lucide-react';
+import { ArrowLeft, Map as MapIcon, Upload, ChevronDown, ChevronUp, Shield, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -55,6 +55,18 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
     return localStorage.getItem('issueMap.metricRowCollapsed') === '1';
   });
   const [hintDismissed, setHintDismissed] = useState(false);
+  const [desktopHintDismissed, setDesktopHintDismissed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('issueMap.desktopHintDismissed') === '1';
+  });
+
+  // Dismiss the desktop hint once a region is selected (and remember it)
+  useEffect(() => {
+    if (region && !desktopHintDismissed) {
+      setDesktopHintDismissed(true);
+      try { localStorage.setItem('issueMap.desktopHintDismissed', '1'); } catch { /* ignore */ }
+    }
+  }, [region, desktopHintDismissed]);
   const [cartOpen, setCartOpen] = useState(false);
   const { data: cartItems } = useCartItems();
   const cartCount = cartItems?.length ?? 0;
@@ -169,20 +181,23 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
           )}
 
           {/* Desktop metric toggle (≥md) */}
-          <div className="hidden md:flex gap-1 bg-[#1c1c1e]/80 backdrop-blur-md rounded-lg border border-white/8 p-1 overflow-x-auto max-w-[60vw]">
-            {METRIC_OPTIONS.map(opt => (
-              <button
-                key={opt.key}
-                onClick={() => setMetric(opt.key)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
-                  metric === opt.key
-                    ? 'bg-blue-600 text-white'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
-                }`}
-              >
-                <span className="font-display">{opt.label}</span>
-              </button>
-            ))}
+          <div className="hidden md:flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground font-display shrink-0">Metric</span>
+            <div className="flex gap-1 bg-[#1c1c1e]/80 backdrop-blur-md rounded-lg border border-white/8 p-1 overflow-x-auto max-w-[55vw]">
+              {METRIC_OPTIONS.map(opt => (
+                <button
+                  key={opt.key}
+                  onClick={() => setMetric(opt.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                    metric === opt.key
+                      ? 'bg-blue-600 text-white'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+                  }`}
+                >
+                  <span className="font-display">{opt.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -314,6 +329,28 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
                 Tap a region to explore
               </button>
             )}
+
+            {/* Desktop explore hint — only when nothing selected and not dismissed */}
+            {!isMobile && !region && !desktopHintDismissed && selectedIssues.length > 0 && (
+              <div
+                className="absolute z-10 bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-[#1c1c1e]/90 backdrop-blur-xl border border-white/10 rounded-full pl-4 pr-2 py-1.5 text-xs font-display text-muted-foreground shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300"
+              >
+                <MapIcon className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                <span>Click a state to drill into its districts</span>
+                <button
+                  onClick={() => {
+                    setDesktopHintDismissed(true);
+                    try { localStorage.setItem('issueMap.desktopHintDismissed', '1'); } catch { /* ignore */ }
+                  }}
+                  className="ml-1 text-muted-foreground hover:text-foreground transition-colors rounded p-0.5"
+                  aria-label="Dismiss hint"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+
 
             {/* Empty state */}
             {(!allIssues || allIssues.length === 0) && (

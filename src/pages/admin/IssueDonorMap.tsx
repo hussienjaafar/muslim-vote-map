@@ -330,6 +330,28 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
               </button>
             )}
 
+            {/* Desktop explore hint — only when nothing selected and not dismissed */}
+            {!isMobile && !region && !desktopHintDismissed && selectedIssues.length > 0 && (
+              <div
+                className="absolute z-10 bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-[#1c1c1e]/90 backdrop-blur-xl border border-white/10 rounded-full pl-4 pr-2 py-1.5 text-xs font-display text-muted-foreground shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300"
+              >
+                <MapIcon className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                <span>Click a state to drill into its districts</span>
+                <button
+                  onClick={() => {
+                    setDesktopHintDismissed(true);
+                    try { localStorage.setItem('issueMap.desktopHintDismissed', '1'); } catch { /* ignore */ }
+                  }}
+                  className="ml-1 text-muted-foreground hover:text-foreground transition-colors rounded p-0.5"
+                  aria-label="Dismiss hint"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+
+
             {/* Empty state */}
             {(!allIssues || allIssues.length === 0) && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

@@ -49,6 +49,7 @@ function exportCsv(data: Record<string, any>[], filename: string) {
 }
 
 const TABS = [
+  { key: 'issues', label: 'Issues' },
   { key: 'states', label: 'States' },
   { key: 'districts', label: 'Districts' },
   { key: 'import', label: 'Import' },

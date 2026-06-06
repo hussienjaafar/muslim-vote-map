@@ -192,5 +192,6 @@ export function IssueDataManager() {
         </div>
       )}
     </div>
+    </div>
   );
 }

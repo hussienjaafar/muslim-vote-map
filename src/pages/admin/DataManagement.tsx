@@ -9,6 +9,8 @@ import { Download, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ElectionResultsImport } from '@/components/admin/ElectionResultsImport';
 import { IssueDonorImport } from '@/components/admin/IssueDonorImport';
+import { IssueDataManager } from '@/components/admin/IssueDataManager';
+import { useIssues } from '@/hooks/useIssueDonorData';
 
 function useStates() {
   return useQuery({
@@ -47,6 +49,7 @@ function exportCsv(data: Record<string, any>[], filename: string) {
 }
 
 const TABS = [
+  { key: 'issues', label: 'Issues' },
   { key: 'states', label: 'States' },
   { key: 'districts', label: 'Districts' },
   { key: 'import', label: 'Import' },
@@ -59,7 +62,8 @@ export default function DataManagement() {
   const { data: states, isLoading: statesLoading } = useStates();
   const [stateFilter, setStateFilter] = useState('');
   const { data: districts, isLoading: districtsLoading } = useDistricts(stateFilter || undefined);
-  const [activeTab, setActiveTab] = useState<TabKey>('states');
+  const { data: issues } = useIssues();
+  const [activeTab, setActiveTab] = useState<TabKey>('issues');
 
   const deleteAll = async (table: 'voter_impact_states' | 'voter_impact_districts') => {
     const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
@@ -69,6 +73,7 @@ export default function DataManagement() {
   };
 
   const tabLabel = (key: TabKey) => {
+    if (key === 'issues') return `Issues (${issues?.length ?? 0})`;
     if (key === 'states') return `States (${states?.length ?? 0})`;
     if (key === 'districts') return `Districts (${districts?.length ?? 0})`;
     return 'Import';
@@ -100,6 +105,12 @@ export default function DataManagement() {
       </div>
 
       <Tabs value={activeTab}>
+        {/* Issues Tab */}
+        <TabsContent value="issues">
+          <IssueDataManager />
+        </TabsContent>
+
+
         {/* States Tab */}
         <TabsContent value="states">
           <div className="surgical-glass">

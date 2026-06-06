@@ -1,36 +1,34 @@
-# Issue Map — Small UX Polish
+## Goal
 
-From an end-to-end test of `/map`, the core flows work well: metric switching updates the legend and AK/HI cards live, hover tooltips are clear, the issue swap-in-place works, and the softened dimming reads nicely. Below are small, low-risk tweaks that make the tool friendlier — no business-logic or data changes.
+Surface issue management directly on the **Data Management** page (`/admin/data`) so admins can rename, reorder, publish/unpublish, and delete issues without hunting for the gear icon on the map.
 
-## Proposed tweaks
+## What I'll build
 
-### 1. Desktop "explore" hint (discoverability)
-Mobile shows a "Tap a region to explore" pill, but desktop gets nothing. New users don't know a state is clickable or that clicking drills into congressional districts.
-- Add a subtle, dismissible hint near the map (e.g. bottom-center) on desktop: "Click a state to drill into its districts."
-- Auto-dismiss on first region selection; remember dismissal in `localStorage` so it doesn't nag on return visits.
+Add a new **"Issues"** tab to `DataManagement.tsx`, alongside the existing States / Districts / Import tabs. The tab shows a table of all issues with inline controls — reusing the exact same logic already proven in `ManageIssuesDrawer.tsx`.
 
-### 2. Clearer swap affordance on selected issues
-The issue name is a dropdown to swap issues, but the only cue is a faint chevron that brightens on hover. Make it obvious it's interactive:
-- Always show the chevron at low opacity (not only on hover) and add a `title`/tooltip "Click to switch issue" (title already present).
-- Tiny hover background already exists — keep it, just raise the resting chevron opacity.
+Each issue row will have:
+- **Name** — inline editable text field
+- **Order** — inline editable number (display_order)
+- **Slug** — read-only reference
+- **Donor records** — count of `issue_donor_districts` rows for that issue, so admins see how much data a delete will remove
+- **Status toggle** — Live / Draft switch (`is_published`)
+- **Save** — appears when a row has unsaved name/order edits
+- **Delete** — opens an `AlertDialog` confirming removal of the issue and all its donor data
 
-### 3. Label the metric tabs
-The five metric tabs (Total Donors, Gold Donors, …) sit in the top bar next to "Home" and "Admin", so they can read like site navigation rather than map controls.
-- Add a small "Metric" label/caption before the tab group on desktop (the mobile collapsed view already says "Metric").
+### Behavior
+- Loads issues via the existing `useIssues()` hook (already returns all issues for admins).
+- Mutations mirror `ManageIssuesDrawer`: update `issues` for rename/reorder/publish, delete from `issues` for removal (donor rows cascade as they already do today).
+- On success, invalidate the `['issues']` query so the map and this table stay in sync.
+- Delete uses the page's existing `AlertDialog` pattern (consistent with the States/Districts "Reset" confirmations) instead of the browser `confirm()` used in the drawer.
 
-### 4. "Drill into districts" prompt in the sidebar
-When a state is selected, there's no on-screen cue that a second click (or zoom) reveals districts; users rely on discovering the toast.
-- Add a small inline hint at the top of the state sidebar: "Click the state again to view its congressional districts." Hidden once in district view.
+### Tab label
+The Issues tab shows a live count: `Issues (N)`.
 
-### 5. Minor consistency
-- Ensure the AK/HI mini-cards and the legend never visually collide at short viewport heights (add a small bottom offset/guard).
+## Notes
+- This is purely additive — the map's gear-icon drawer stays exactly as-is.
+- All styling uses the page's existing surgical-glass tokens and table components; no new design tokens.
+- No database or backend changes — the `issues` table already has RLS allowing admin writes (the map drawer already performs these same operations).
 
-## Technical notes
-- All changes live in presentation components: `src/pages/admin/IssueDonorMap.tsx` (desktop hint, metric label), `src/components/issue-donor/IssueSelector.tsx` (chevron opacity), `src/components/issue-donor/IssueRegionSidebar.tsx` (drill-in hint), and `src/components/issue-donor/IssueMap.tsx` (only if needed for the hint placement / mini-card offset).
-- Use existing semantic tokens and the established surgical-glass styling; no new colors.
-- `localStorage` keys follow the existing `issueMap.*` convention (e.g. `issueMap.desktopHintDismissed`).
-
-## Out of scope
-No changes to data, metrics math, pricing/quote flow, or terminology.
-
-Want all five, or a subset? I can also drop any you consider unnecessary.
+## Technical detail
+- New `useIssueDonorCounts()` query: `select issue_id` from `issue_donor_districts` grouped/counted client-side (or a lightweight count per issue), used only to display the "Donor records" column.
+- All edits kept in local `edits` state keyed by issue id, identical to the drawer's approach.

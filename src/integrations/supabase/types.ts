@@ -1589,6 +1589,17 @@ export type Database = {
         }[]
       }
       self_delete_account: { Args: never; Returns: undefined }
+      submit_access_request: {
+        Args: {
+          _email: string
+          _full_name: string
+          _organization: string
+          _title?: string
+          _use_case: string
+          _website?: string
+        }
+        Returns: string
+      }
       toggle_email_suppression: {
         Args: { suppress: boolean }
         Returns: undefined

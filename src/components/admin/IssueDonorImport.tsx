@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Progress } from '@/components/ui/progress';
 import { Upload, FileSpreadsheet, CheckCircle, XCircle, Loader2, Database } from 'lucide-react';
@@ -152,6 +153,7 @@ interface ImportSummary {
 }
 
 export function IssueDonorImport() {
+  const qc = useQueryClient();
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<'idle' | 'parsing' | 'issues' | 'districts' | 'states' | 'done'>('idle');
@@ -301,6 +303,8 @@ export function IssueDonorImport() {
       setPhase('done');
       setSummary(sum);
       setPendingFile(null);
+      qc.invalidateQueries({ queryKey: ['issues'] });
+      qc.invalidateQueries({ queryKey: ['issue-donor-counts'] });
       toast.success(`Imported ${sum.districtsUpserted} districts across ${sum.issuesCreated + sum.issuesUpdated} issues`);
     } catch (err: any) {
       sum.errors.push(err.message ?? String(err));

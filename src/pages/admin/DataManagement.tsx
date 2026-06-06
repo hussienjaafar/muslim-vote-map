@@ -105,6 +105,12 @@ export default function DataManagement() {
       </div>
 
       <Tabs value={activeTab}>
+        {/* Issues Tab */}
+        <TabsContent value="issues">
+          <IssueDataManager />
+        </TabsContent>
+
+
         {/* States Tab */}
         <TabsContent value="states">
           <div className="surgical-glass">

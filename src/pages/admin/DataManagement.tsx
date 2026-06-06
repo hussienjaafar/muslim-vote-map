@@ -9,6 +9,8 @@ import { Download, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ElectionResultsImport } from '@/components/admin/ElectionResultsImport';
 import { IssueDonorImport } from '@/components/admin/IssueDonorImport';
+import { IssueDataManager } from '@/components/admin/IssueDataManager';
+import { useIssues } from '@/hooks/useIssueDonorData';
 
 function useStates() {
   return useQuery({

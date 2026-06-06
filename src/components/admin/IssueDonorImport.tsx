@@ -303,6 +303,8 @@ export function IssueDonorImport() {
       setPhase('done');
       setSummary(sum);
       setPendingFile(null);
+      qc.invalidateQueries({ queryKey: ['issues'] });
+      qc.invalidateQueries({ queryKey: ['issue-donor-counts'] });
       toast.success(`Imported ${sum.districtsUpserted} districts across ${sum.issuesCreated + sum.issuesUpdated} issues`);
     } catch (err: any) {
       sum.errors.push(err.message ?? String(err));

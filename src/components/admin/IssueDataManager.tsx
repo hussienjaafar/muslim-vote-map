@@ -84,7 +84,11 @@ export function IssueDataManager() {
   });
 
   return (
+    <div className="space-y-6">
+      <IssueDonorImport />
+
     <div className="surgical-glass">
+
       <div className="flex items-center justify-between p-4 border-b border-white/5">
         <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground font-display">Issues</h3>
         <p className="text-[10px] text-muted-foreground">Rename, reorder, publish, or delete issues. Draft issues are admin-only.</p>

@@ -26,21 +26,17 @@ export default function RequestAccess() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
-        .from('access_requests')
-        .insert({
-          email: email.trim().toLowerCase(),
-          full_name: fullName.trim(),
-          organization: organization.trim(),
-          title: title.trim() || null,
-          website: website.trim() || null,
-          use_case: useCase.trim(),
-        })
-        .select('status_token')
-        .single();
+      const { data, error } = await supabase.rpc('submit_access_request', {
+        _email: email.trim().toLowerCase(),
+        _full_name: fullName.trim(),
+        _organization: organization.trim(),
+        _use_case: useCase.trim(),
+        _title: title.trim() || null,
+        _website: website.trim() || null,
+      });
 
       if (error) {
-        if (error.code === '23505') {
+        if (error.code === '23505' || /duplicate key/i.test(error.message)) {
           toast.error('An application with this email already exists.');
         } else {
           throw error;
@@ -48,7 +44,7 @@ export default function RequestAccess() {
         return;
       }
 
-      setStatusToken(data.status_token);
+      setStatusToken(data as string);
       setSubmitted(true);
 
       // Meta Pixel: Lead event

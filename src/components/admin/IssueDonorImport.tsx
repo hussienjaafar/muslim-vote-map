@@ -153,6 +153,7 @@ interface ImportSummary {
 }
 
 export function IssueDonorImport() {
+  const qc = useQueryClient();
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState<'idle' | 'parsing' | 'issues' | 'districts' | 'states' | 'done'>('idle');

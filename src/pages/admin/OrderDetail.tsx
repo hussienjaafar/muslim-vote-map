@@ -280,7 +280,7 @@ export default function OrderDetail() {
                 <TableCell className="text-right text-lg font-bold text-primary tabular-nums">${total.toFixed(2)}</TableCell>
               </TableRow>
             </TableBody>
-          </Table>
+          </Table></div>
         )}
       </div>
 

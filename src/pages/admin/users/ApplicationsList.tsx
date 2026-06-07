@@ -279,7 +279,7 @@ export default function ApplicationsList() {
 
       {/* Table */}
       <Card className="surgical-glass border-[rgba(255,255,255,0.08)] overflow-hidden relative">
-        <Table>
+        <div className="overflow-x-auto"><Table>
           <TableHeader>
             <TableRow className="border-white/5">
               <TableHead className="w-10">

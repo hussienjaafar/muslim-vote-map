@@ -251,7 +251,7 @@ export default function OrderDetail() {
             <p className="text-xs text-muted-foreground">No items.</p>
           </div>
         ) : (
-          <Table>
+          <div className="overflow-x-auto"><Table>
             <TableHeader>
               <TableRow className="border-b border-white/5 hover:bg-transparent">
                 <TableHead className="text-label-xs text-muted-foreground">Product</TableHead>
@@ -280,7 +280,7 @@ export default function OrderDetail() {
                 <TableCell className="text-right text-lg font-bold text-primary tabular-nums">${total.toFixed(2)}</TableCell>
               </TableRow>
             </TableBody>
-          </Table>
+          </Table></div>
         )}
       </div>
 

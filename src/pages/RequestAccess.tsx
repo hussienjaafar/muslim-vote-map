@@ -76,7 +76,7 @@ export default function RequestAccess() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-[#0e0e0e] flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-[#0e0e0e] flex items-center justify-center p-4">
         <div className="w-full max-w-lg space-y-6">
           <Card className="surgical-glass border-[rgba(255,255,255,0.08)]">
             <CardContent className="pt-8 pb-8 text-center space-y-6">
@@ -114,7 +114,7 @@ export default function RequestAccess() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0e0e0e] flex items-center justify-center p-4">
+    <div className="min-h-dvh bg-[#0e0e0e] flex items-center justify-center p-4">
       <div className="w-full max-w-lg space-y-6">
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-3">
@@ -133,7 +133,7 @@ export default function RequestAccess() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="fullName" className="text-xs text-muted-foreground">Full Name *</Label>
                   <Input
@@ -157,7 +157,7 @@ export default function RequestAccess() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="organization" className="text-xs text-muted-foreground">Organization *</Label>
                   <Input

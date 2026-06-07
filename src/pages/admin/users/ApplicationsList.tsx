@@ -458,7 +458,7 @@ export default function ApplicationsList() {
               );
             })}
           </TableBody>
-        </Table>
+        </Table></div>
 
         {/* Floating bulk action bar */}
         {selectedIds.size > 0 && (

@@ -247,7 +247,7 @@ export default function OrganizationDetail() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+            </Table></div>
           )}
         </CardContent>
       </Card>

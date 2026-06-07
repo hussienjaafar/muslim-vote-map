@@ -354,7 +354,7 @@ export default function ApplicationsList() {
                     <TableRow key={`${app.id}-detail`} className="border-white/5 bg-white/[0.01]">
                       <TableCell colSpan={6} className="p-6">
                         <div className="space-y-4 max-w-2xl">
-                          <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                             <div className="flex items-start gap-2">
                               <User className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
                               <div>

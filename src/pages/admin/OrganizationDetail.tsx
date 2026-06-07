@@ -207,7 +207,7 @@ export default function OrganizationDetail() {
           {!members?.length ? (
             <p className="text-sm text-muted-foreground py-6 text-center">No members yet.</p>
           ) : (
-            <Table>
+            <div className="overflow-x-auto"><Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>

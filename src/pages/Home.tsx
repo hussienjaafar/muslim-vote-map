@@ -222,7 +222,7 @@ export default function Home() {
   const activeIssue = publishedIssues.find(i => i.id === activeIssueId);
 
   return (
-    <div className="min-h-screen bg-[hsl(0_0%_5.5%)]">
+    <div className="min-h-dvh bg-[hsl(0_0%_5.5%)]">
       <link rel="prefetch" href="/geojson/us-states.json" as="fetch" crossOrigin="anonymous" />
       <link rel="prefetch" href={`${supabaseUrl}/storage/v1/object/public/geojson/congressional-districts-119.json`} as="fetch" crossOrigin="anonymous" />
       <link rel="prefetch" href="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" as="fetch" crossOrigin="anonymous" />

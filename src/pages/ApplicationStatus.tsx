@@ -76,7 +76,7 @@ export default function ApplicationStatus() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0e0e0e] flex items-center justify-center">
+      <div className="min-h-dvh bg-[#0e0e0e] flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
@@ -84,7 +84,7 @@ export default function ApplicationStatus() {
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-[#0e0e0e] flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-[#0e0e0e] flex items-center justify-center p-4">
         <Card className="surgical-glass border-[rgba(255,255,255,0.08)] max-w-md w-full">
           <CardContent className="pt-8 pb-8 text-center space-y-4">
             <XCircle className="w-12 h-12 text-red-400 mx-auto" />
@@ -101,7 +101,7 @@ export default function ApplicationStatus() {
   const config = STATUS_CONFIG[data.status] || STATUS_CONFIG.pending;
 
   return (
-    <div className="min-h-screen bg-[#0e0e0e] flex items-center justify-center p-4">
+    <div className="min-h-dvh bg-[#0e0e0e] flex items-center justify-center p-4">
       <div className="w-full max-w-lg space-y-6">
         <div className="text-center space-y-2">
           <h1 className="font-display text-2xl font-bold text-foreground">Application Status</h1>

@@ -690,7 +690,7 @@ export default function Account() {
   ];
 
   return (
-    <div className="min-h-screen bg-[hsl(0_0%_5.5%)]">
+    <div className="min-h-dvh bg-[hsl(0_0%_5.5%)]">
       <header className="border-b border-white/10 bg-[hsl(0_0%_7.5%)]/40 backdrop-blur-xl sticky top-0 z-nav-bar shadow-[0_0_20px_hsl(217_91%_53%/0.05)]">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">

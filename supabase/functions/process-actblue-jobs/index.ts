@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
       .select('id, organization_id, csv_id, since_days, attempts')
       .eq('status', 'processing')
       .order('created_at', { ascending: true })
-      .limit(25);
+      .limit(1); // Process one job per invocation to stay within the CPU budget.
     if (error) return json({ error: error.message }, 500);
 
     const summary: Record<string, unknown>[] = [];

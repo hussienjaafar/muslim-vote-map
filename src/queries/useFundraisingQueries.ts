@@ -120,8 +120,8 @@ export function useRecentDonations(orgId: string | null, pageSize = DONATIONS_PA
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
     initialPageParam: 0,
-    getNextPageParam: (lastPage: RecentDonation[], allPages) =>
-      lastPage.length < pageSize ? undefined : allPages.length,
+    getNextPageParam: (lastPage: RecentDonation[] | undefined, allPages) =>
+      (lastPage?.length ?? 0) < pageSize ? undefined : allPages.length,
     queryFn: async ({ pageParam }): Promise<RecentDonation[]> => {
       if (!orgId) return [];
       const from = (pageParam as number) * pageSize;

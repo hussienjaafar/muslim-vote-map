@@ -229,6 +229,11 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
                   </span>
                 )}
               </div>
+              {st?.last_sync_status?.startsWith('processing') && (
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Processing in background — this updates automatically when ready.
+                </p>
+              )}
               {st?.last_sync_status && st.last_sync_status.startsWith('error') && (
                 <p className="text-[11px] text-destructive">{st.last_sync_status}</p>
               )}

@@ -230,11 +230,13 @@ async function syncActblue(
   const windows: { start: string; end: string }[] = [];
   if (full) {
     for (const startMonths of [24, 18, 12, 6]) {
-      windows.push({ start: isoMonthsAgo(startMonths), end: isoMonthsAgo(startMonths - 6) });
+      const endMonths = startMonths - 6;
+      // The final window ends "now" — use tomorrow (exclusive end) to include today.
+      windows.push({ start: isoMonthsAgo(startMonths), end: endMonths === 0 ? tomorrowIso() : isoMonthsAgo(endMonths) });
     }
   } else {
     const days = Math.min(Math.max(sinceDays, 1), 180); // cap at ~6 months
-    windows.push({ start: isoDaysAgo(days), end: todayIso() });
+    windows.push({ start: isoDaysAgo(days), end: tomorrowIso() });
   }
 
   let queuedCount = 0;

@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
 
         await aggregateDaily(admin, job.organization_id, job.since_days ?? 30);
 
-        await admin.from('actblue_csv_jobs').update({ status: 'complete', last_error: null }).eq('id', job.id);
+        await admin.from('actblue_csv_jobs').update({ status: 'complete', last_error: null, rows_imported: rows.length }).eq('id', job.id);
         await admin
           .from('client_api_credentials')
           .update({ last_sync_at: new Date().toISOString(), last_sync_status: 'success' })

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export type DailyMetric = {
@@ -21,6 +21,7 @@ export type RecentDonation = {
   is_recurring: boolean;
   transaction_date: string;
   refcode: string | null;
+  form_name: string | null;
 };
 
 export type FundraisingSummary = {
@@ -108,34 +109,42 @@ export function useFundraisingSummary(orgId: string | null, days: number) {
   });
 }
 
-/** Most recent ActBlue donations for an org. Never throws. */
-export function useRecentDonations(orgId: string | null, limit = 8) {
-  return useQuery<{ rows: RecentDonation[]; fallback: boolean; error: string | null }>({
-    queryKey: ['recent-donations', orgId, limit],
+const DONATIONS_PAGE_SIZE = 25;
+
+/** Paginated recent ActBlue donations for an org (infinite scroll). Never throws. */
+export function useRecentDonations(orgId: string | null, pageSize = DONATIONS_PAGE_SIZE) {
+  return useInfiniteQuery({
+    queryKey: ['recent-donations', orgId, pageSize],
     enabled: !!orgId,
     staleTime: 30_000,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
-    queryFn: async () => {
-      if (!orgId) return { rows: [], fallback: false, error: null };
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: RecentDonation[], allPages) =>
+      lastPage.length < pageSize ? undefined : allPages.length,
+    queryFn: async ({ pageParam }): Promise<RecentDonation[]> => {
+      if (!orgId) return [];
+      const from = (pageParam as number) * pageSize;
+      const to = from + pageSize - 1;
       const { data, error } = await supabase
         .from('actblue_transactions')
-        .select('id, donor_name, amount, is_recurring, transaction_date, refcode')
+        .select('id, donor_name, amount, is_recurring, transaction_date, refcode, form_name')
         .eq('organization_id', orgId)
         .order('transaction_date', { ascending: false })
-        .limit(limit);
+        .range(from, to);
 
-      if (error) return { rows: [], fallback: true, error: error.message };
+      if (error) return [];
 
-      const rows: RecentDonation[] = (data ?? []).map((r: any) => ({
+      return (data ?? []).map((r: any) => ({
         id: r.id,
         donor_name: r.donor_name,
         amount: Number(r.amount) || 0,
         is_recurring: !!r.is_recurring,
         transaction_date: r.transaction_date,
         refcode: r.refcode,
+        form_name: r.form_name ?? null,
       }));
-      return { rows, fallback: false, error: null };
     },
   });
 }
+

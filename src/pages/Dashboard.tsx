@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOrg } from '@/contexts/OrgContext';
@@ -35,8 +35,35 @@ export default function Dashboard() {
 
   const orgId = activeOrg?.id ?? null;
   const { data: summary, isLoading, isFetching: summaryFetching } = useFundraisingSummary(orgId, days);
-  const { data: donations, isFetching: donationsFetching } = useRecentDonations(orgId);
+  const {
+    data: donationsData,
+    isFetching: donationsFetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useRecentDonations(orgId);
   const refreshing = summaryFetching || donationsFetching;
+
+  const donationRows = useMemo(
+    () => donationsData?.pages.flat() ?? [],
+    [donationsData]
+  );
+
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: '120px' }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['fundraising-summary', orgId] });
@@ -218,34 +245,49 @@ export default function Dashboard() {
         {/* Recent donations */}
         <section className="surgical-glass p-4 sm:p-8">
           <h2 className="text-lg sm:text-xl font-display font-bold text-foreground mb-6">Recent Donations</h2>
-          {!donations?.rows.length ? (
+          {!donationRows.length ? (
             <div className="py-10 text-center">
               <Inbox className="w-7 h-7 text-muted-foreground/50 mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">No donations recorded yet.</p>
             </div>
           ) : (
-            <div className="divide-y divide-border/60">
-              {donations.rows.map((d) => (
-                <div key={d.id} className="flex items-center justify-between py-3 gap-4">
-                  <div className="min-w-0">
-                    <p className="text-sm text-foreground truncate">{d.donor_name || 'Anonymous donor'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(parseISO(d.transaction_date), 'PP')}
-                      {d.refcode ? ` · ${d.refcode}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    {d.is_recurring && (
-                      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-violet-400">
-                        <Repeat className="w-3 h-3" /> Recurring
+            <div className="max-h-[480px] overflow-y-auto pr-1 -mr-1">
+              <div className="divide-y divide-border/60">
+                {donationRows.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between py-3 gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm text-foreground truncate">{d.donor_name || 'Anonymous donor'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(parseISO(d.transaction_date), "MMM d, yyyy 'at' h:mm a")}
+                      </p>
+                      {(d.form_name || d.refcode) && (
+                        <p className="text-[11px] text-muted-foreground/70 truncate">
+                          {[d.form_name, d.refcode].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {d.is_recurring && (
+                        <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-violet-400">
+                          <Repeat className="w-3 h-3" /> Recurring
+                        </span>
+                      )}
+                      <span className="text-sm font-bold text-emerald-400 tabular-nums">
+                        ${d.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
-                    )}
-                    <span className="text-sm font-bold text-emerald-400 tabular-nums">
-                      ${d.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <div ref={loadMoreRef} className="py-4 flex items-center justify-center">
+                {isFetchingNextPage ? (
+                  <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading more…
+                  </span>
+                ) : !hasNextPage ? (
+                  <span className="text-[11px] text-muted-foreground/60">End of donations</span>
+                ) : null}
+              </div>
             </div>
           )}
         </section>

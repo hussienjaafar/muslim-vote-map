@@ -131,6 +131,11 @@ Deno.serve(async (req) => {
     const first = donor.firstname ?? donor.firstName ?? '';
     const last = donor.lastname ?? donor.lastName ?? '';
 
+    const period = String(c.recurringPeriod ?? c.recurringType ?? '').trim().toLowerCase();
+    const isRecurring = period
+      ? period !== 'once'
+      : !!(c.recurringDuration || c.isRecurring === true);
+
     const row = {
       organization_id: orgId,
       transaction_id: txId,
@@ -139,8 +144,9 @@ Deno.serve(async (req) => {
       amount: num(c.amount),
       refcode: c.refcode ?? c.refcodes?.refcode ?? null,
       source_campaign: c.fundraisingPageName ?? c.contributionForm ?? null,
+      form_name: c.contributionForm ?? c.formName ?? c.fundraisingPageName ?? null,
       transaction_type: 'donation',
-      is_recurring: !!(c.recurringDuration || c.isRecurring || c.recurringPeriod),
+      is_recurring: isRecurring,
       transaction_date: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
     };
 

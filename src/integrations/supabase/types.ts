@@ -135,6 +135,7 @@ export type Database = {
           created_at: string
           donor_email: string | null
           donor_name: string | null
+          form_name: string | null
           id: string
           is_recurring: boolean
           organization_id: string
@@ -149,6 +150,7 @@ export type Database = {
           created_at?: string
           donor_email?: string | null
           donor_name?: string | null
+          form_name?: string | null
           id?: string
           is_recurring?: boolean
           organization_id: string
@@ -163,6 +165,7 @@ export type Database = {
           created_at?: string
           donor_email?: string | null
           donor_name?: string | null
+          form_name?: string | null
           id?: string
           is_recurring?: boolean
           organization_id?: string

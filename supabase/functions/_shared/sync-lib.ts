@@ -313,6 +313,18 @@ export async function downloadActblueCsv(downloadUrl: string, orgId: string): Pr
   return parseActblueCsv(csvText, orgId);
 }
 
+/** Derive a readable form name from an ActBlue fundraising-page URL slug. */
+function slugFromPage(page: string | null): string | null {
+  if (!page) return null;
+  const m = page.match(/\/(?:page|my-express|form)\/?([^/?#]+)?/i);
+  const slug = (m?.[1] || '').trim();
+  if (!slug) {
+    if (/my-express/i.test(page)) return 'ActBlue Express';
+    return null;
+  }
+  return slug;
+}
+
 export function parseActblueCsv(text: string, orgId: string): Record<string, unknown>[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
@@ -329,6 +341,14 @@ export function parseActblueCsv(text: string, orgId: string): Record<string, unk
     if (!txId) continue;
     const first = get('donor first name');
     const last = get('donor last name');
+    const period = (get('recurring period') || get('recurrence frequency') || '').trim().toLowerCase();
+    const totalMonths = (get('recurring total months') || '').trim().toLowerCase();
+    const isRecurring = period
+      ? period !== 'once'
+      : totalMonths !== '' && totalMonths !== '0';
+    const fundraisingPage = get('fundraising page') || null;
+    const formName =
+      get('form name') || get('contribution form') || slugFromPage(fundraisingPage);
     out.push({
       organization_id: orgId,
       transaction_id: String(txId),
@@ -336,9 +356,10 @@ export function parseActblueCsv(text: string, orgId: string): Record<string, unk
       donor_name: [first, last].filter(Boolean).join(' ') || null,
       amount: num(get('amount')),
       refcode: get('refcode') || get('refcode2') || null,
-      source_campaign: get('fundraising page') || null,
+      source_campaign: fundraisingPage,
+      form_name: formName,
       transaction_type: 'donation',
-      is_recurring: /yes|true|1/i.test(get('recurring total months') || get('recurrence number') || ''),
+      is_recurring: isRecurring,
       transaction_date: parseDate(get('date')),
     });
   }

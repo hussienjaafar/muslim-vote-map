@@ -6,9 +6,8 @@ import { normalizeActBlueTimestamp } from '../_shared/actblue-timezone.ts';
 // Public endpoint (no JWT). ActBlue posts contributions here in real time.
 // Configure in ActBlue with this function URL.
 // The organization is identified by the `entity_id` in the payload (matched against stored credentials).
-// Authentication is either:
-//   1. HMAC: X-ActBlue-Signature: sha256=<hex> validated against the org's webhook_secret
-//   2. HTTP Basic Auth matching the org's basic_auth_username / basic_auth_password
+// Authentication: HTTP Basic Auth matching the org's basic_auth_username / basic_auth_password.
+// (ActBlue webhooks authenticate via Basic Auth only — there is no signature header.)
 
 function num(v: unknown): number {
   const n = Number(v);

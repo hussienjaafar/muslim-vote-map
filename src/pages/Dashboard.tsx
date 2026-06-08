@@ -139,16 +139,17 @@ export default function Dashboard() {
   const dailyChartData = (summary?.daily ?? []).map((d) => ({
     date: d.date,
     raised: d.total_funds_raised,
-    spend: d.total_ad_spend + d.total_sms_cost,
+    adSpend: d.total_ad_spend,
+    smsCost: d.total_sms_cost,
   }));
   const hourlyChartData = (hourly ?? []).map((h) => ({
     hour: h.hour,
     raised: h.funds,
-    spend: h.adSpend,
+    adSpend: h.adSpend,
   }));
   const hasData = isHourly
-    ? hourlyChartData.some((d) => d.raised > 0 || d.spend > 0)
-    : dailyChartData.some((d) => d.raised > 0 || d.spend > 0);
+    ? hourlyChartData.some((d) => d.raised > 0 || d.adSpend > 0)
+    : dailyChartData.some((d) => d.raised > 0 || d.adSpend > 0 || d.smsCost > 0);
 
 
   return (

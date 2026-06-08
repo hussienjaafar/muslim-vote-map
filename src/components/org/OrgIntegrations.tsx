@@ -272,13 +272,37 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
     }
   };
 
+  const handleBackfill = async () => {
+    try {
+      const res = await runSync.mutateAsync({ full: true });
+      const queued = res.results.filter((r) => (r as any).queued);
+      const ok = res.results.filter((r) => r.ok && !(r as any).queued).length;
+      const failed = res.results.filter((r) => !r.ok);
+      const parts: string[] = [];
+      if (ok) parts.push(`${ok} source(s) backfilled`);
+      if (queued.length) parts.push(`${queued.map((q) => q.platform).join(', ')} processing in background`);
+      if (failed.length) {
+        toast.warning(`${parts.join(', ') || 'Backfill ran'}. Issues: ${failed.map((f) => `${f.platform}: ${f.error}`).join('; ')}`);
+      } else {
+        toast.success(`${parts.join(', ') || 'Full history backfill started'}. Meta is limited to ~37 months.`);
+      }
+    } catch (e: any) {
+      toast.error(e.message ?? 'Backfill failed');
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base flex items-center gap-2"><Plug className="w-4 h-4" /> Integrations</CardTitle>
-        <Button size="sm" variant="outline" className="gap-2" onClick={handleSync} disabled={runSync.isPending}>
-          <RefreshCw className={`w-3.5 h-3.5 ${runSync.isPending ? 'animate-spin' : ''}`} /> Sync now
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-2" onClick={handleBackfill} disabled={runSync.isPending}>
+            <History className="w-3.5 h-3.5" /> Backfill full history
+          </Button>
+          <Button size="sm" variant="outline" className="gap-2" onClick={handleSync} disabled={runSync.isPending}>
+            <RefreshCw className={`w-3.5 h-3.5 ${runSync.isPending ? 'animate-spin' : ''}`} /> Sync now
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-5">
         {PLATFORMS.map((p) => {

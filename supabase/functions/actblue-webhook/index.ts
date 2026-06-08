@@ -24,10 +24,26 @@ function validateBasicAuth(header: string | null, user: string, pass: string): b
   }
 }
 
-function extractEntityId(c: any, body: any): string | null {
-  const raw = c?.entityId ?? c?.entity_id ?? body?.entityId ?? body?.entity_id ??
-    body?.contribution?.entityId ?? body?.contribution?.entity_id ?? null;
-  return raw != null ? String(raw) : null;
+// Real ActBlue "Default" webhooks place entityId inside each lineitem. Collect
+// every entity id we can find (lineitems first, then contribution/top-level
+// fallbacks used by our test payloads).
+function collectEntityIds(c: any, body: any): string[] {
+  const ids: string[] = [];
+  const push = (v: unknown) => {
+    if (v != null && String(v).trim() !== '') ids.push(String(v));
+  };
+  const lineitems = Array.isArray(body?.lineitems) ? body.lineitems : [];
+  for (const li of lineitems) {
+    push(li?.entityId);
+    push(li?.entity_id);
+  }
+  push(c?.entityId);
+  push(c?.entity_id);
+  push(body?.entityId);
+  push(body?.entity_id);
+  push(body?.contribution?.entityId);
+  push(body?.contribution?.entity_id);
+  return ids;
 }
 
 Deno.serve(async (req) => {

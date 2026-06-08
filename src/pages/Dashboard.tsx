@@ -212,9 +212,12 @@ export default function Dashboard() {
         {/* Chart */}
         <section className="surgical-glass p-4 sm:p-8">
           <div className="mb-6">
-            <h2 className="text-lg sm:text-xl font-display font-bold text-foreground">Funds Raised vs. Spend</h2>
+            <h2 className="text-lg sm:text-xl font-display font-bold text-foreground">
+              {isHourly ? 'Funds Raised by Hour' : 'Funds Raised vs. Spend'}
+            </h2>
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
-              Last {days} days · daily
+              {range.label}
+              {isHourly ? ' · ad/SMS spend shown in KPIs' : ''}
             </p>
           </div>
           {!hasData ? (
@@ -228,7 +231,7 @@ export default function Dashboard() {
           ) : (
             <div className="h-[260px] sm:h-[320px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                <AreaChart data={isHourly ? hourlyChartData : dailyChartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
                   <defs>
                     <linearGradient id="gRaised" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
@@ -241,12 +244,12 @@ export default function Dashboard() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                   <XAxis
-                    dataKey="date"
-                    tickFormatter={(v) => format(parseISO(v), 'MMM d')}
+                    dataKey={isHourly ? 'hour' : 'date'}
+                    tickFormatter={(v) => (isHourly ? fmtHour(Number(v)) : format(parseISO(String(v)), 'MMM d'))}
                     tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
-                    minTickGap={24}
+                    minTickGap={isHourly ? 12 : 24}
                   />
                   <YAxis
                     tickFormatter={(v) => fmtCompact(Number(v))}
@@ -262,14 +265,17 @@ export default function Dashboard() {
                       borderRadius: 8,
                       fontSize: 12,
                     }}
-                    labelFormatter={(v) => format(parseISO(String(v)), 'PP')}
+                    labelFormatter={(v) => (isHourly ? `${fmtHour(Number(v))} ET` : format(parseISO(String(v)), 'PP'))}
                     formatter={(value: number, name: string) => [fmtCurrency(Number(value)), name === 'raised' ? 'Raised' : 'Spend']}
                   />
                   <Area type="monotone" dataKey="raised" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#gRaised)" />
-                  <Area type="monotone" dataKey="spend" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gSpend)" />
+                  {!isHourly && (
+                    <Area type="monotone" dataKey="spend" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gSpend)" />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+
           )}
         </section>
 

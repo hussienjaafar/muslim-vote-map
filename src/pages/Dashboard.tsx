@@ -96,6 +96,7 @@ export default function Dashboard() {
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['fundraising-summary', orgId] });
+    queryClient.invalidateQueries({ queryKey: ['fundraising-hourly', orgId] });
     queryClient.invalidateQueries({ queryKey: ['recent-donations', orgId] });
   };
 

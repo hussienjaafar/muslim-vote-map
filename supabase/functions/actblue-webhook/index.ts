@@ -46,32 +46,123 @@ function collectEntityIds(c: any, body: any): string[] {
   return ids;
 }
 
+// Build a header map for the delivery log, redacting anything sensitive so the
+// Basic Auth password / signatures are never persisted.
+function redactHeaders(req: Request): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of req.headers.entries()) {
+    const key = k.toLowerCase();
+    out[k] =
+      key === 'authorization' || key === 'x-actblue-signature' || key === 'cookie'
+        ? '[REDACTED]'
+        : v;
+  }
+  return out;
+}
+
+function authScheme(header: string | null): string {
+  if (!header) return 'none';
+  return header.split(' ')[0] || 'unknown';
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
   }
-  try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const admin = createClient(supabaseUrl, service);
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const admin = createClient(supabaseUrl, service);
 
-    // Read the raw body once (needed for HMAC verification).
-    const rawBody = await req.text();
-    const body = (() => {
+  // Read the raw body + request metadata up front so we can log EVERY inbound
+  // delivery (mirrors Molitico's webhook_logs pattern) before any auth/parse,
+  // making rejected deliveries visible instead of disappearing.
+  const rawBody = await req.text();
+  const sourceIp =
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ??
+    req.headers.get('x-real-ip') ??
+    null;
+  const userAgent = req.headers.get('user-agent');
+  const headers = redactHeaders(req);
+  const authHeaderRaw = req.headers.get('Authorization');
+
+  const body = (() => {
+    try {
+      return JSON.parse(rawBody);
+    } catch {
+      return null;
+    }
+  })();
+
+  // Create the initial delivery log row (best-effort, never blocks the webhook).
+  let logId: string | null = null;
+  try {
+    const { data: logRow } = await admin
+      .from('webhook_deliveries')
+      .insert({
+        source: 'actblue',
+        event_type: 'incoming',
+        payload: body ?? { unparseable: true, raw_preview: rawBody.slice(0, 8192) },
+        headers: { ...headers, auth_scheme: authScheme(authHeaderRaw) },
+        source_ip: sourceIp,
+        user_agent: userAgent,
+        processing_status: 'pending',
+      })
+      .select('id')
+      .single();
+    logId = logRow?.id ?? null;
+  } catch (logErr) {
+    console.error('webhook_deliveries insert failed', logErr);
+  }
+
+  // Update the delivery log + return the response in one place.
+  const finish = async (
+    status: number,
+    outcome: string,
+    errorDetail: string | null,
+    extra: Record<string, unknown> = {},
+    responseBody: Record<string, unknown> = {},
+    responseHeaders: Record<string, string> = {},
+  ): Promise<Response> => {
+    if (logId) {
       try {
-        return JSON.parse(rawBody);
-      } catch {
-        return null;
+        await admin
+          .from('webhook_deliveries')
+          .update({
+            processing_status: status >= 200 && status < 300 ? 'processed' : 'failed',
+            response_status: status,
+            error_detail: errorDetail,
+            ...extra,
+          })
+          .eq('id', logId);
+      } catch (e) {
+        console.error('webhook_deliveries update failed', e);
       }
-    })();
-    if (!body) return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400 });
+    }
+    return new Response(JSON.stringify(responseBody), {
+      status,
+      headers: { 'Content-Type': 'application/json', ...responseHeaders },
+    });
+  };
+
+  try {
+    if (!body) {
+      return await finish(400, 'bad_payload', 'Invalid JSON body', {}, { error: 'Invalid payload' });
+    }
 
     const c = body?.contribution ?? body?.lineitem ?? body;
-    if (!c) return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400 });
+    if (!c) {
+      return await finish(400, 'bad_payload', 'No contribution/lineitem object', {}, { error: 'Invalid payload' });
+    }
 
     const entityIds = collectEntityIds(c, body);
     if (entityIds.length === 0) {
-      return new Response(JSON.stringify({ error: 'Missing entity_id' }), { status: 400 });
+      return await finish(
+        400,
+        'missing_entity',
+        'No entity_id found in payload',
+        { entity_ids_found: [] },
+        { error: 'Missing entity_id' },
+      );
     }
 
     // Find the org whose stored credentials match one of the payload's entity ids.
@@ -99,24 +190,32 @@ Deno.serve(async (req) => {
     }
 
     if (!orgId || !creds) {
-      return new Response(JSON.stringify({ error: 'No matching organization' }), { status: 404 });
+      return await finish(
+        404,
+        'no_match',
+        `No org matches entity ids: ${entityIds.join(', ')}`,
+        { entity_ids_found: entityIds },
+        { error: 'No matching organization' },
+      );
     }
 
     // Authenticate: HTTP Basic Auth (ActBlue sends Authorization: Basic on every delivery).
-    const authHeader = req.headers.get('Authorization');
     let authenticated = false;
-
     if (creds.basic_auth_username && creds.basic_auth_password) {
-      authenticated = validateBasicAuth(authHeader, creds.basic_auth_username, creds.basic_auth_password);
+      authenticated = validateBasicAuth(authHeaderRaw, creds.basic_auth_username, creds.basic_auth_password);
     }
 
     if (!authenticated) {
-      return new Response(
-        JSON.stringify({
+      return await finish(
+        401,
+        'unauthorized',
+        'Basic Auth validation failed',
+        { entity_ids_found: entityIds, matched_organization_id: orgId },
+        {
           error: 'Unauthorized',
           hint: 'Configure the Webhook Username and Password (Basic Auth) in API credentials to match ActBlue',
-        }),
-        { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="actblue"' } },
+        },
+        { 'WWW-Authenticate': 'Basic realm="actblue"' },
       );
     }
 
@@ -160,7 +259,15 @@ Deno.serve(async (req) => {
     const { error } = await admin
       .from('actblue_transactions')
       .upsert(row, { onConflict: 'organization_id,transaction_id' });
-    if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    if (error) {
+      return await finish(
+        500,
+        'error',
+        `Upsert failed: ${error.message}`,
+        { entity_ids_found: entityIds, matched_organization_id: orgId },
+        { error: error.message },
+      );
+    }
 
     // Re-aggregate just this donation's day so the dashboard rollup
     // (daily_aggregated_metrics) updates in real time instead of waiting for
@@ -173,11 +280,16 @@ Deno.serve(async (req) => {
       console.error('aggregateDaily failed for', orgId, day, aggErr);
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return await finish(
+      200,
+      'processed',
+      null,
+      { entity_ids_found: entityIds, matched_organization_id: orgId },
+      { ok: true },
+    );
   } catch (e) {
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : 'Unknown' }), { status: 500 });
+    return await finish(500, 'error', e instanceof Error ? e.message : 'Unknown', {}, {
+      error: e instanceof Error ? e.message : 'Unknown',
+    });
   }
 });

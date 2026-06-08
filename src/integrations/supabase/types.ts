@@ -1586,6 +1586,57 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_deliveries: {
+        Row: {
+          created_at: string
+          entity_ids_found: string[] | null
+          error_detail: string | null
+          event_type: string
+          headers: Json | null
+          id: string
+          matched_organization_id: string | null
+          payload: Json | null
+          processing_status: string
+          received_at: string
+          response_status: number | null
+          source: string
+          source_ip: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          entity_ids_found?: string[] | null
+          error_detail?: string | null
+          event_type?: string
+          headers?: Json | null
+          id?: string
+          matched_organization_id?: string | null
+          payload?: Json | null
+          processing_status?: string
+          received_at?: string
+          response_status?: number | null
+          source?: string
+          source_ip?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          entity_ids_found?: string[] | null
+          error_detail?: string | null
+          event_type?: string
+          headers?: Json | null
+          id?: string
+          matched_organization_id?: string | null
+          payload?: Json | null
+          processing_status?: string
+          received_at?: string
+          response_status?: number | null
+          source?: string
+          source_ip?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

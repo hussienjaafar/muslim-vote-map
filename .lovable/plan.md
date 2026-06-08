@@ -1,37 +1,42 @@
-## Why donations aren't updating live
+## Why reference Molitico
 
-Two separate gaps, both confirmed against the database:
+Molitico's ActBlue webhook works in production with the **same architecture as ours**: `verify_jwt = false`, Basic Auth validation, and org routing by `lineitems[0].entityId` matched against stored credentials. So our design is sound. The one thing Molitico does that we don't: it **logs every inbound request to a `webhook_logs` table before any auth/validation**, then updates that row at each exit point. That's what makes delivery problems debuggable there — and it sidesteps the unreliable edge-log "zero invocations" signal (function_id changes across deploys make those queries miss real calls).
 
-1. **No live ingestion is actually happening.** Your 5 newest transactions all share the exact same insert time (`created_at = 19:28:04`) — they were loaded in one batch by a CSV sync job (`actblue_csv_jobs` shows a `complete` job importing 11,196 rows at that moment). The `actblue-webhook` function has **zero real request logs** — only boot/shutdown. So even though the webhook is configured in ActBlue, deliveries are not reaching/succeeding at our endpoint. New donations only appear when a CSV sync runs.
-
-2. **The dashboard never receives a push.** `actblue_transactions` and `daily_aggregated_metrics` are **not** in the realtime publication, and the widgets only *poll* (`useRecentDonations` every 30s, `useFundraisingSummary` every 60s). So nothing is "instant" — at best it's a delayed poll after a batch sync.
-
-You asked for instant (push), so the plan covers both: make the dashboard react instantly to DB changes, and confirm/repair the webhook so live donations actually land.
+We'll adopt that exact pattern.
 
 ## Plan
 
-### 1. Enable realtime on the two dashboard tables
-Migration to add both tables to the `supabase_realtime` publication and set `REPLICA IDENTITY FULL`:
-- `public.actblue_transactions`
-- `public.daily_aggregated_metrics`
+### 1. Add a `webhook_deliveries` log table (mirrors Molitico's `webhook_logs`)
+Migration creating `public.webhook_deliveries`:
+- `source` (text, `actblue`), `event_type` (text, `incoming`)
+- `payload` (jsonb, capped), `headers` (jsonb, with `authorization`/signature **redacted** — never store the password)
+- `source_ip`, `user_agent`
+- `entity_ids_found` (text[]), `matched_organization_id` (uuid, nullable)
+- `processing_status` (text: `pending` → `processed` / `failed`)
+- `response_status` (int), `error_detail` (text)
+- `id`, `received_at`/`created_at`
 
-(Both already have org-scoped RLS SELECT policies, so subscribers only receive rows for orgs they can read.)
+RLS: admin-only SELECT (`has_role(auth.uid(),'admin')`); writes via service role. GRANT `service_role` ALL, GRANT `authenticated` SELECT (policy gates to admins).
 
-### 2. Subscribe the dashboard to realtime
-In `src/pages/Dashboard.tsx` (or a small `useRealtimeFundraising(orgId)` hook), open a Supabase channel filtered by `organization_id = orgId` on both tables. On any insert/update, call `queryClient.invalidateQueries` for `['recent-donations', orgId]` and `['fundraising-summary', orgId]` so the widgets refetch within ~1s of the row landing. Clean up the channel on org change/unmount.
-- Keep the existing polling as a fallback but lengthen the intervals (e.g. 60s/120s) since realtime now drives freshness.
+### 2. Instrument `actblue-webhook` exactly like Molitico
+- Read headers (auth scheme, IP, UA) and the raw body first.
+- Immediately after `JSON.parse`, **insert a `webhook_deliveries` row with `processing_status='pending'`** and the redacted headers + payload; keep its `id`.
+- At every return path (bad payload, no matching entity/org, auth failure, success), **update that row** with `processing_status`, `response_status`, `matched_organization_id`, and `error_detail`.
+- Wrap all logging in try/catch so it can never break the webhook response.
+- No change to the existing ingestion, realtime, or aggregation logic.
 
-### 3. Verify / repair the live webhook path
-This is what makes a donation "live" in the first place — without a real ActBlue delivery there is nothing to push.
-- Send a true ActBlue-shaped test payload (entityId/amount/paidAt inside `lineitems`, Basic Auth `CDS:CDS2026`) to the deployed `actblue-webhook` and confirm `200 {"ok":true}`, the row appears in `actblue_transactions`, `daily_aggregated_metrics` updates, and — with steps 1–2 in place — the dashboard updates without a manual refresh. Delete the test row afterward.
-- Inspect edge logs during/after the test to confirm the function is actually being invoked.
-- Because there are currently **zero** real deliveries despite ActBlue being configured, also confirm the webhook URL registered in ActBlue exactly matches the deployed function URL and that ActBlue's delivery log shows attempts. If ActBlue reports failures, the response status/body from our function will tell us whether it's auth (401), entity match (404), or parsing (400).
+### 3. Admin visibility panel
+A small "Webhook Deliveries" table in the admin area (most recent first: time, IP, status, response code, matched org, entity IDs, error). Lets you watch ActBlue's next delivery land in real time and read exactly why it passes or fails. (If you prefer no UI, I can provide a query instead — but the panel is low-effort and reusable.)
+
+### 4. Diagnose with the next real donation
+- **Row appears** → read its outcome and fix the specific failure (auth mismatch, entity mismatch, payload shape).
+- **No row at all** → ActBlue genuinely isn't reaching the function; the issue is on ActBlue's delivery side (check their webhook delivery log for errors / confirm saved URL+credentials), and we escalate to ActBlue with evidence.
+- To prove reachability immediately, I'll also send no-auth and wrong-password test calls and confirm both create logged rows with the right failure status.
 
 ## Technical notes
-- Realtime requires the table in the publication **and** `REPLICA IDENTITY FULL` to deliver full row payloads (needed for the `organization_id` filter).
-- Channel filter: `postgres_changes` with `filter: organization_id=eq.<orgId>` on each table.
-- No schema/column changes to the tables themselves — only publication + replica identity.
+- Uses the existing service-role client already in the function.
+- `payload` capped (~8KB) and Basic Auth password is never persisted — only the scheme and a redacted header map.
+- Additive only; mirrors a pattern already proven in Molitico.
 
-## Out of scope
-- Webhook parsing logic itself (already updated to read `lineitems[]`).
-- Any change to the CSV sync cadence — it stays as the backfill/reconciliation path.
+## Out of scope (Molitico extras we are not copying)
+- HMAC signature auth, refcode-mapping attribution, click_id/fbclid reconciliation, and failed-webhook reprocessing — larger systems beyond diagnosing/ingesting deliveries here.

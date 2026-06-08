@@ -81,6 +81,8 @@ export type Database = {
           attempts: number
           created_at: string
           csv_id: string
+          date_range_end: string | null
+          date_range_start: string | null
           id: string
           last_error: string | null
           organization_id: string
@@ -93,6 +95,8 @@ export type Database = {
           attempts?: number
           created_at?: string
           csv_id: string
+          date_range_end?: string | null
+          date_range_start?: string | null
           id?: string
           last_error?: string | null
           organization_id: string
@@ -105,6 +109,8 @@ export type Database = {
           attempts?: number
           created_at?: string
           csv_id?: string
+          date_range_end?: string | null
+          date_range_start?: string | null
           id?: string
           last_error?: string | null
           organization_id?: string

@@ -1,47 +1,35 @@
-## Goal
+## Problem
 
-Import the **complete available history** for Meta, ActBlue, and Switchboard for every client — automatically the first time each platform is connected, plus a manual "Backfill full history" button admins can re-run anytime. (Credentials are added after an org is created, so the true trigger point is "first connect," not the org-creation row insert itself.)
+ActBlue rejects any export whose date range exceeds 6 months (`422: "Date range must be 6 months or less"`). The current full-history backfill requests one range back to 2004, so it always fails. Meta and Switchboard backfilled fine.
 
-Reach per Meta's hard limit: **Meta ≈ 37 months** (max the Ads insights API returns), **ActBlue and Switchboard = all-time**.
+## Fix
 
-## Behavior changes
+Make the ActBlue **full** path create multiple export jobs, each covering a **6-month window across the last 2 years** (4 windows total): most-recent 6 months, the 6 before that, and so on. Each window is its own ActBlue CSV export + `actblue_csv_jobs` row, finished independently by the existing `process-actblue-jobs` worker. Empty windows simply import 0 rows.
 
-The sync pipeline currently runs in incremental windows (default 30 days, capped at 365). We add a **full** mode that flows through the whole chain.
+```text
+[ -24mo … -18mo ]  [ -18mo … -12mo ]  [ -12mo … -6mo ]  [ -6mo … today ]
+   job 1               job 2              job 3             job 4
+```
 
-**Meta (`syncMeta`)**
-- Full mode sets the window start to ~37 months ago (Meta's max for ad insights).
-- Add **pagination**: follow `payload.paging.next` in a guarded loop so we collect every campaign/day, not just the first 500 rows.
+### Changes
 
-**Switchboard (`syncSwitchboard`)**
-- Full mode skips the `sinceDays` date filter entirely so every broadcast is imported (it already pages through results).
+**`supabase/functions/_shared/sync-lib.ts` — `syncActblue`**
+- In full mode, loop over 4 consecutive 6-month windows covering the last 24 months. For each: POST to ActBlue with that window's `date_range_start`/`date_range_end`, then insert one `actblue_csv_jobs` row (status `processing`) with the window stored.
+- Incremental (non-full) mode is unchanged, but clamp its window to ≤6 months so it can never trip the 422 either.
+- Record each chunk's window on the job row (see migration) and set the per-platform credential status to reflect how many export windows were queued (e.g. "processing: 4 ActBlue export windows queued"). If one window errors, keep going with the rest and report which failed.
 
-**ActBlue (`syncActblue`)**
-- Full mode requests the CSV export with an early `date_range_start` (ActBlue founding, `2004-01-01`) through today, so the export contains all-time contributions. The existing background worker (`process-actblue-jobs`) finishes the import unchanged.
+**Migration — `actblue_csv_jobs`**
+- Add nullable `date_range_start date` and `date_range_end date` columns so each chunk's window is visible in the per-org ActBlue history panel. (Existing rows stay null.)
 
-**Aggregation (`aggregateDaily`)**
-- Full mode recomputes `daily_aggregated_metrics` across all history instead of just the recent window (new-donor first-seen already scans full history).
-
-## Triggers
-
-**1. Auto on first connect** — In `save-credentials`, when a platform is connected for the first time (new row / no prior `last_sync_at`), kick off a full backfill for the org in the background (`EdgeRuntime.waitUntil`) so the save response stays fast. Idempotent upserts make re-runs safe.
-
-**2. Manual button** — Add a **"Backfill full history"** action in the org Integrations panel (admin-only) that calls `sync-org` with `full: true`, shows a spinner, and toasts the result. Reuses the ActBlue history panel already in place to confirm completion.
-
-## Files to change
-
-- `supabase/functions/_shared/sync-lib.ts` — thread a `full` flag through `runOrgSync` and each platform function; Meta 37-month window + pagination; Switchboard skip filter; ActBlue early start date; `aggregateDaily` all-history mode.
-- `supabase/functions/sync-org/index.ts` — accept `full` in the request body and pass it through (normal path keeps the 365-day cap).
-- `supabase/functions/save-credentials/index.ts` — detect first connect and trigger a background full backfill.
-- `src/queries/useIntegrationQueries.ts` — extend the sync mutation to accept a `full` backfill option.
-- `src/components/org/OrgIntegrations.tsx` — add the admin "Backfill full history" button.
+**`src/components/org/OrgIntegrations.tsx` — ActBlue history panel**
+- Show each job's window (`date_range_start → date_range_end`) when present, so the 4 chunks are distinguishable instead of all looking identical.
 
 ## Verification
 
-- Connect a platform on a fresh org → confirm a full backfill fires automatically (rows appear across months/years; ActBlue job shows a large window).
-- Click "Backfill full history" → confirm `sync-org` runs with full mode and metrics/history refresh.
-- Confirm incremental syncs and the once-a-minute ActBlue worker still behave normally.
+- Run "Backfill full history" on an org with ActBlue connected → confirm 4 ActBlue jobs appear, each with a distinct 6-month window, no 422, and they flip to Complete as the worker runs.
+- Confirm Meta and Switchboard backfills still behave as before.
+- Confirm a normal "Sync now" still works.
 
-## Notes / limitations
+## Notes
 
-- Meta genuinely cannot return data older than ~37 months; the UI will note this.
-- A full ActBlue export can be large but is handled by the existing async worker, so it won't time out the request.
+- 2 years × 6-month chunks = 4 export jobs per org per full backfill, which keeps job volume low while covering recent history completely.

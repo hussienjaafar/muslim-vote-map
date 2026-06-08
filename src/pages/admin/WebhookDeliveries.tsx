@@ -13,8 +13,22 @@ type Delivery = {
   entity_ids_found: string[] | null;
   matched_organization_id: string | null;
   headers: Record<string, unknown> | null;
+  payload: Record<string, unknown> | null;
   received_at: string;
 };
+
+/** Pull a donation amount + donor identity out of the logged ActBlue payload. */
+function parseDonation(payload: Record<string, unknown> | null): { amount: number | null; donor: string | null } {
+  if (!payload || typeof payload !== 'object') return { amount: null, donor: null };
+  const p = payload as any;
+  const c = p.contribution ?? p.lineitem ?? p;
+  const lineitems = Array.isArray(p.lineitems) ? p.lineitems : [];
+  const rawAmount = lineitems[0]?.amount ?? c?.amount;
+  const amount = rawAmount != null && Number.isFinite(Number(rawAmount)) ? Number(rawAmount) : null;
+  const donor = p.donor ?? c?.donor ?? {};
+  const name = [donor.firstname ?? donor.firstName, donor.lastname ?? donor.lastName].filter(Boolean).join(' ');
+  return { amount, donor: name || donor.email || null };
+}
 
 function useWebhookDeliveries() {
   return useQuery({
@@ -22,7 +36,7 @@ function useWebhookDeliveries() {
     queryFn: async (): Promise<Delivery[]> => {
       const { data, error } = await supabase
         .from('webhook_deliveries')
-        .select('id, source, source_ip, processing_status, response_status, error_detail, entity_ids_found, matched_organization_id, headers, received_at')
+        .select('id, source, source_ip, processing_status, response_status, error_detail, entity_ids_found, matched_organization_id, headers, payload, received_at')
         .order('received_at', { ascending: false })
         .limit(100);
       if (error) return [];

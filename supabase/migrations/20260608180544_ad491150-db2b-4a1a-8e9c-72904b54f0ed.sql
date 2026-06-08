@@ -1,0 +1,1 @@
+ALTER TABLE public.actblue_transactions ADD COLUMN IF NOT EXISTS form_name text;

@@ -1,26 +1,38 @@
-# Make the dashboard auto-refresh so new data appears without a manual reload
+# Fix recurring flag + richer, infinite-scroll Recent Donations
 
-## Why it looks "missing"
-The June 8 data is already in the database and the aggregated rollup ($1,390 / 45 donations). The dashboard simply isn't re-fetching it. `useFundraisingSummary` and `useRecentDonations` (in `src/queries/useFundraisingQueries.ts`) use `staleTime: 60_000` and have no `refetchInterval`, so after the page loads the cached result is shown indefinitely. Data synced in afterward (via the hourly cron or the real-time webhook) never reaches the open dashboard until a full page reload.
+## 1. Fix the recurring detection (data bug)
+Per ActBlue's CSV field spec:
+- `Recurrence Number` shows `"1"` for one-time gifts (so matching `1` is wrong).
+- `Recurring Period` = `once` for one-time, `weekly`/`monthly` for recurring.
+- `Recurring Total Months` is empty for one-time, a number or `unlimited` for recurring.
 
-## Fix
+In `supabase/functions/_shared/sync-lib.ts` (`parseActblueCsv`), replace the regex with:
+- `recurring = period !== '' && period !== 'once'` using `Recurring Period` / `Recurrence Frequency`; fallback to "`Recurring Total Months` is non-empty" when the period column is absent.
 
-### 1. Add background polling + window-focus refresh to the fundraising queries
-In `src/queries/useFundraisingQueries.ts`, for both `useFundraisingSummary` and `useRecentDonations`:
-- Add `refetchInterval` (e.g. 60s) so the dashboard pulls fresh data on a steady cadence.
-- Add `refetchOnWindowFocus: true` so returning to the tab triggers an immediate refresh.
-- Lower `staleTime` (e.g. to ~30s) so the focus/interval refetches actually fire instead of being suppressed by the stale window.
+In `supabase/functions/actblue-webhook/index.ts`, align the live path: treat `recurringPeriod === 'once'` (or missing recurring fields) as one-time instead of `!!recurringPeriod`.
 
-### 2. Add a manual "Refresh" affordance on the dashboard
-In `src/pages/Dashboard.tsx`, add a small refresh button near the date-range toggle that invalidates/refetches the fundraising-summary and recent-donations queries on demand, with a brief spinning state. This gives an instant way to pull the latest without waiting for the interval.
+## 2. Capture the form name
+Add a `form_name` column to `actblue_transactions` (migration). Populate it:
+- CSV (`parseActblueCsv`): from `Form Name` / `Contribution Form`.
+- Webhook: from `contributionForm` / `formName`.
+(`source_campaign` currently stores the fundraising-page link and is unused in the UI; leave it as-is.)
 
-## Notes / trade-offs
-- Polling every 60s is light (two small selects per org) and matches the backend freshness (hourly catch-up sync + real-time webhook). If you'd prefer near-instant updates instead of a 60s poll, the alternative is a realtime subscription on `daily_aggregated_metrics` / `actblue_transactions` that invalidates the queries on change — more moving parts, so I'd start with polling unless you want true live updates.
+## 3. Backfill existing rows
+The historical 10,978 rows are mis-flagged and have no form name. After deploying the parser fix, run a one-time full re-sync (the existing 4-window backfill in `sync-all-orgs` + per-minute `process-actblue-jobs` worker) so the corrected `is_recurring` and new `form_name` values upsert over the existing transactions.
+
+## 4. Recent Donations: more detail + infinite scroll
+**Query** (`src/queries/useFundraisingQueries.ts`): convert `useRecentDonations` to a `useInfiniteQuery` that pages `actblue_transactions` with `.range()` (e.g. 25/page), ordered by `transaction_date desc`, selecting `donor_name, amount, is_recurring, transaction_date, refcode, form_name`. Keep the 60s refetch behavior.
+
+**Widget** (`src/pages/Dashboard.tsx`): render the flattened pages in the Recent Donations card with:
+- Full timestamp (date + time, e.g. `Jun 8, 2026 · 1:34 PM`).
+- Form name line (when present), alongside the existing refcode.
+- The "Recurring" badge only on truly recurring rows.
+- Infinite scroll: a sentinel div observed via `IntersectionObserver` that calls `fetchNextPage()` when it enters view, with a loading spinner while fetching and a subtle "end of list" state. The card body gets a max height with internal scroll so it doesn't push the page indefinitely.
 
 ## Verification
-- Open `/dashboard`, trigger a sync (or wait for one), and confirm the KPIs/chart/recent-donations update on their own within ~60s with no manual reload.
-- Confirm the manual Refresh button pulls the latest immediately and shows a loading state.
-- Confirm switching the 7D/30D/90D ranges still works and the new day appears in each applicable range.
+- Confirm new/re-synced June 8 rows show a realistic mix of one-time vs recurring (not ~100% recurring).
+- Scroll the widget and confirm older donations load in pages, each showing time + form name.
+- Confirm the 60s auto-refresh + manual Refresh still work.
 
 ## Open question
-Do you want the simple 60s polling, or true real-time updates via a database subscription (instant, slightly more complex)?
+For the infinite-scroll list, do you want it capped at a scrollable panel (e.g. ~480px tall, scroll within the card) or expanding the whole page as you scroll? I'll default to a scrollable panel unless you prefer full-page.

@@ -20,6 +20,8 @@ export type HourlyMetric = {
   hour: number;
   donations: number;
   funds: number;
+  /** Meta ad spend for the hour (advertiser timezone) */
+  adSpend: number;
 };
 
 export type RecentDonation = {

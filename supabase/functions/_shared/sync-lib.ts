@@ -387,10 +387,6 @@ function splitCsvLine(line: string): string[] {
   return out;
 }
 
-function parseDate(s: string): string {
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
-}
 
 /**
  * Recomputes daily_aggregated_metrics for an org over the window.

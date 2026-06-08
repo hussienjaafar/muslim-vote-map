@@ -82,15 +82,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'No matching organization' }), { status: 404 });
     }
 
-    // Authenticate: HMAC signature first, then Basic Auth fallback.
-    const signatureHeader = req.headers.get('X-ActBlue-Signature');
+    // Authenticate: HTTP Basic Auth (ActBlue sends Authorization: Basic on every delivery).
     const authHeader = req.headers.get('Authorization');
     let authenticated = false;
 
-    if (creds.webhook_secret) {
-      authenticated = await validateHmac(signatureHeader, rawBody, creds.webhook_secret);
-    }
-    if (!authenticated && creds.basic_auth_username && creds.basic_auth_password) {
+    if (creds.basic_auth_username && creds.basic_auth_password) {
       authenticated = validateBasicAuth(authHeader, creds.basic_auth_username, creds.basic_auth_password);
     }
 
@@ -98,7 +94,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: 'Unauthorized',
-          hint: 'Configure webhook_secret (HMAC) or basic_auth_username/password in API credentials',
+          hint: 'Configure the Webhook Username and Password (Basic Auth) in API credentials to match ActBlue',
         }),
         { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="actblue"' } },
       );

@@ -254,7 +254,7 @@ export async function downloadActblueCsv(downloadUrl: string, orgId: string): Pr
   return parseActblueCsv(csvText, orgId);
 }
 
-function parseActblueCsv(text: string, orgId: string): Record<string, unknown>[] {
+export function parseActblueCsv(text: string, orgId: string): Record<string, unknown>[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
   const header = splitCsvLine(lines[0]).map((h) => h.trim().toLowerCase());

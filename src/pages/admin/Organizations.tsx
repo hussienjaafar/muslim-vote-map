@@ -159,7 +159,12 @@ export default function Organizations() {
                         </TableCell>
                         <TableCell className="text-muted-foreground text-xs">{format(new Date(o.created_at), 'MMM d, yyyy')}</TableCell>
                         <TableCell className="text-right">
-                          <ChevronRight className="w-4 h-4 text-muted-foreground inline" />
+                          <div className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <Button size="sm" variant="ghost" className="gap-1.5 h-8" onClick={() => handleViewDashboard(o)}>
+                              <Eye className="w-3.5 h-3.5" /> View dashboard
+                            </Button>
+                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                          </div>
                         </TableCell>
                       </TableRow>
                     );

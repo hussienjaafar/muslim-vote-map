@@ -198,7 +198,7 @@ async function syncActblue(
   const reqRes = await fetch(`${base}/csvs`, {
     method: 'POST',
     headers: { Authorization: auth, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ csv_type: 'paid_contributions', date_range_start: isoDaysAgo(sinceDays) }),
+    body: JSON.stringify({ csv_type: 'paid_contributions', date_range_start: isoDaysAgo(sinceDays), date_range_end: todayIso() }),
   });
   if (!reqRes.ok) {
     const text = await reqRes.text();

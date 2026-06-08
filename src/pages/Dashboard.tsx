@@ -183,6 +183,11 @@ export default function Dashboard() {
                   {refreshing ? 'Updating…' : `Updated ${lastUpdated}`}
                 </span>
               )}
+              {summaryError && summary && !refreshing && (
+                <span className="mt-0.5 text-[10px] text-amber-400/80 whitespace-nowrap">
+                  Couldn't refresh — showing last data
+                </span>
+              )}
             </div>
             <OrgSwitcher />
             <DateRangePicker value={selection} onChange={setSelection} />

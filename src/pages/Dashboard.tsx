@@ -136,12 +136,19 @@ export default function Dashboard() {
     { key: 'roi', label: 'ROI', icon: TrendingUp, value: totals?.roi != null ? `${totals.roi.toFixed(0)}%` : '—', accent: 'text-emerald-400' },
   ];
 
-  const chartData = (summary?.daily ?? []).map((d) => ({
+  const dailyChartData = (summary?.daily ?? []).map((d) => ({
     date: d.date,
     raised: d.total_funds_raised,
     spend: d.total_ad_spend + d.total_sms_cost,
   }));
-  const hasData = chartData.some((d) => d.raised > 0 || d.spend > 0);
+  const hourlyChartData = (hourly ?? []).map((h) => ({
+    hour: h.hour,
+    raised: h.funds,
+  }));
+  const hasData = isHourly
+    ? hourlyChartData.some((d) => d.raised > 0)
+    : dailyChartData.some((d) => d.raised > 0 || d.spend > 0);
+
 
   return (
     <div className="min-h-screen bg-background">

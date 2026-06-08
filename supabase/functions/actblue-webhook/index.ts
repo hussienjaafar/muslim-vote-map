@@ -46,6 +46,25 @@ function collectEntityIds(c: any, body: any): string[] {
   return ids;
 }
 
+// Build a header map for the delivery log, redacting anything sensitive so the
+// Basic Auth password / signatures are never persisted.
+function redactHeaders(req: Request): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of req.headers.entries()) {
+    const key = k.toLowerCase();
+    out[k] =
+      key === 'authorization' || key === 'x-actblue-signature' || key === 'cookie'
+        ? '[REDACTED]'
+        : v;
+  }
+  return out;
+}
+
+function authScheme(header: string | null): string {
+  if (!header) return 'none';
+  return header.split(' ')[0] || 'unknown';
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });

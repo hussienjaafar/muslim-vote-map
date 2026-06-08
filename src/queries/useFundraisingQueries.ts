@@ -53,7 +53,7 @@ export function useFundraisingSummary(orgId: string | null, days: number) {
     queryKey: ['fundraising-summary', orgId, days],
     enabled: !!orgId,
     staleTime: 30_000,
-    refetchInterval: 60_000,
+    refetchInterval: 120_000,
     refetchOnWindowFocus: true,
     queryFn: async () => {
       const empty: FundraisingSummary = {
@@ -117,7 +117,7 @@ export function useRecentDonations(orgId: string | null, pageSize = DONATIONS_PA
     queryKey: ['recent-donations', orgId, pageSize],
     enabled: !!orgId,
     staleTime: 15_000,
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
     refetchOnWindowFocus: true,
     initialPageParam: 0,
     getNextPageParam: (lastPage: RecentDonation[] | undefined, allPages) =>

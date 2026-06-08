@@ -272,10 +272,16 @@ export default function Dashboard() {
                       fontSize: 12,
                     }}
                     labelFormatter={(v) => (isHourly ? `${fmtHour(Number(v))} ET` : format(parseISO(String(v)), 'PP'))}
-                    formatter={(value: number, name: string) => [fmtCurrency(Number(value)), name === 'raised' ? 'Raised' : 'Spend']}
+                    formatter={(value: number, name: string) => {
+                      const labels: Record<string, string> = { raised: 'Raised', adSpend: 'Ad Spend', smsCost: 'SMS Cost' };
+                      return [fmtCurrency(Number(value)), labels[name] ?? name];
+                    }}
                   />
                   <Area type="monotone" dataKey="raised" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#gRaised)" />
-                  <Area type="monotone" dataKey="spend" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gSpend)" />
+                  <Area type="monotone" dataKey="adSpend" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gSpend)" />
+                  {!isHourly && (
+                    <Area type="monotone" dataKey="smsCost" stroke="#38bdf8" strokeWidth={2.5} fill="url(#gSms)" />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>

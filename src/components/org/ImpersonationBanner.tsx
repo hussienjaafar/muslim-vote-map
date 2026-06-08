@@ -80,9 +80,12 @@ export function ImpersonationBanner() {
         <span className="hidden md:inline text-amber-300/70">· admin impersonation</span>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Jump back to admin panel without exiting impersonation */}
+          {/* Exit impersonation and return to the system admin dashboard */}
           <button
-            onClick={() => navigate('/admin')}
+            onClick={() => {
+              stopImpersonation();
+              navigate('/admin');
+            }}
             className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 h-7 text-amber-100 hover:bg-amber-500/20 transition-colors"
           >
             <Settings className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Admin</span>

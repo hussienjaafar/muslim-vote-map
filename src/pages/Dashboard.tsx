@@ -103,6 +103,14 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="Refresh data"
+              className="inline-flex items-center gap-1.5 px-3 h-9 text-xs font-bold rounded-md border border-border bg-card/60 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-60"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
+            </button>
             <OrgSwitcher />
             <div className="inline-flex rounded-md border border-border bg-card/60 p-0.5">
               {RANGES.map((r) => (

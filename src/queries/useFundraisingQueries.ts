@@ -51,7 +51,9 @@ export function useFundraisingSummary(orgId: string | null, days: number) {
   return useQuery<FundraisingSummary>({
     queryKey: ['fundraising-summary', orgId, days],
     enabled: !!orgId,
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const empty: FundraisingSummary = {
         fallback: false,
@@ -111,7 +113,9 @@ export function useRecentDonations(orgId: string | null, limit = 8) {
   return useQuery<{ rows: RecentDonation[]; fallback: boolean; error: string | null }>({
     queryKey: ['recent-donations', orgId, limit],
     enabled: !!orgId,
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       if (!orgId) return { rows: [], fallback: false, error: null };
       const { data, error } = await supabase

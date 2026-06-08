@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useOrg } from '@/contexts/OrgContext';
 import { useFundraisingSummary, useRecentDonations } from '@/queries/useFundraisingQueries';
 import { OrgSwitcher } from '@/components/org/OrgSwitcher';
@@ -8,7 +9,7 @@ import {
 } from 'recharts';
 import {
   DollarSign, TrendingUp, MessageSquare, Megaphone, Users, Repeat,
-  Loader2, Building2, ArrowLeft, Inbox,
+  Loader2, Building2, ArrowLeft, Inbox, RefreshCw,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
@@ -30,10 +31,17 @@ function fmtCompact(n: number): string {
 export default function Dashboard() {
   const { activeOrg, organizations, isLoading: orgLoading } = useOrg();
   const [days, setDays] = useState(30);
+  const queryClient = useQueryClient();
 
   const orgId = activeOrg?.id ?? null;
-  const { data: summary, isLoading } = useFundraisingSummary(orgId, days);
-  const { data: donations } = useRecentDonations(orgId);
+  const { data: summary, isLoading, isFetching: summaryFetching } = useFundraisingSummary(orgId, days);
+  const { data: donations, isFetching: donationsFetching } = useRecentDonations(orgId);
+  const refreshing = summaryFetching || donationsFetching;
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['fundraising-summary', orgId] });
+    queryClient.invalidateQueries({ queryKey: ['recent-donations', orgId] });
+  };
 
   if (orgLoading) {
     return (
@@ -95,6 +103,14 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="Refresh data"
+              className="inline-flex items-center gap-1.5 px-3 h-9 text-xs font-bold rounded-md border border-border bg-card/60 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-60"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
+            </button>
             <OrgSwitcher />
             <div className="inline-flex rounded-md border border-border bg-card/60 p-0.5">
               {RANGES.map((r) => (

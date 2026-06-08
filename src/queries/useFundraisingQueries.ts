@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export type DailyMetric = {
@@ -21,6 +21,7 @@ export type RecentDonation = {
   is_recurring: boolean;
   transaction_date: string;
   refcode: string | null;
+  form_name: string | null;
 };
 
 export type FundraisingSummary = {

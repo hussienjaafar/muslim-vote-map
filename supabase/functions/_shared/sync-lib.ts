@@ -361,7 +361,7 @@ export function parseActblueCsv(text: string, orgId: string): Record<string, unk
       form_name: formName,
       transaction_type: 'donation',
       is_recurring: isRecurring,
-      transaction_date: parseDate(get('date')),
+      transaction_date: normalizeActBlueTimestamp(get('date')),
     });
   }
   return out;

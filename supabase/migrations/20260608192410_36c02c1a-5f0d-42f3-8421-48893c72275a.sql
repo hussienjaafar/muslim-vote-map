@@ -1,0 +1,1 @@
+DELETE FROM public.actblue_transactions WHERE transaction_id = 'LINEITEM-VERIFY-004';

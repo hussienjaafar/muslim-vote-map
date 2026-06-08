@@ -47,20 +47,24 @@ function fmtEastern(iso: string): string {
 
 export default function Dashboard() {
   const { activeOrg, organizations, isLoading: orgLoading } = useOrg();
-  const [days, setDays] = useState(30);
+  const [selection, setSelection] = useState<RangeSelection>(() => presetSelection('7d'));
   const queryClient = useQueryClient();
+
+  const range = useMemo(() => resolveRange(selection), [selection]);
+  const isHourly = range.granularity === 'hour';
 
   const orgId = activeOrg?.id ?? null;
   useRealtimeFundraising(orgId);
-  const { data: summary, isLoading, isFetching: summaryFetching, dataUpdatedAt } = useFundraisingSummary(orgId, days);
+  const { data: summary, isLoading, isFetching: summaryFetching, dataUpdatedAt } = useFundraisingSummary(orgId, range);
+  const { data: hourly, isFetching: hourlyFetching } = useHourlyFundraising(orgId, range.start, isHourly);
   const {
     data: donationsData,
     isFetching: donationsFetching,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useRecentDonations(orgId);
-  const refreshing = summaryFetching || donationsFetching;
+  } = useRecentDonations(orgId, range);
+  const refreshing = summaryFetching || donationsFetching || hourlyFetching;
 
   const lastUpdated = dataUpdatedAt
     ? new Date(dataUpdatedAt).toLocaleTimeString('en-US', {

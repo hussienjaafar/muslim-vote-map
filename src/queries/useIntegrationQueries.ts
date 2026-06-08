@@ -139,6 +139,8 @@ export type ActblueJob = {
   attempts: number;
   rows_imported: number | null;
   last_error: string | null;
+  date_range_start: string | null;
+  date_range_end: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -329,6 +329,11 @@ export function parseActblueCsv(text: string, orgId: string): Record<string, unk
     if (!txId) continue;
     const first = get('donor first name');
     const last = get('donor last name');
+    const period = (get('recurring period') || get('recurrence frequency') || '').trim().toLowerCase();
+    const totalMonths = (get('recurring total months') || '').trim().toLowerCase();
+    const isRecurring = period
+      ? period !== 'once'
+      : totalMonths !== '' && totalMonths !== '0';
     out.push({
       organization_id: orgId,
       transaction_id: String(txId),
@@ -337,8 +342,9 @@ export function parseActblueCsv(text: string, orgId: string): Record<string, unk
       amount: num(get('amount')),
       refcode: get('refcode') || get('refcode2') || null,
       source_campaign: get('fundraising page') || null,
+      form_name: get('form name') || get('contribution form') || null,
       transaction_type: 'donation',
-      is_recurring: /yes|true|1/i.test(get('recurring total months') || get('recurrence number') || ''),
+      is_recurring: isRecurring,
       transaction_date: parseDate(get('date')),
     });
   }

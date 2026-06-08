@@ -477,7 +477,7 @@ export async function runOrgSync(
     results.push(result);
 
     const statusText = result.queued
-      ? 'processing: ActBlue export queued'
+      ? `processing: ${result.note ?? 'ActBlue export queued'}`
       : result.ok
         ? 'success'
         : `error: ${result.error ?? 'unknown'}`.slice(0, 280);

@@ -1,58 +1,59 @@
-# Align Integrations Page with ActBlue's Real Webhook Requirements
+## Goal
 
-## Background: what ActBlue actually requires
+Ensure donations flow correctly into the **Recent Donations widget** and the **Fundraising Intelligence chart**, using Molitico's webhook as the reference for the real ActBlue payload shape.
 
-Per ActBlue's webhook documentation ("Setting Up a Webhook Integration" and the Webhooks docs), receiving real-time contribution data requires exactly three things on the receiver side:
+## What I verified is already working
 
-1. **Endpoint URL** — a public `https://` URL ActBlue POSTs each contribution to. (We already generate and display this: `…/functions/v1/actblue-webhook`.)
-2. **Username + Password** — HTTP Basic Auth credentials the user types into ActBlue's webhook form. ActBlue sends these on every request as a standard `Authorization: Basic` header. These are values the user *invents* and must match on both sides.
-3. **Entity ID** — the campaign/org's ActBlue Entity ID (shown on ActBlue's Webhook Integrations page). Used to identify which org a delivery belongs to and required for vendor-submitted webhook requests.
+- **Recent Donations widget** reads `actblue_transactions` directly (`useRecentDonations`). The CSV sync path already populated 11,182 transactions, so this widget works for historical/CSV data.
+- **Fundraising Intelligence chart** reads `daily_aggregated_metrics` (`useFundraisingSummary`), which is rebuilt by `aggregateDaily` after every sync and after every webhook delivery. 147 daily rows exist and totals match the transactions.
+- **CSV ingestion** is healthy (export jobs complete, credentials valid).
 
-Crucially, **ActBlue does NOT use HMAC signatures**. There is no `X-ActBlue-Signature` header in ActBlue's contribution webhooks — authentication is Basic Auth only. The current "Webhook secret (HMAC)" field cannot ever be satisfied by ActBlue and misleads users into thinking it's the secure/preferred option.
+## The real problem: webhook payload parsing
 
-## Problem with the current page
+Our `actblue-webhook` only looks for the entity ID, amount, and timestamp at the **contribution/top level**. Real ActBlue "Default" webhooks put these inside the **`lineitems[]` array** (confirmed against Molitico's `actblue-webhook`, which reads `lineitems[0].entityId`, `lineitem.amount`, `lineitem.paidAt`).
 
-The ActBlue card in `src/components/org/OrgIntegrations.tsx` currently asks for:
-- CSV API username / CSV API password (for scheduled CSV pulls — correct, keep)
-- Entity ID (correct, keep)
-- **Webhook secret (optional)** — HMAC; **incorrect, ActBlue never uses this**
-- Webhook username (optional) — correct but labeled as merely optional/secondary
-- Webhook password (optional) — same
+Consequence: a genuine ActBlue delivery is rejected with `400 Missing entity_id`. Our earlier "success" tests only passed because we hand-placed `entityId` at the contribution level. **Live donations would not land** in either widget.
 
-The help text presents the HMAC secret as the primary ("preferred") path, which is backwards.
+```text
+Real ActBlue payload (simplified):
+{
+  "contribution": { createdAt, orderNumber, refcodes:{refcode}, recurringPeriod, contributionForm },
+  "lineitems":   [ { entityId, amount, paidAt, committeeName } ],
+  "donor":       { firstname, lastname, email },
+  "form":        { name }
+}
+```
 
 ## Changes
 
-### 1. Update the ActBlue field set (`OrgIntegrations.tsx`, ~lines 141–151)
-- **Remove** the `webhook_secret` field entirely.
-- **Keep & relabel** the Basic Auth pair as the real webhook credentials:
-  - `basic_auth_username` → label "Webhook Username" (no longer "optional")
-  - `basic_auth_password` → label "Webhook Password"
-- Keep `username` / `password` but clarify they are the **CSV API** credentials (scheduled sync), distinct from the webhook.
-- Keep `entity_id`.
+### 1. `supabase/functions/actblue-webhook/index.ts` — parse like ActBlue actually sends
 
-### 2. Rewrite the help text + add setup steps
-Make the card clearly explain the real ActBlue flow:
-1. Copy the Webhook URL shown on this card.
-2. In ActBlue → Tools → Integrations → Webhooks → "Create a new webhook" → choose **ActBlue Default**.
-3. Paste the Webhook URL as the **Endpoint URL**.
-4. Choose any **Username** and **Password** in ActBlue, and enter the *same* values here as "Webhook Username" / "Webhook Password".
-5. Enter your **Entity ID** (found on ActBlue's Webhook Integrations page).
+- **Entity ID**: extend lookup to scan `body.lineitems[].entityId` (keep existing contribution/top-level fallbacks for our test payloads). Match the stored org `entity_id` against the entity found in the line items.
+- **Pick the matching line item**: when multiple line items exist (split contributions), use the one whose `entityId` matches the resolved org; fall back to the first.
+- **Amount**: read from the matched `lineitem.amount`, fall back to `contribution.amount`.
+- **Transaction date**: prefer `lineitem.paidAt`, then `contribution.createdAt`, run through `normalizeActBlueTimestamp` (already handles ET→UTC).
+- **Transaction ID**: keep `contribution.orderNumber` (fall back to `receiptId`/`lineitemId`).
+- **Donor, refcode, form, recurring**: keep current logic (already reads `donor`, `contribution.refcodes`, `recurringPeriod`).
+- Keep Basic Auth, the entity-based org routing, and the per-day `aggregateDaily` re-aggregation exactly as-is.
 
-Keep the existing read-only Webhook URL field with copy button (already present).
+### 2. Verify end-to-end with a realistic payload
 
-### 3. Update the webhook edge function (`supabase/functions/actblue-webhook/index.ts`)
-- Remove the now-dead HMAC branch (`validateHmac` / `X-ActBlue-Signature` / `webhook_secret`) so authentication relies solely on HTTP Basic Auth, which is what ActBlue sends.
-- Keep the entity_id → org matching and the Basic Auth validation + 401 `WWW-Authenticate` response.
-- This is a presentation-aligned cleanup; the Basic Auth path is unchanged in behavior.
+- Re-test the deployed function with a **true ActBlue-shaped payload** (entityId/amount/paidAt inside `lineitems`) using Basic Auth `CDS:CDS2026`, expecting `200 {"ok":true}`.
+- Confirm the row appears in `actblue_transactions` (Recent Donations) and that `daily_aggregated_metrics` for that day updates (Fundraising chart).
+- Delete the verification row afterward so it doesn't pollute the dashboard.
 
-### 4. No DB/schema changes
-`encrypted_credentials` is a free-form encrypted JSON blob, and `save-credentials` already strips blank fields. Dropping `webhook_secret` from the UI simply means it's no longer written; existing rows are unaffected. No migration needed.
+### 3. Reconcile the aggregate table
 
-## Out of scope
-- The timezone/normalization work (already done previously).
-- CSV API sync logic (unchanged).
+- Run a full `sync-org` (or targeted re-aggregation) for the org so `daily_aggregated_metrics` is recomputed from current transactions, clearing the small stale offset left by earlier test-donation deletes (aggregates were ~$35 / 2 donations ahead of the live transaction count).
 
-## Verification
-- Load the Integrations page for an org and confirm the ActBlue card shows: CSV API username/password, Entity ID, Webhook Username, Webhook Password, and the read-only Webhook URL — with no HMAC secret field.
-- Confirm saving only Entity ID + Webhook Username/Password enables the real-time path, and a test POST with matching Basic Auth is accepted while a mismatched one returns 401.
+## Out of scope (Molitico extras we are intentionally not adding)
+
+Molitico also has `webhook_logs`, HMAC signature auth, refcode-mapping attribution, and failed-webhook reprocessing. Those are a larger attribution/observability system beyond "ingestion into the two widgets," so I'll leave them out unless you want them. The fix above is what makes live donations actually ingest.
+
+## Verification checklist
+
+- [ ] Webhook accepts a real ActBlue `lineitems` payload → `200 {"ok":true}`
+- [ ] New donation visible via `actblue_transactions` query (Recent Donations)
+- [ ] `daily_aggregated_metrics` day total increments (Fundraising chart)
+- [ ] Aggregate totals reconcile with transaction totals
+- [ ] Verification row removed

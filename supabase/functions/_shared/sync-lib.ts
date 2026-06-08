@@ -394,17 +394,18 @@ export async function aggregateDaily(admin: SupabaseClient, orgId: string, since
     d.sms_conversions += num(r.conversions);
   }
 
-  // First-seen date per donor email (across all history) to compute new donors.
-  const firstSeen = new Map<string, string>();
-  const { data: allDonors } = await admin
-    .from('actblue_transactions')
-    .select('donor_email, transaction_date')
-    .eq('organization_id', orgId)
-    .not('donor_email', 'is', null)
-    .order('transaction_date', { ascending: true });
-  for (const r of allDonors ?? []) {
-    const email = String(r.donor_email).toLowerCase();
-    if (!firstSeen.has(email)) firstSeen.set(email, String(r.transaction_date).slice(0, 10));
+  // New-donor computation is done in Postgres (org_new_donors_since) so we only
+  // pull back the small set of donors whose first-ever donation falls in the
+  // window, instead of streaming the org's entire transaction history into the
+  // function (which previously exceeded the edge runtime CPU limit on large
+  // backfills). Returns one row per such donor with their first donation date.
+  const firstSeenInWindow = new Map<string, string>();
+  const { data: newDonors } = await admin.rpc('org_new_donors_since', {
+    _org_id: orgId,
+    _since: since,
+  });
+  for (const r of newDonors ?? []) {
+    if (r.donor_email) firstSeenInWindow.set(String(r.donor_email).toLowerCase(), String(r.first_date).slice(0, 10));
   }
 
   for (const r of donations.data ?? []) {
@@ -412,7 +413,7 @@ export async function aggregateDaily(admin: SupabaseClient, orgId: string, since
     const d = ensure(day);
     d.funds += num(r.amount);
     d.donations += 1;
-    if (r.donor_email && firstSeen.get(String(r.donor_email).toLowerCase()) === day) {
+    if (r.donor_email && firstSeenInWindow.get(String(r.donor_email).toLowerCase()) === day) {
       d.new_donors += 1;
     }
   }

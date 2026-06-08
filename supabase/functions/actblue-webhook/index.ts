@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
       form_name: c.contributionForm ?? c.formName ?? c.fundraisingPageName ?? null,
       transaction_type: 'donation',
       is_recurring: isRecurring,
-      transaction_date: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
+      transaction_date: normalizeActBlueTimestamp(c.createdAt),
     };
 
     const { error } = await admin

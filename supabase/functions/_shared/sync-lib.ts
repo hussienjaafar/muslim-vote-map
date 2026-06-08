@@ -233,32 +233,39 @@ async function syncSwitchboard(
       };
     }
     const payload = await res.json();
-    const items: Record<string, unknown>[] = payload.data ?? payload.broadcasts ?? [];
+    const data = (payload.data ?? {}) as Record<string, any>;
+    const items: Record<string, unknown>[] = data.page ?? data.broadcasts ?? (Array.isArray(data) ? data : []) ?? [];
     if (Array.isArray(items)) broadcasts.push(...items);
-    next = payload.next ?? payload.links?.next ?? payload.next_page ?? null;
+    next = data.next_page ?? payload.next_page ?? data.links?.next ?? null;
   }
 
+  const SENT_STATUSES = new Set(['sent', 'sending', 'stopped', 'paused']);
   const rows = broadcasts
     .map((b) => {
       const attrs = (b.attributes ?? b) as Record<string, unknown>;
-      const date = String(attrs.sent_at ?? attrs.scheduled_at ?? attrs.created_at ?? todayIso()).slice(0, 10);
+      const status = String(attrs.status ?? '').toLowerCase();
+      const date = String(attrs.started_at ?? attrs.created_at ?? todayIso()).slice(0, 10);
       return {
+        status,
         organization_id: orgId,
         campaign_id: String(b.id ?? attrs.id),
-        campaign_name: attrs.name ?? attrs.title ?? null,
+        campaign_name: attrs.title ?? attrs.name ?? null,
         date,
-        messages_sent: num(attrs.messages_sent ?? attrs.sent ?? attrs.total_sent),
-        messages_delivered: num(attrs.messages_delivered ?? attrs.delivered),
-        messages_failed: num(attrs.messages_failed ?? attrs.failed),
-        opt_outs: num(attrs.opt_outs ?? attrs.opt_out ?? attrs.unsubscribes),
+        messages_sent: num(attrs.total_messages ?? attrs.messages_sent),
+        messages_delivered: num(attrs.delivered ?? attrs.messages_delivered),
+        messages_failed: num(attrs.failed_to_deliver ?? attrs.messages_failed),
+        opt_outs: num(attrs.opt_outs),
         clicks: num(attrs.clicks),
-        conversions: num(attrs.conversions),
-        amount_raised: num(attrs.amount_raised ?? attrs.raised),
-        cost: num(attrs.cost ?? attrs.spend),
+        conversions: num(attrs.donations ?? attrs.conversions),
+        amount_raised: num(attrs.amount_raised),
+        cost: num(attrs.cost_estimate ?? attrs.cost),
         synced_at: new Date().toISOString(),
       };
     })
-    .filter((r) => new Date(r.date).getTime() >= sinceMs - 24 * 60 * 60 * 1000);
+    .filter((r) => SENT_STATUSES.has(r.status))
+    .filter((r) => new Date(r.date).getTime() >= sinceMs - 24 * 60 * 60 * 1000)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    .map(({ status, ...rest }) => rest);
 
   if (rows.length) {
     const { error } = await admin

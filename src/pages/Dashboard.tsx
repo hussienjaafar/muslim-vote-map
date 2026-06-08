@@ -139,16 +139,17 @@ export default function Dashboard() {
   const dailyChartData = (summary?.daily ?? []).map((d) => ({
     date: d.date,
     raised: d.total_funds_raised,
-    spend: d.total_ad_spend + d.total_sms_cost,
+    adSpend: d.total_ad_spend,
+    smsCost: d.total_sms_cost,
   }));
   const hourlyChartData = (hourly ?? []).map((h) => ({
     hour: h.hour,
     raised: h.funds,
-    spend: h.adSpend,
+    adSpend: h.adSpend,
   }));
   const hasData = isHourly
-    ? hourlyChartData.some((d) => d.raised > 0 || d.spend > 0)
-    : dailyChartData.some((d) => d.raised > 0 || d.spend > 0);
+    ? hourlyChartData.some((d) => d.raised > 0 || d.adSpend > 0)
+    : dailyChartData.some((d) => d.raised > 0 || d.adSpend > 0 || d.smsCost > 0);
 
 
   return (
@@ -242,6 +243,10 @@ export default function Dashboard() {
                       <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.3} />
                       <stop offset="100%" stopColor="#fbbf24" stopOpacity={0} />
                     </linearGradient>
+                    <linearGradient id="gSms" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#38bdf8" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                   <XAxis
@@ -267,10 +272,16 @@ export default function Dashboard() {
                       fontSize: 12,
                     }}
                     labelFormatter={(v) => (isHourly ? `${fmtHour(Number(v))} ET` : format(parseISO(String(v)), 'PP'))}
-                    formatter={(value: number, name: string) => [fmtCurrency(Number(value)), name === 'raised' ? 'Raised' : 'Spend']}
+                    formatter={(value: number, name: string) => {
+                      const labels: Record<string, string> = { raised: 'Raised', adSpend: 'Ad Spend', smsCost: 'SMS Cost' };
+                      return [fmtCurrency(Number(value)), labels[name] ?? name];
+                    }}
                   />
                   <Area type="monotone" dataKey="raised" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#gRaised)" />
-                  <Area type="monotone" dataKey="spend" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gSpend)" />
+                  <Area type="monotone" dataKey="adSpend" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gSpend)" />
+                  {!isHourly && (
+                    <Area type="monotone" dataKey="smsCost" stroke="#38bdf8" strokeWidth={2.5} fill="url(#gSms)" />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>

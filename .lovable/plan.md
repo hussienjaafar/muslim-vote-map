@@ -1,39 +1,44 @@
-# Fix: "View dashboard as org" shows "No organization yet"
+# Faster admin ↔ org dashboard navigation
 
 ## Problem
-When an admin clicks **View dashboard as org** for an organization (e.g. "Hamawy For NJ"), the Dashboard can show the "No organization yet" empty state instead of the org's dashboard.
+As a platform admin you regularly check different orgs' fundraising dashboards, then jump back to the admin panel. Today the only flow is: `/admin/orgs` → open one org → "View dashboard as org" → "Exit" → back to `/admin/orgs` → open the next org. Switching between orgs means three clicks and a full round-trip every time. The impersonation banner only offers an "Exit" button.
 
-The org record exists and is valid. The bug is timing inside `src/contexts/OrgContext.tsx`:
+## Goal
+While impersonating, give a single always-visible control bar that lets you:
+- Switch directly to any other org's dashboard (no return trip to the orgs list)
+- Jump straight back to the system admin dashboard
+- Exit impersonation entirely
 
-```ts
-useEffect(() => {
-  if (!isAdmin && impersonatedOrg) stopImpersonation();
-}, [isAdmin, impersonatedOrg, stopImpersonation]);
+## Approach
+Upgrade the existing `ImpersonationBanner` (already global, renders on every page while impersonating) into a compact navigation bar with three controls.
+
+```text
+ ┌──────────────────────────────────────────────────────────────┐
+ │ 👁 Viewing as [ Hamawy For NJ ▾ ]      [ ⚙ Admin ]   [ ✕ Exit ]│
+ └──────────────────────────────────────────────────────────────┘
 ```
 
-`useAuth()` determines `isAdmin` asynchronously — it is `false` until a database lookup completes. On a fresh load of `/dashboard` (page reload, or navigating in before the role check settles), `OrgProvider` restores the impersonated org from sessionStorage while `isAdmin` is momentarily `false`, so this effect immediately clears the impersonation. The computed `activeOrg` then becomes `null` and the Dashboard renders its empty state.
+### 1. Org dropdown (the core improvement)
+- Replace the static "Viewing as <name>" text with a dropdown trigger showing the current org name.
+- Populate it from `useAdminOrganizations()` (already exists in `src/queries/useAdminOrgQueries.ts`), with a small search box for long lists.
+- Selecting an org calls `startImpersonation({ id, name, logo_url })` for that org and navigates to `/dashboard` (or stays on `/dashboard` if already there). The Dashboard re-reads `activeOrg` from `OrgContext`, so KPIs refresh automatically.
+- Only fetch the org list when the dropdown opens (lazy) to avoid loading it for non-admins.
 
-## Fix
-Only clear impersonation once we actually know the user is not an admin — i.e. after the auth/role check has finished loading.
+### 2. "Admin" button
+- Adds a quick button that navigates to `/admin` **without** stopping impersonation, so the banner stays available and you can dive back into another org immediately.
 
-In `src/contexts/OrgContext.tsx`:
-1. Pull `loading` out of `useAuth()` (rename to `authLoading`) alongside `user` and `isAdmin`.
-2. Guard the cleanup effect so it only runs when auth has finished loading:
+### 3. "Exit" button
+- Keep current behavior: `stopImpersonation()` + navigate to `/admin/orgs`.
 
-```ts
-const { user, isAdmin, loading: authLoading } = useAuth();
+### Optional convenience (low effort, include unless you object)
+- On `/admin/orgs`, add an inline "View dashboard" (eye) action on each row/card so you can start impersonating any org in one click straight from the list, instead of opening the detail page first.
 
-// Only platform admins may impersonate; clear stale state for confirmed non-admins.
-useEffect(() => {
-  if (!authLoading && !isAdmin && impersonatedOrg) stopImpersonation();
-}, [authLoading, isAdmin, impersonatedOrg, stopImpersonation]);
-```
+## Files to change
+- `src/components/org/ImpersonationBanner.tsx` — main rework: add org dropdown (Command/Popover), "Admin" button, keep "Exit". Use `useAdminOrganizations` + `useOrg().startImpersonation`.
+- `src/pages/admin/Organizations.tsx` — (optional) add one-click "View dashboard" action per org row/card.
 
-This keeps the security behavior (non-admins can never impersonate) while preventing the false-negative clear during the brief window when the admin role is still being verified.
+No backend, schema, or data changes. Impersonation security is unchanged — the banner and org list only render for confirmed platform admins via existing `isAdmin` gating in `OrgContext`.
 
-## Verification
-- Reload `/admin/orgs/<id>`, click **View dashboard as org** → Dashboard shows the org's data and the amber impersonation banner.
-- Reload `/dashboard` while impersonating → impersonation persists (no longer drops to "No organization yet").
-- Confirm a non-admin user still cannot impersonate (effect still clears once `authLoading` is false).
-
-No backend, schema, or data changes — this is a single client-side context fix.
+## Notes
+- The banner is `sticky top-0 z-50` and already accounts for layout on all pages; the added controls keep the same single-row height and collapse labels to icons on mobile (`hidden sm:inline`).
+- Reuse the existing `OrgPicker`/Command dialog styling for visual consistency where practical.

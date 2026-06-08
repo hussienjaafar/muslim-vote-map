@@ -175,8 +175,9 @@ async function syncSwitchboard(
 }
 
 /**
- * ActBlue sync. Pulls recent contributions via the CSV API.
- * Expected credentials: { username, password, entity_id }
+ * ActBlue sync. Requests a CSV export and queues it as a background job.
+ * The export is generated asynchronously by ActBlue and finished later by the
+ * process-actblue-jobs worker. Expected credentials: { username, password, entity_id }
  */
 async function syncActblue(
   admin: SupabaseClient,
@@ -194,7 +195,7 @@ async function syncActblue(
   const auth = 'Basic ' + btoa(`${username}:${password}`);
   const base = 'https://secure.actblue.com/api/v1';
 
-  // Request a CSV export for the window, then poll for the download URL.
+  // Request a CSV export for the window; the worker polls for completion later.
   const reqRes = await fetch(`${base}/csvs`, {
     method: 'POST',
     headers: { Authorization: auth, 'Content-Type': 'application/json' },
@@ -206,29 +207,51 @@ async function syncActblue(
   }
   const reqJson = await reqRes.json();
   const csvId = reqJson.id;
-  let downloadUrl: string | null = null;
-  for (let i = 0; i < 6 && !downloadUrl; i++) {
-    await new Promise((r) => setTimeout(r, 2500));
-    const poll = await fetch(`${base}/csvs/${csvId}`, { headers: { Authorization: auth } });
-    if (!poll.ok) continue;
-    const pj = await poll.json();
-    if (pj.status === 'complete' && pj.download_url) downloadUrl = pj.download_url;
-  }
-  if (!downloadUrl) {
-    return { platform: 'actblue', ok: false, rows: 0, error: 'ActBlue CSV not ready (timeout)' };
+  if (!csvId) {
+    return { platform: 'actblue', ok: false, rows: 0, error: 'ActBlue did not return an export id' };
   }
 
+  // Record a background job so the worker can finish the import.
+  const { error: jobErr } = await admin.from('actblue_csv_jobs').insert({
+    organization_id: orgId,
+    csv_id: String(csvId),
+    status: 'processing',
+    since_days: sinceDays,
+  });
+  if (jobErr) return { platform: 'actblue', ok: false, rows: 0, error: jobErr.message };
+
+  return { platform: 'actblue', ok: true, rows: 0, queued: true };
+}
+
+/**
+ * Polls ActBlue for an export's download URL. Returns:
+ *  - { ready: true, downloadUrl } when complete
+ *  - { ready: false } when still generating
+ * Throws on API errors.
+ */
+export async function pollActblueCsv(
+  csvId: string,
+  creds: Record<string, string>,
+): Promise<{ ready: boolean; downloadUrl?: string }> {
+  const auth = 'Basic ' + btoa(`${creds.username}:${creds.password}`);
+  const base = 'https://secure.actblue.com/api/v1';
+  const poll = await fetch(`${base}/csvs/${csvId}`, { headers: { Authorization: auth } });
+  if (!poll.ok) {
+    const text = await poll.text();
+    throw new Error(`ActBlue API ${poll.status}: ${text.slice(0, 200)}`);
+  }
+  const pj = await poll.json();
+  if (pj.status === 'complete' && pj.download_url) {
+    return { ready: true, downloadUrl: pj.download_url };
+  }
+  return { ready: false };
+}
+
+/** Downloads an ActBlue export and parses it into transaction rows. */
+export async function downloadActblueCsv(downloadUrl: string, orgId: string): Promise<Record<string, unknown>[]> {
   const csvRes = await fetch(downloadUrl);
   const csvText = await csvRes.text();
-  const rows = parseActblueCsv(csvText, orgId);
-
-  if (rows.length) {
-    const { error } = await admin
-      .from('actblue_transactions')
-      .upsert(rows, { onConflict: 'organization_id,transaction_id' });
-    if (error) return { platform: 'actblue', ok: false, rows: 0, error: error.message };
-  }
-  return { platform: 'actblue', ok: true, rows: rows.length };
+  return parseActblueCsv(csvText, orgId);
 }
 
 function parseActblueCsv(text: string, orgId: string): Record<string, unknown>[] {

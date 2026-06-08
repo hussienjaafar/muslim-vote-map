@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { encryptJson } from '../_shared/crypto.ts';
+import { encryptJson, decryptJson, type EncryptedPayload } from '../_shared/crypto.ts';
 import { runOrgSync } from '../_shared/sync-lib.ts';
 
 type Platform = 'meta' | 'switchboard' | 'actblue';
@@ -90,16 +90,33 @@ Deno.serve(async (req) => {
       return json({ error: 'No credential values provided' }, 400);
     }
 
-    const encrypted = await encryptJson(clean);
-
-    // Determine whether this platform has ever been synced for this org.
-    // If not, this is a first connect and we kick off a full-history backfill.
+    // Load any existing credentials so edits MERGE rather than overwrite.
+    // The UI only submits fields the user typed (saved fields show as masked),
+    // so we must preserve previously-stored values for untouched fields.
     const { data: existing } = await admin
       .from('client_api_credentials')
-      .select('last_sync_at')
+      .select('last_sync_at, encrypted_credentials')
       .eq('organization_id', organizationId)
       .eq('platform', platform)
       .maybeSingle();
+
+    let merged: Record<string, string> = clean;
+    if (existing?.encrypted_credentials) {
+      try {
+        const prev = await decryptJson<Record<string, string>>(
+          existing.encrypted_credentials as EncryptedPayload,
+        );
+        merged = { ...prev, ...clean };
+      } catch {
+        // If the old blob can't be decrypted, fall back to the new values only.
+        merged = clean;
+      }
+    }
+
+    const encrypted = await encryptJson(merged);
+
+    // Determine whether this platform has ever been synced for this org.
+    // If not, this is a first connect and we kick off a full-history backfill.
     const isFirstConnect = !existing || !existing.last_sync_at;
 
     const { error: upsertErr } = await admin

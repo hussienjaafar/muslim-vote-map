@@ -76,6 +76,50 @@ export type Database = {
           },
         ]
       }
+      actblue_csv_jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          csv_id: string
+          id: string
+          last_error: string | null
+          organization_id: string
+          since_days: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          csv_id: string
+          id?: string
+          last_error?: string | null
+          organization_id: string
+          since_days?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          csv_id?: string
+          id?: string
+          last_error?: string | null
+          organization_id?: string
+          since_days?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "actblue_csv_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       actblue_transactions: {
         Row: {
           amount: number

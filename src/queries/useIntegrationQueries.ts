@@ -16,6 +16,12 @@ export function useOrgCredentials(orgId: string | undefined) {
   return useQuery<CredentialStatus[]>({
     queryKey: ['org-credentials', orgId],
     enabled: !!orgId,
+    // While a source is still processing in the background, poll so the badge updates on its own.
+    refetchInterval: (query) => {
+      const rows = query.state.data;
+      const processing = rows?.some((c) => c.last_sync_status?.startsWith('processing'));
+      return processing ? 15000 : false;
+    },
     queryFn: async () => {
       const { data, error } = await supabase
         .from('client_api_credentials')
@@ -113,7 +119,7 @@ export function useRunSync(orgId: string | undefined) {
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      return data as { results: { platform: string; ok: boolean; rows: number; error?: string }[]; aggregated: number };
+      return data as { results: { platform: string; ok: boolean; rows: number; error?: string; queued?: boolean }[]; aggregated: number };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['org-credentials', orgId] });

@@ -1,59 +1,37 @@
-## Goal
+## Why donations aren't updating live
 
-Ensure donations flow correctly into the **Recent Donations widget** and the **Fundraising Intelligence chart**, using Molitico's webhook as the reference for the real ActBlue payload shape.
+Two separate gaps, both confirmed against the database:
 
-## What I verified is already working
+1. **No live ingestion is actually happening.** Your 5 newest transactions all share the exact same insert time (`created_at = 19:28:04`) — they were loaded in one batch by a CSV sync job (`actblue_csv_jobs` shows a `complete` job importing 11,196 rows at that moment). The `actblue-webhook` function has **zero real request logs** — only boot/shutdown. So even though the webhook is configured in ActBlue, deliveries are not reaching/succeeding at our endpoint. New donations only appear when a CSV sync runs.
 
-- **Recent Donations widget** reads `actblue_transactions` directly (`useRecentDonations`). The CSV sync path already populated 11,182 transactions, so this widget works for historical/CSV data.
-- **Fundraising Intelligence chart** reads `daily_aggregated_metrics` (`useFundraisingSummary`), which is rebuilt by `aggregateDaily` after every sync and after every webhook delivery. 147 daily rows exist and totals match the transactions.
-- **CSV ingestion** is healthy (export jobs complete, credentials valid).
+2. **The dashboard never receives a push.** `actblue_transactions` and `daily_aggregated_metrics` are **not** in the realtime publication, and the widgets only *poll* (`useRecentDonations` every 30s, `useFundraisingSummary` every 60s). So nothing is "instant" — at best it's a delayed poll after a batch sync.
 
-## The real problem: webhook payload parsing
+You asked for instant (push), so the plan covers both: make the dashboard react instantly to DB changes, and confirm/repair the webhook so live donations actually land.
 
-Our `actblue-webhook` only looks for the entity ID, amount, and timestamp at the **contribution/top level**. Real ActBlue "Default" webhooks put these inside the **`lineitems[]` array** (confirmed against Molitico's `actblue-webhook`, which reads `lineitems[0].entityId`, `lineitem.amount`, `lineitem.paidAt`).
+## Plan
 
-Consequence: a genuine ActBlue delivery is rejected with `400 Missing entity_id`. Our earlier "success" tests only passed because we hand-placed `entityId` at the contribution level. **Live donations would not land** in either widget.
+### 1. Enable realtime on the two dashboard tables
+Migration to add both tables to the `supabase_realtime` publication and set `REPLICA IDENTITY FULL`:
+- `public.actblue_transactions`
+- `public.daily_aggregated_metrics`
 
-```text
-Real ActBlue payload (simplified):
-{
-  "contribution": { createdAt, orderNumber, refcodes:{refcode}, recurringPeriod, contributionForm },
-  "lineitems":   [ { entityId, amount, paidAt, committeeName } ],
-  "donor":       { firstname, lastname, email },
-  "form":        { name }
-}
-```
+(Both already have org-scoped RLS SELECT policies, so subscribers only receive rows for orgs they can read.)
 
-## Changes
+### 2. Subscribe the dashboard to realtime
+In `src/pages/Dashboard.tsx` (or a small `useRealtimeFundraising(orgId)` hook), open a Supabase channel filtered by `organization_id = orgId` on both tables. On any insert/update, call `queryClient.invalidateQueries` for `['recent-donations', orgId]` and `['fundraising-summary', orgId]` so the widgets refetch within ~1s of the row landing. Clean up the channel on org change/unmount.
+- Keep the existing polling as a fallback but lengthen the intervals (e.g. 60s/120s) since realtime now drives freshness.
 
-### 1. `supabase/functions/actblue-webhook/index.ts` — parse like ActBlue actually sends
+### 3. Verify / repair the live webhook path
+This is what makes a donation "live" in the first place — without a real ActBlue delivery there is nothing to push.
+- Send a true ActBlue-shaped test payload (entityId/amount/paidAt inside `lineitems`, Basic Auth `CDS:CDS2026`) to the deployed `actblue-webhook` and confirm `200 {"ok":true}`, the row appears in `actblue_transactions`, `daily_aggregated_metrics` updates, and — with steps 1–2 in place — the dashboard updates without a manual refresh. Delete the test row afterward.
+- Inspect edge logs during/after the test to confirm the function is actually being invoked.
+- Because there are currently **zero** real deliveries despite ActBlue being configured, also confirm the webhook URL registered in ActBlue exactly matches the deployed function URL and that ActBlue's delivery log shows attempts. If ActBlue reports failures, the response status/body from our function will tell us whether it's auth (401), entity match (404), or parsing (400).
 
-- **Entity ID**: extend lookup to scan `body.lineitems[].entityId` (keep existing contribution/top-level fallbacks for our test payloads). Match the stored org `entity_id` against the entity found in the line items.
-- **Pick the matching line item**: when multiple line items exist (split contributions), use the one whose `entityId` matches the resolved org; fall back to the first.
-- **Amount**: read from the matched `lineitem.amount`, fall back to `contribution.amount`.
-- **Transaction date**: prefer `lineitem.paidAt`, then `contribution.createdAt`, run through `normalizeActBlueTimestamp` (already handles ET→UTC).
-- **Transaction ID**: keep `contribution.orderNumber` (fall back to `receiptId`/`lineitemId`).
-- **Donor, refcode, form, recurring**: keep current logic (already reads `donor`, `contribution.refcodes`, `recurringPeriod`).
-- Keep Basic Auth, the entity-based org routing, and the per-day `aggregateDaily` re-aggregation exactly as-is.
+## Technical notes
+- Realtime requires the table in the publication **and** `REPLICA IDENTITY FULL` to deliver full row payloads (needed for the `organization_id` filter).
+- Channel filter: `postgres_changes` with `filter: organization_id=eq.<orgId>` on each table.
+- No schema/column changes to the tables themselves — only publication + replica identity.
 
-### 2. Verify end-to-end with a realistic payload
-
-- Re-test the deployed function with a **true ActBlue-shaped payload** (entityId/amount/paidAt inside `lineitems`) using Basic Auth `CDS:CDS2026`, expecting `200 {"ok":true}`.
-- Confirm the row appears in `actblue_transactions` (Recent Donations) and that `daily_aggregated_metrics` for that day updates (Fundraising chart).
-- Delete the verification row afterward so it doesn't pollute the dashboard.
-
-### 3. Reconcile the aggregate table
-
-- Run a full `sync-org` (or targeted re-aggregation) for the org so `daily_aggregated_metrics` is recomputed from current transactions, clearing the small stale offset left by earlier test-donation deletes (aggregates were ~$35 / 2 donations ahead of the live transaction count).
-
-## Out of scope (Molitico extras we are intentionally not adding)
-
-Molitico also has `webhook_logs`, HMAC signature auth, refcode-mapping attribution, and failed-webhook reprocessing. Those are a larger attribution/observability system beyond "ingestion into the two widgets," so I'll leave them out unless you want them. The fix above is what makes live donations actually ingest.
-
-## Verification checklist
-
-- [ ] Webhook accepts a real ActBlue `lineitems` payload → `200 {"ok":true}`
-- [ ] New donation visible via `actblue_transactions` query (Recent Donations)
-- [ ] `daily_aggregated_metrics` day total increments (Fundraising chart)
-- [ ] Aggregate totals reconcile with transaction totals
-- [ ] Verification row removed
+## Out of scope
+- Webhook parsing logic itself (already updated to read `lineitems[]`).
+- Any change to the CSV sync cadence — it stays as the backfill/reconciliation path.

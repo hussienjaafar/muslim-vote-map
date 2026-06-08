@@ -406,10 +406,13 @@ export async function aggregateDaily(
   const since = sinceDate ?? (full ? '2000-01-01' : isoDaysAgo(sinceDays));
 
 
-  const [meta, sms, donations] = await Promise.all([
+  const [meta, sms, rollup] = await Promise.all([
     admin.from('meta_ad_metrics').select('date, spend, impressions, clicks').eq('organization_id', orgId).gte('date', since),
     admin.from('sms_campaign_metrics').select('date, cost, amount_raised, messages_sent, conversions').eq('organization_id', orgId).gte('date', since),
-    admin.from('actblue_transactions').select('transaction_date, amount, donor_email').eq('organization_id', orgId).gte('transaction_date', since),
+    // Donation totals are computed in Postgres, bucketed by Eastern Time, so we
+    // never stream the org's full transaction history into the function (which
+    // hit both the 1000-row PostgREST cap and the edge CPU limit on backfills).
+    admin.rpc('org_daily_rollup', { _org_id: orgId, _since: since }),
   ]);
 
   const byDate: Record<string, {
@@ -435,29 +438,27 @@ export async function aggregateDaily(
     d.sms_conversions += num(r.conversions);
   }
 
-  // New-donor computation is done in Postgres (org_new_donors_since) so we only
-  // pull back the small set of donors whose first-ever donation falls in the
-  // window, instead of streaming the org's entire transaction history into the
-  // function (which previously exceeded the edge runtime CPU limit on large
-  // backfills). Returns one row per such donor with their first donation date.
-  const firstSeenInWindow = new Map<string, string>();
+  // Per-day donation count + funds, already grouped by Eastern-Time day.
+  for (const r of rollup.data ?? []) {
+    const day = String(r.day).slice(0, 10);
+    const d = ensure(day);
+    d.funds += num(r.funds);
+    d.donations += num(r.donations);
+  }
+
+  // New-donor counts: one per donor whose first-ever donation (in ET) falls in
+  // the window, attributed to that first ET day.
   const { data: newDonors } = await admin.rpc('org_new_donors_since', {
     _org_id: orgId,
     _since: since,
   });
   for (const r of newDonors ?? []) {
-    if (r.donor_email) firstSeenInWindow.set(String(r.donor_email).toLowerCase(), String(r.first_date).slice(0, 10));
+    if (!r.first_date) continue;
+    const day = String(r.first_date).slice(0, 10);
+    ensure(day).new_donors += 1;
   }
 
-  for (const r of donations.data ?? []) {
-    const day = String(r.transaction_date).slice(0, 10);
-    const d = ensure(day);
-    d.funds += num(r.amount);
-    d.donations += 1;
-    if (r.donor_email && firstSeenInWindow.get(String(r.donor_email).toLowerCase()) === day) {
-      d.new_donors += 1;
-    }
-  }
+
 
   const rows = Object.entries(byDate).map(([date, v]) => {
     const totalSpend = v.ad_spend + v.sms_cost;

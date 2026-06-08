@@ -13,8 +13,22 @@ type Delivery = {
   entity_ids_found: string[] | null;
   matched_organization_id: string | null;
   headers: Record<string, unknown> | null;
+  payload: Record<string, unknown> | null;
   received_at: string;
 };
+
+/** Pull a donation amount + donor identity out of the logged ActBlue payload. */
+function parseDonation(payload: Record<string, unknown> | null): { amount: number | null; donor: string | null } {
+  if (!payload || typeof payload !== 'object') return { amount: null, donor: null };
+  const p = payload as any;
+  const c = p.contribution ?? p.lineitem ?? p;
+  const lineitems = Array.isArray(p.lineitems) ? p.lineitems : [];
+  const rawAmount = lineitems[0]?.amount ?? c?.amount;
+  const amount = rawAmount != null && Number.isFinite(Number(rawAmount)) ? Number(rawAmount) : null;
+  const donor = p.donor ?? c?.donor ?? {};
+  const name = [donor.firstname ?? donor.firstName, donor.lastname ?? donor.lastName].filter(Boolean).join(' ');
+  return { amount, donor: name || donor.email || null };
+}
 
 function useWebhookDeliveries() {
   return useQuery({
@@ -22,7 +36,7 @@ function useWebhookDeliveries() {
     queryFn: async (): Promise<Delivery[]> => {
       const { data, error } = await supabase
         .from('webhook_deliveries')
-        .select('id, source, source_ip, processing_status, response_status, error_detail, entity_ids_found, matched_organization_id, headers, received_at')
+        .select('id, source, source_ip, processing_status, response_status, error_detail, entity_ids_found, matched_organization_id, headers, payload, received_at')
         .order('received_at', { ascending: false })
         .limit(100);
       if (error) return [];
@@ -83,6 +97,8 @@ export default function WebhookDeliveries() {
                 <th className="px-4 py-3 font-bold">Received</th>
                 <th className="px-4 py-3 font-bold">Status</th>
                 <th className="px-4 py-3 font-bold">HTTP</th>
+                <th className="px-4 py-3 font-bold">Donation</th>
+                <th className="px-4 py-3 font-bold">Donor</th>
                 <th className="px-4 py-3 font-bold">Auth</th>
                 <th className="px-4 py-3 font-bold">Source IP</th>
                 <th className="px-4 py-3 font-bold">Entity IDs</th>
@@ -91,7 +107,9 @@ export default function WebhookDeliveries() {
               </tr>
             </thead>
             <tbody>
-              {data.map((d) => (
+              {data.map((d) => {
+                const { amount, donor } = parseDonation(d.payload);
+                return (
                 <tr key={d.id} className="border-b border-white/5 hover:bg-white/[0.02]">
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground tabular-nums">
                     {format(new Date(d.received_at), 'MMM d, HH:mm:ss')}
@@ -100,6 +118,10 @@ export default function WebhookDeliveries() {
                     {d.processing_status}
                   </td>
                   <td className="px-4 py-3 tabular-nums text-foreground">{d.response_status ?? '—'}</td>
+                  <td className="px-4 py-3 tabular-nums text-emerald-400 font-bold whitespace-nowrap">
+                    {amount != null ? `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground max-w-[180px] truncate" title={donor ?? ''}>{donor ?? '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground">{String((d.headers as any)?.auth_scheme ?? '—')}</td>
                   <td className="px-4 py-3 text-muted-foreground tabular-nums">{d.source_ip ?? '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground">{d.entity_ids_found?.join(', ') || '—'}</td>
@@ -110,7 +132,8 @@ export default function WebhookDeliveries() {
                     {d.error_detail ?? '—'}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

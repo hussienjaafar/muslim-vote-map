@@ -1,42 +1,40 @@
-## Why reference Molitico
+# Plan
 
-Molitico's ActBlue webhook works in production with the **same architecture as ours**: `verify_jwt = false`, Basic Auth validation, and org routing by `lineitems[0].entityId` matched against stored credentials. So our design is sound. The one thing Molitico does that we don't: it **logs every inbound request to a `webhook_logs` table before any auth/validation**, then updates that row at each exit point. That's what makes delivery problems debuggable there — and it sidesteps the unreliable edge-log "zero invocations" signal (function_id changes across deploys make those queries miss real calls).
-
-We'll adopt that exact pattern.
+## What I found
+- The **Webhook Deliveries** page is loading correctly, but it only shows the two earlier test calls at **19:55**.
+- The latest rows in `actblue_transactions` were inserted at **19:28**, so no newer donation data has reached the database yet.
+- The dashboard query/realtime code already refreshes from `actblue_transactions` and `daily_aggregated_metrics`, so this currently looks more like an **ingestion gap** than a frontend rendering bug.
+- The background job function for ActBlue is actively booting on schedule, which means the fallback sync path exists and needs to be checked too.
 
 ## Plan
+1. **Trace the live donation ingestion path end-to-end**
+   - Check both paths that can bring in new donations: the public webhook and the scheduled/background sync.
+   - Compare the current project’s flow with the working Molitico project so the missing step is isolated quickly.
 
-### 1. Add a `webhook_deliveries` log table (mirrors Molitico's `webhook_logs`)
-Migration creating `public.webhook_deliveries`:
-- `source` (text, `actblue`), `event_type` (text, `incoming`)
-- `payload` (jsonb, capped), `headers` (jsonb, with `authorization`/signature **redacted** — never store the password)
-- `source_ip`, `user_agent`
-- `entity_ids_found` (text[]), `matched_organization_id` (uuid, nullable)
-- `processing_status` (text: `pending` → `processed` / `failed`)
-- `response_status` (int), `error_detail` (text)
-- `id`, `received_at`/`created_at`
+2. **Identify the exact failure point**
+   - Determine whether live donations are:
+     - not reaching the webhook at all,
+     - reaching the backend but failing parsing/auth/entity matching,
+     - only available through the scheduled sync but not being fetched,
+     - or being written to the database without triggering the dashboard refresh path.
 
-RLS: admin-only SELECT (`has_role(auth.uid(),'admin')`); writes via service role. GRANT `service_role` ALL, GRANT `authenticated` SELECT (policy gates to admins).
+3. **Implement the narrow fix at the broken hop**
+   - If the webhook is missing a live payload shape, update parsing and logging to capture that variant.
+   - If the scheduled sync is the source of truth, fix its fetch/filter/write logic so new donations land promptly.
+   - If data lands but the UI stays stale, tighten invalidation/realtime on the dashboard and webhook admin page.
 
-### 2. Instrument `actblue-webhook` exactly like Molitico
-- Read headers (auth scheme, IP, UA) and the raw body first.
-- Immediately after `JSON.parse`, **insert a `webhook_deliveries` row with `processing_status='pending'`** and the redacted headers + payload; keep its `id`.
-- At every return path (bad payload, no matching entity/org, auth failure, success), **update that row** with `processing_status`, `response_status`, `matched_organization_id`, and `error_detail`.
-- Wrap all logging in try/catch so it can never break the webhook response.
-- No change to the existing ingestion, realtime, or aggregation logic.
+4. **Validate against the current donations**
+   - Confirm the newest donations appear in at least one backend source (`webhook_deliveries` or `actblue_transactions`).
+   - Confirm the daily rollup updates for the active organization.
+   - Confirm the dashboard and `/admin/webhooks` reflect the new data without needing a full manual reload.
 
-### 3. Admin visibility panel
-A small "Webhook Deliveries" table in the admin area (most recent first: time, IP, status, response code, matched org, entity IDs, error). Lets you watch ActBlue's next delivery land in real time and read exactly why it passes or fails. (If you prefer no UI, I can provide a query instead — but the panel is low-effort and reusable.)
-
-### 4. Diagnose with the next real donation
-- **Row appears** → read its outcome and fix the specific failure (auth mismatch, entity mismatch, payload shape).
-- **No row at all** → ActBlue genuinely isn't reaching the function; the issue is on ActBlue's delivery side (check their webhook delivery log for errors / confirm saved URL+credentials), and we escalate to ActBlue with evidence.
-- To prove reachability immediately, I'll also send no-auth and wrong-password test calls and confirm both create logged rows with the right failure status.
-
-## Technical notes
-- Uses the existing service-role client already in the function.
-- `payload` capped (~8KB) and Basic Auth password is never persisted — only the scheme and a redacted header map.
-- Additive only; mirrors a pattern already proven in Molitico.
-
-## Out of scope (Molitico extras we are not copying)
-- HMAC signature auth, refcode-mapping attribution, click_id/fbclid reconciliation, and failed-webhook reprocessing — larger systems beyond diagnosing/ingesting deliveries here.
+## Technical details
+- Files likely involved:
+  - `supabase/functions/actblue-webhook/index.ts`
+  - `supabase/functions/process-actblue-jobs/index.ts`
+  - shared sync helpers under `supabase/functions/_shared/`
+  - `src/queries/useFundraisingQueries.ts`
+  - `src/queries/useRealtimeFundraising.ts`
+  - `src/pages/admin/WebhookDeliveries.tsx`
+  - `src/pages/Dashboard.tsx`
+- Validation will use backend queries plus edge-function logs so we can prove whether the issue is upstream delivery, ingestion logic, or frontend refresh.

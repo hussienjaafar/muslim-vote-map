@@ -199,6 +199,7 @@ async function syncActblue(
   orgId: string,
   creds: Record<string, string>,
   sinceDays: number,
+  full = false,
 ): Promise<PlatformResult> {
   const username = creds.username;
   const password = creds.password;
@@ -210,11 +211,14 @@ async function syncActblue(
   const auth = 'Basic ' + btoa(`${username}:${password}`);
   const base = 'https://secure.actblue.com/api/v1';
 
+  // Full backfills pull all-time contributions (ActBlue launched in 2004).
+  const dateRangeStart = full ? '2004-01-01' : isoDaysAgo(sinceDays);
+
   // Request a CSV export for the window; the worker polls for completion later.
   const reqRes = await fetch(`${base}/csvs`, {
     method: 'POST',
     headers: { Authorization: auth, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ csv_type: 'paid_contributions', date_range_start: isoDaysAgo(sinceDays), date_range_end: todayIso() }),
+    body: JSON.stringify({ csv_type: 'paid_contributions', date_range_start: dateRangeStart, date_range_end: todayIso() }),
   });
   if (!reqRes.ok) {
     const text = await reqRes.text();

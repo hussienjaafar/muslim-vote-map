@@ -121,6 +121,7 @@ async function syncSwitchboard(
   orgId: string,
   creds: Record<string, string>,
   sinceDays: number,
+  full = false,
 ): Promise<PlatformResult> {
   const accountId = creds.account_id;
   const apiKey = creds.api_key;
@@ -129,7 +130,9 @@ async function syncSwitchboard(
   }
 
   const auth = 'Basic ' + btoa(`${accountId}:${apiKey}`);
-  const sinceMs = Date.now() - sinceDays * 24 * 60 * 60 * 1000;
+  // Full backfills pull every broadcast; incremental syncs filter by window.
+  const sinceMs = full ? 0 : Date.now() - sinceDays * 24 * 60 * 60 * 1000;
+
 
   // Page through broadcasts.
   const broadcasts: Record<string, unknown>[] = [];

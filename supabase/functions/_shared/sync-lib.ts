@@ -117,7 +117,78 @@ async function syncMeta(
       if (error) return { platform: 'meta', ok: false, rows: 0, error: error.message };
     }
   }
+
+  // Hourly spend for a short recent window (powers the single-day dashboard chart).
+  // We only ever show Today/Yesterday hourly, so a rolling window keeps API cost
+  // and row volume bounded. Failures here must not fail the daily sync.
+  try {
+    await syncMetaHourly(admin, orgId, acct, token);
+  } catch (_e) {
+    // best-effort; daily sync already succeeded
+  }
+
   return { platform: 'meta', ok: true, rows: rows.length };
+}
+
+const META_HOURLY_WINDOW_DAYS = 7;
+
+/**
+ * Pulls Meta hourly insights (advertiser timezone) for a short recent window
+ * and upserts per-campaign/day/hour spend into meta_ad_hourly_metrics.
+ */
+async function syncMetaHourly(
+  admin: SupabaseClient,
+  orgId: string,
+  acct: string,
+  token: string,
+): Promise<void> {
+  const since = isoDaysAgo(META_HOURLY_WINDOW_DAYS);
+  const until = todayIso();
+
+  const params = new URLSearchParams({
+    level: 'campaign',
+    time_increment: '1',
+    breakdowns: 'hourly_stats_aggregated_by_advertiser_time_zone',
+    time_range: JSON.stringify({ since, until }),
+    fields: 'campaign_id,spend,impressions,clicks',
+    limit: '500',
+    access_token: token,
+  });
+  let url: string | null = `https://graph.facebook.com/v19.0/${acct}/insights?${params.toString()}`;
+
+  const rows: Record<string, unknown>[] = [];
+  let guard = 0;
+  while (url && guard < 200) {
+    guard++;
+    const res = await fetch(url);
+    if (!res.ok) return; // best-effort
+    const payload = await res.json();
+    for (const r of payload.data ?? []) {
+      const hourStr = r.hourly_stats_aggregated_by_advertiser_time_zone as string | undefined;
+      if (!hourStr) continue;
+      const hour = parseInt(hourStr.slice(0, 2), 10);
+      if (!Number.isFinite(hour) || hour < 0 || hour > 23) continue;
+      rows.push({
+        organization_id: orgId,
+        campaign_id: String(r.campaign_id),
+        date: r.date_start,
+        hour,
+        spend: num(r.spend),
+        impressions: num(r.impressions),
+        clicks: num(r.clicks),
+        synced_at: new Date().toISOString(),
+      });
+    }
+    url = payload.paging?.next ?? null;
+  }
+
+  if (rows.length) {
+    for (let i = 0; i < rows.length; i += 1000) {
+      await admin
+        .from('meta_ad_hourly_metrics')
+        .upsert(rows.slice(i, i + 1000), { onConflict: 'organization_id,campaign_id,date,hour' });
+    }
+  }
 }
 
 /**

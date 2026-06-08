@@ -270,9 +270,7 @@ export default function Dashboard() {
                     formatter={(value: number, name: string) => [fmtCurrency(Number(value)), name === 'raised' ? 'Raised' : 'Spend']}
                   />
                   <Area type="monotone" dataKey="raised" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#gRaised)" />
-                  {!isHourly && (
-                    <Area type="monotone" dataKey="spend" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gSpend)" />
-                  )}
+                  <Area type="monotone" dataKey="spend" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gSpend)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

@@ -267,7 +267,11 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                   <XAxis
                     dataKey={isHourly ? 'hour' : 'date'}
-                    tickFormatter={(v) => (isHourly ? fmtHour(Number(v)) : format(parseISO(String(v)), 'MMM d'))}
+                    tickFormatter={(v) => {
+                      if (isHourly) return fmtHour(Number(v));
+                      const d = parseISO(String(v));
+                      return isNaN(d.getTime()) ? String(v) : format(d, 'MMM d');
+                    }}
                     tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
@@ -287,7 +291,11 @@ export default function Dashboard() {
                       borderRadius: 8,
                       fontSize: 12,
                     }}
-                    labelFormatter={(v) => (isHourly ? `${fmtHour(Number(v))} ET` : format(parseISO(String(v)), 'PP'))}
+                    labelFormatter={(v) => {
+                      if (isHourly) return `${fmtHour(Number(v))} ET`;
+                      const d = parseISO(String(v));
+                      return isNaN(d.getTime()) ? String(v) : format(d, 'PP');
+                    }}
                     formatter={(value: number, name: string) => {
                       const labels: Record<string, string> = { raised: 'Raised', adSpend: 'Ad Spend', smsCost: 'SMS Cost' };
                       return [fmtCurrency(Number(value)), labels[name] ?? name];

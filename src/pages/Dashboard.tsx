@@ -55,7 +55,7 @@ export default function Dashboard() {
 
   const orgId = activeOrg?.id ?? null;
   useRealtimeFundraising(orgId);
-  const { data: summary, isLoading, isFetching: summaryFetching, dataUpdatedAt } = useFundraisingSummary(orgId, range);
+  const { data: summary, isLoading, isError: summaryError, isFetching: summaryFetching, dataUpdatedAt } = useFundraisingSummary(orgId, range);
   const { data: hourly, isFetching: hourlyFetching } = useHourlyFundraising(orgId, range.start, isHourly);
   const {
     data: donationsData,

@@ -132,7 +132,8 @@ export default function WebhookDeliveries() {
                     {d.error_detail ?? '—'}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

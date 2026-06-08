@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOrg } from '@/contexts/OrgContext';
 import { useFundraisingSummary, useRecentDonations } from '@/queries/useFundraisingQueries';
+import { useRealtimeFundraising } from '@/queries/useRealtimeFundraising';
 import { OrgSwitcher } from '@/components/org/OrgSwitcher';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
@@ -47,6 +48,7 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
 
   const orgId = activeOrg?.id ?? null;
+  useRealtimeFundraising(orgId);
   const { data: summary, isLoading, isFetching: summaryFetching } = useFundraisingSummary(orgId, days);
   const {
     data: donationsData,

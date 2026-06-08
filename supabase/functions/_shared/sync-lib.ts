@@ -313,6 +313,18 @@ export async function downloadActblueCsv(downloadUrl: string, orgId: string): Pr
   return parseActblueCsv(csvText, orgId);
 }
 
+/** Derive a readable form name from an ActBlue fundraising-page URL slug. */
+function slugFromPage(page: string | null): string | null {
+  if (!page) return null;
+  const m = page.match(/\/(?:page|my-express|form)\/?([^/?#]+)?/i);
+  const slug = (m?.[1] || '').trim();
+  if (!slug) {
+    if (/my-express/i.test(page)) return 'ActBlue Express';
+    return null;
+  }
+  return slug;
+}
+
 export function parseActblueCsv(text: string, orgId: string): Record<string, unknown>[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];

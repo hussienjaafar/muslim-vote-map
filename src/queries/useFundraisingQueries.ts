@@ -116,8 +116,8 @@ export function useRecentDonations(orgId: string | null, pageSize = DONATIONS_PA
   return useInfiniteQuery({
     queryKey: ['recent-donations', orgId, pageSize],
     enabled: !!orgId,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: true,
     initialPageParam: 0,
     getNextPageParam: (lastPage: RecentDonation[] | undefined, allPages) =>

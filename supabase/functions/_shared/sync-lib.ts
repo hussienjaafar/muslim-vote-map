@@ -138,7 +138,7 @@ async function syncSwitchboard(
   const broadcasts: Record<string, unknown>[] = [];
   let next: string | null = 'https://api.oneswitchboard.com/v1/broadcasts';
   let guard = 0;
-  while (next && guard < 50) {
+  while (next && guard < (full ? 500 : 50)) {
     guard++;
     const res = await fetch(next, {
       headers: { Authorization: auth, 'Content-Type': 'application/json', Accept: 'application/json' },

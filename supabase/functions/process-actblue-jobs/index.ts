@@ -65,17 +65,22 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Export is ready — download, parse, upsert, and re-aggregate.
+        // Export is ready — download, parse, upsert (in chunks), and re-aggregate.
         const rows = await downloadActblueCsv(poll.downloadUrl!, job.organization_id);
         if (rows.length) {
-          const { error: upErr } = await admin
-            .from('actblue_transactions')
-            .upsert(rows, { onConflict: 'organization_id,transaction_id' });
-          if (upErr) {
-            await failJob(admin, job, upErr.message);
-            summary.push({ job: job.id, result: 'error', reason: upErr.message });
-            continue;
+          let upsertFailed = false;
+          for (let i = 0; i < rows.length; i += 1000) {
+            const { error: upErr } = await admin
+              .from('actblue_transactions')
+              .upsert(rows.slice(i, i + 1000), { onConflict: 'organization_id,transaction_id' });
+            if (upErr) {
+              await failJob(admin, job, upErr.message);
+              summary.push({ job: job.id, result: 'error', reason: upErr.message });
+              upsertFailed = true;
+              break;
+            }
           }
+          if (upsertFailed) continue;
         }
 
         await aggregateDaily(admin, job.organization_id, job.since_days ?? 30);

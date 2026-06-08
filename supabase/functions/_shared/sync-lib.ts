@@ -9,6 +9,14 @@ type Platform = 'meta' | 'switchboard' | 'actblue';
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
+// ActBlue treats a CSV export's date_range_end as EXCLUSIVE, so using today's
+// date cuts off all of today's donations. Use tomorrow as the end bound so the
+// current day is always fully included.
+function tomorrowIso(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 function isoDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -222,11 +230,13 @@ async function syncActblue(
   const windows: { start: string; end: string }[] = [];
   if (full) {
     for (const startMonths of [24, 18, 12, 6]) {
-      windows.push({ start: isoMonthsAgo(startMonths), end: isoMonthsAgo(startMonths - 6) });
+      const endMonths = startMonths - 6;
+      // The final window ends "now" — use tomorrow (exclusive end) to include today.
+      windows.push({ start: isoMonthsAgo(startMonths), end: endMonths === 0 ? tomorrowIso() : isoMonthsAgo(endMonths) });
     }
   } else {
     const days = Math.min(Math.max(sinceDays, 1), 180); // cap at ~6 months
-    windows.push({ start: isoDaysAgo(days), end: todayIso() });
+    windows.push({ start: isoDaysAgo(days), end: tomorrowIso() });
   }
 
   let queuedCount = 0;

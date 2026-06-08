@@ -1,51 +1,58 @@
-# Fix: donation times are an INGEST (timestamp) bug, not a visualization bug
+# Align Integrations Page with ActBlue's Real Webhook Requirements
 
-## Verdict after studying Molitico end-to-end
-This is **confirmed a timestamp/ingest problem**, not a charting/display problem. Proof: the newest stored row holds `2026-06-08 13:34:22+00`. Displaying that as Eastern gives 9:34 AM — but you know it was ~1:34 PM ET. A *correct* UTC instant for a 1:34 PM ET donation would be `17:34Z`. So the stored instant itself is wrong by the ET offset; no display tweak can recover the right time from a corrupted instant.
+## Background: what ActBlue actually requires
 
-### How Molitico does it (the reference, traced fully)
-**Ingest → stores a correct UTC instant.** ActBlue sends Eastern wall-clock with no timezone suffix. Molitico runs every incoming timestamp through `supabase/functions/_shared/actblue-timezone.ts` → `normalizeActBlueTimestamp()`:
-- If the string already has `Z` / `±HH:MM`, parse and keep.
-- If no offset, treat as **America/New_York**, compute EDT(−04:00) vs EST(−05:00) via a manual DST calc, append the offset, then `.toISOString()` → the true UTC instant.
-This runs in its `actblue-webhook` (real-time) and its CSV/sync paths, so `transaction_date` is always a genuine UTC instant.
+Per ActBlue's webhook documentation ("Setting Up a Webhook Integration" and the Webhooks docs), receiving real-time contribution data requires exactly three things on the receiver side:
 
-**Read.** RPC `get_recent_donations(_organization_id, _date, _limit, _timezone)` returns `transaction_date` as the **raw TIMESTAMPTZ** (the true instant). It only uses `_timezone` to *filter* by local day: `(t.transaction_date AT TIME ZONE _timezone)::DATE = _date`. It does not shift the returned instant.
+1. **Endpoint URL** — a public `https://` URL ActBlue POSTs each contribution to. (We already generate and display this: `…/functions/v1/actblue-webhook`.)
+2. **Username + Password** — HTTP Basic Auth credentials the user types into ActBlue's webhook form. ActBlue sends these on every request as a standard `Authorization: Basic` header. These are values the user *invents* and must match on both sides.
+3. **Entity ID** — the campaign/org's ActBlue Entity ID (shown on ActBlue's Webhook Integrations page). Used to identify which org a delivery belongs to and required for vendor-submitted webhook requests.
 
-**Display.** `RecentActivityFeed.tsx` renders `format(new Date(transaction_date), "h:mm a")` + `formatDistanceToNow(...)` "X minutes ago". Because the stored instant is correct, this shows the right time.
+Crucially, **ActBlue does NOT use HMAC signatures**. There is no `X-ActBlue-Signature` header in ActBlue's contribution webhooks — authentication is Basic Auth only. The current "Webhook secret (HMAC)" field cannot ever be satisfied by ActBlue and misleads users into thinking it's the secure/preferred option.
 
-**"Live in real time" = webhook ingest + polling, not websockets.** Molitico ingests each donation the moment ActBlue posts to its `actblue-webhook`. The feed hook (`useRecentDonations`) is a react-query poll: `refetchInterval: 30s` when viewing today (`5 min` for the combined metrics), with a pulsing "Live" badge. No Postgres realtime channel is used for donations.
+## Problem with the current page
 
-### Why ours is broken (contrast)
-- Ingest: `sync-lib.ts` `parseDate` does `new Date(s).toISOString()` → reads ActBlue's Eastern string as UTC → stores it 4–5h early.
-- Display: `Dashboard.tsx` `fmtEastern` then converts that already-wrong instant to ET, subtracting another 4h → 9:34 AM.
-- Real-time: our `actblue_transactions` rows all arrived via **CSV sync batches** (clustered `created_at`); there are **no webhook-ingested rows**. That's why the 2:19 PM donation wasn't there yet — data only advances when the CSV sync runs (last run 1:47 PM ET), not live. The webhook function exists but isn't producing rows.
+The ActBlue card in `src/components/org/OrgIntegrations.tsx` currently asks for:
+- CSV API username / CSV API password (for scheduled CSV pulls — correct, keep)
+- Entity ID (correct, keep)
+- **Webhook secret (optional)** — HMAC; **incorrect, ActBlue never uses this**
+- Webhook username (optional) — correct but labeled as merely optional/secondary
+- Webhook password (optional) — same
 
-## Plan
+The help text presents the HMAC secret as the primary ("preferred") path, which is backwards.
 
-### 1. Port Molitico's normalization util
-Create `supabase/functions/_shared/actblue-timezone.ts` with `normalizeActBlueTimestamp()` + `isEasternDST()` (same logic as Molitico).
+## Changes
 
-### 2. Apply it at every ingest point
-- `supabase/functions/_shared/sync-lib.ts`: replace `parseDate(get('date'))` with `normalizeActBlueTimestamp(get('date'))`.
-- `supabase/functions/actblue-webhook/index.ts`: wrap `c.createdAt` with `normalizeActBlueTimestamp(...)`.
+### 1. Update the ActBlue field set (`OrgIntegrations.tsx`, ~lines 141–151)
+- **Remove** the `webhook_secret` field entirely.
+- **Keep & relabel** the Basic Auth pair as the real webhook credentials:
+  - `basic_auth_username` → label "Webhook Username" (no longer "optional")
+  - `basic_auth_password` → label "Webhook Password"
+- Keep `username` / `password` but clarify they are the **CSV API** credentials (scheduled sync), distinct from the webhook.
+- Keep `entity_id`.
 
-### 3. Backfill existing mislabeled rows (migration)
-```sql
-UPDATE public.actblue_transactions
-SET transaction_date =
-  (transaction_date AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York';
-```
-Reinterprets each stored wall-clock as Eastern → writes back the true UTC instant (verified to yield the correct times). DST-safe.
+### 2. Rewrite the help text + add setup steps
+Make the card clearly explain the real ActBlue flow:
+1. Copy the Webhook URL shown on this card.
+2. In ActBlue → Tools → Integrations → Webhooks → "Create a new webhook" → choose **ActBlue Default**.
+3. Paste the Webhook URL as the **Endpoint URL**.
+4. Choose any **Username** and **Password** in ActBlue, and enter the *same* values here as "Webhook Username" / "Webhook Password".
+5. Enter your **Entity ID** (found on ActBlue's Webhook Integrations page).
 
-### 4. Re-aggregate daily metrics
-Re-run the rollup so `daily_aggregated_metrics` reflects corrected instants. `org_daily_rollup` / `org_new_donors_since` already bucket by `America/New_York`, so once instants are right the chart and new-donor counts are right.
+Keep the existing read-only Webhook URL field with copy button (already present).
 
-### 5. Verify
-Confirm newest donation shows real Eastern time and chart day totals stay correctly bucketed.
+### 3. Update the webhook edge function (`supabase/functions/actblue-webhook/index.ts`)
+- Remove the now-dead HMAC branch (`validateHmac` / `X-ActBlue-Signature` / `webhook_secret`) so authentication relies solely on HTTP Basic Auth, which is what ActBlue sends.
+- Keep the entity_id → org matching and the Basic Auth validation + 401 `WWW-Authenticate` response.
+- This is a presentation-aligned cleanup; the Basic Auth path is unchanged in behavior.
 
-## Decisions for you
-1. **Display timezone.** Molitico shows the viewer's **local** time; we currently force **Eastern** (`fmtEastern`). Your brand reports in ET, so I recommend keeping forced ET — just operating on corrected data. Want local-time (Molitico-exact) instead?
-2. **True real-time.** The CSV-only data flow is why the feed lags. Do you want me to (a) verify/enable the ActBlue webhook so donations land live, and/or (b) tighten the recent-donations poll to 30s like Molitico? (Webhook configuration may need the ActBlue endpoint/secret set up — separate from this timezone fix.)
+### 4. No DB/schema changes
+`encrypted_credentials` is a free-form encrypted JSON blob, and `save-credentials` already strips blank fields. Dropping `webhook_secret` from the UI simply means it's no longer written; existing rows are unaffected. No migration needed.
 
 ## Out of scope
-No schema changes beyond the one-time backfill; chart aggregation logic unchanged (already ET-correct once data is fixed).
+- The timezone/normalization work (already done previously).
+- CSV API sync logic (unchanged).
+
+## Verification
+- Load the Integrations page for an org and confirm the ActBlue card shows: CSV API username/password, Entity ID, Webhook Username, Webhook Password, and the read-only Webhook URL — with no HMAC secret field.
+- Confirm saving only Entity ID + Webhook Username/Password enables the real-time path, and a test POST with matching Basic Auth is accepted while a mismatched one returns 401.

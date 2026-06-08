@@ -6,35 +6,12 @@ import { normalizeActBlueTimestamp } from '../_shared/actblue-timezone.ts';
 // Public endpoint (no JWT). ActBlue posts contributions here in real time.
 // Configure in ActBlue with this function URL.
 // The organization is identified by the `entity_id` in the payload (matched against stored credentials).
-// Authentication is either:
-//   1. HMAC: X-ActBlue-Signature: sha256=<hex> validated against the org's webhook_secret
-//   2. HTTP Basic Auth matching the org's basic_auth_username / basic_auth_password
+// Authentication: HTTP Basic Auth matching the org's basic_auth_username / basic_auth_password.
+// (ActBlue webhooks authenticate via Basic Auth only — there is no signature header.)
 
 function num(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
-}
-
-async function computeHmac(body: string, secret: string): Promise<string> {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(body));
-  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return result === 0;
-}
-
-async function validateHmac(header: string | null, body: string, secret: string): Promise<boolean> {
-  if (!header || !secret) return false;
-  const parts = header.split('=');
-  if (parts.length !== 2 || parts[0] !== 'sha256') return false;
-  const computed = await computeHmac(body, secret);
-  return timingSafeEqual(parts[1], computed);
 }
 
 function validateBasicAuth(header: string | null, user: string, pass: string): boolean {
@@ -105,15 +82,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'No matching organization' }), { status: 404 });
     }
 
-    // Authenticate: HMAC signature first, then Basic Auth fallback.
-    const signatureHeader = req.headers.get('X-ActBlue-Signature');
+    // Authenticate: HTTP Basic Auth (ActBlue sends Authorization: Basic on every delivery).
     const authHeader = req.headers.get('Authorization');
     let authenticated = false;
 
-    if (creds.webhook_secret) {
-      authenticated = await validateHmac(signatureHeader, rawBody, creds.webhook_secret);
-    }
-    if (!authenticated && creds.basic_auth_username && creds.basic_auth_password) {
+    if (creds.basic_auth_username && creds.basic_auth_password) {
       authenticated = validateBasicAuth(authHeader, creds.basic_auth_username, creds.basic_auth_password);
     }
 
@@ -121,7 +94,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           error: 'Unauthorized',
-          hint: 'Configure webhook_secret (HMAC) or basic_auth_username/password in API credentials',
+          hint: 'Configure the Webhook Username and Password (Basic Auth) in API credentials to match ActBlue',
         }),
         { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="actblue"' } },
       );

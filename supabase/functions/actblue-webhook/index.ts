@@ -149,6 +149,17 @@ Deno.serve(async (req) => {
       .upsert(row, { onConflict: 'organization_id,transaction_id' });
     if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
 
+    // Re-aggregate just this donation's day so the dashboard rollup
+    // (daily_aggregated_metrics) updates in real time instead of waiting for
+    // the daily cron sync. Scoped to one day = cheap and idempotent. Never let
+    // an aggregation hiccup fail the webhook (ActBlue retries on non-2xx).
+    const day = String(row.transaction_date).slice(0, 10);
+    try {
+      await aggregateDaily(admin, orgId, 1, false, day);
+    } catch (aggErr) {
+      console.error('aggregateDaily failed for', orgId, day, aggErr);
+    }
+
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },

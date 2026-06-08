@@ -43,7 +43,7 @@ function readImpersonated(): Organization | null {
 }
 
 export function OrgProvider({ children }: { children: ReactNode }) {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [activeOrgId, setActiveOrgIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -108,10 +108,12 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     try { sessionStorage.removeItem(IMPERSONATE_KEY); } catch { /* noop */ }
   }, []);
 
-  // Only platform admins may impersonate; clear stale state for non-admins.
+  // Only platform admins may impersonate; clear stale state for confirmed non-admins.
+  // Wait for the auth/role check to finish so we don't wipe impersonation during the
+  // brief window where isAdmin is still being verified.
   useEffect(() => {
-    if (!isAdmin && impersonatedOrg) stopImpersonation();
-  }, [isAdmin, impersonatedOrg, stopImpersonation]);
+    if (!authLoading && !isAdmin && impersonatedOrg) stopImpersonation();
+  }, [authLoading, isAdmin, impersonatedOrg, stopImpersonation]);
 
   const value = useMemo<OrgContextValue>(() => {
     const isImpersonating = isAdmin && !!impersonatedOrg;

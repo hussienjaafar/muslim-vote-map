@@ -1,39 +1,39 @@
-## Goal
-Audit every page for responsiveness and fix the concrete gaps so the app works cleanly across phone (≥320px), tablet, and desktop. The codebase already has solid responsive coverage in many areas (UsersList, Orders, Products, Organizations have mobile card variants; the map page has mobile sheets). This plan targets the remaining problem spots and verifies the whole app at multiple viewports.
+# Fix: "View dashboard as org" shows "No organization yet"
 
-## Findings (confirmed gaps)
+## Problem
+When an admin clicks **View dashboard as org** for an organization (e.g. "Hamawy For NJ"), the Dashboard can show the "No organization yet" empty state instead of the org's dashboard.
 
-1. **Tables that overflow on mobile** — no horizontal scroll wrapper and no mobile card fallback:
-   - `OrganizationDetail.tsx` (members table, line ~210)
-   - `ApplicationsList.tsx` (applicants table, line ~282; plus `grid-cols-2` detail row at 357 that stays 2-col on phones)
-   - `OrderDetail.tsx` (line items table, line ~254 — parent is `overflow-hidden`, so wide rows get clipped on phone)
+The org record exists and is valid. The bug is timing inside `src/contexts/OrgContext.tsx`:
 
-2. **Fixed 2-column grids that don't stack on small screens**:
-   - `RequestAccess.tsx` (lines 136, 160 — `grid-cols-2` form fields stay cramped on phone)
+```ts
+useEffect(() => {
+  if (!isAdmin && impersonatedOrg) stopImpersonation();
+}, [isAdmin, impersonatedOrg, stopImpersonation]);
+```
 
-3. **`min-h-screen` instead of `min-h-dvh`** — on mobile browsers the address bar makes `100vh` taller than the visible area, cutting off centered content:
-   - `Login.tsx`, `Signup.tsx`, `RequestAccess.tsx`, `ApplicationStatus.tsx`, `Home.tsx`, `Account.tsx`
+`useAuth()` determines `isAdmin` asynchronously — it is `false` until a database lookup completes. On a fresh load of `/dashboard` (page reload, or navigating in before the role check settles), `OrgProvider` restores the impersonated org from sessionStorage while `isAdmin` is momentarily `false`, so this effect immediately clears the impersonation. The computed `activeOrg` then becomes `null` and the Dashboard renders its empty state.
 
-4. **Full app QA pass** at 320 / 375 / 768 / 1280 / 1920 px to catch any overflow, clipped controls, or overlapping elements not visible from static reading (especially the Index landing page, the issue map overlays, and admin dashboard widgets).
+## Fix
+Only clear impersonation once we actually know the user is not an admin — i.e. after the auth/role check has finished loading.
 
-## Changes
+In `src/contexts/OrgContext.tsx`:
+1. Pull `loading` out of `useAuth()` (rename to `authLoading`) alongside `user` and `isAdmin`.
+2. Guard the cleanup effect so it only runs when auth has finished loading:
 
-### Tables → mobile-safe
-- Wrap each unhandled `<Table>` in a `overflow-x-auto` container so it scrolls horizontally instead of breaking the layout, matching the pattern already used in `UserDetail.tsx` and `DataManagement.tsx`.
-- Where a table is the primary content (OrganizationDetail members, ApplicationsList applicants), add a `md:hidden` stacked card list + `hidden md:table` table, mirroring the existing `UsersList.tsx` pattern, so phone users get readable cards rather than a wide scroll.
-- Make the ApplicationsList expanded-detail grid responsive: `grid-cols-1 sm:grid-cols-2`.
+```ts
+const { user, isAdmin, loading: authLoading } = useAuth();
 
-### Responsive grids
-- `RequestAccess.tsx`: change `grid-cols-2` to `grid-cols-1 sm:grid-cols-2` for the two field rows.
+// Only platform admins may impersonate; clear stale state for confirmed non-admins.
+useEffect(() => {
+  if (!authLoading && !isAdmin && impersonatedOrg) stopImpersonation();
+}, [authLoading, isAdmin, impersonatedOrg, stopImpersonation]);
+```
 
-### Viewport height
-- Replace `min-h-screen` with `min-h-dvh` on the listed auth/content pages so centered cards stay within the visible viewport on mobile.
+This keeps the security behavior (non-admins can never impersonate) while preventing the false-negative clear during the brief window when the admin role is still being verified.
 
-### Verification
-- Use the preview/browser tool to load each route at mobile (375px) and tablet (768px) widths: `/`, `/login`, `/signup`, `/request-access`, `/application-status`, `/home`, `/account`, `/admin`, `/admin/users` (+ applications, invites, a user detail), `/admin/orders` (+ an order detail), `/admin/products`, `/admin/orgs` (+ an org detail), `/admin/data`, `/admin/issue-map`, `/admin/live`.
-- Screenshot-check for horizontal overflow, clipped buttons, and overlapping map overlays; fix any additional issues surfaced.
+## Verification
+- Reload `/admin/orgs/<id>`, click **View dashboard as org** → Dashboard shows the org's data and the amber impersonation banner.
+- Reload `/dashboard` while impersonating → impersonation persists (no longer drops to "No organization yet").
+- Confirm a non-admin user still cannot impersonate (effect still clears once `authLoading` is false).
 
-## Technical notes
-- Purely presentational (Tailwind class) changes; no business logic, data, or backend changes.
-- Reuse existing responsive patterns already in the repo (`hidden md:table` / `md:hidden` card lists, `overflow-x-auto`) for consistency.
-- `dvh` is supported by the project's Tailwind v3 setup (`min-h-dvh` utility).
+No backend, schema, or data changes — this is a single client-side context fix.

@@ -2,9 +2,11 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOrg } from '@/contexts/OrgContext';
-import { useFundraisingSummary, useRecentDonations } from '@/queries/useFundraisingQueries';
+import { useFundraisingSummary, useRecentDonations, useHourlyFundraising } from '@/queries/useFundraisingQueries';
 import { useRealtimeFundraising } from '@/queries/useRealtimeFundraising';
 import { OrgSwitcher } from '@/components/org/OrgSwitcher';
+import { DateRangePicker } from '@/components/dashboard/DateRangePicker';
+import { type RangeSelection, presetSelection, resolveRange } from '@/lib/dateRanges';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
 } from 'recharts';
@@ -14,11 +16,12 @@ import {
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
-const RANGES = [
-  { label: '7D', days: 7 },
-  { label: '30D', days: 30 },
-  { label: '90D', days: 90 },
-];
+function fmtHour(h: number): string {
+  if (h === 0) return '12a';
+  if (h === 12) return '12p';
+  return h < 12 ? `${h}a` : `${h - 12}p`;
+}
+
 
 function fmtCurrency(n: number): string {
   return `$${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;

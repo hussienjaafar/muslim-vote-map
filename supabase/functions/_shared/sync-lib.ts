@@ -334,6 +334,9 @@ export function parseActblueCsv(text: string, orgId: string): Record<string, unk
     const isRecurring = period
       ? period !== 'once'
       : totalMonths !== '' && totalMonths !== '0';
+    const fundraisingPage = get('fundraising page') || null;
+    const formName =
+      get('form name') || get('contribution form') || slugFromPage(fundraisingPage);
     out.push({
       organization_id: orgId,
       transaction_id: String(txId),
@@ -341,8 +344,8 @@ export function parseActblueCsv(text: string, orgId: string): Record<string, unk
       donor_name: [first, last].filter(Boolean).join(' ') || null,
       amount: num(get('amount')),
       refcode: get('refcode') || get('refcode2') || null,
-      source_campaign: get('fundraising page') || null,
-      form_name: get('form name') || get('contribution form') || null,
+      source_campaign: fundraisingPage,
+      form_name: formName,
       transaction_type: 'donation',
       is_recurring: isRecurring,
       transaction_date: parseDate(get('date')),

@@ -331,8 +331,9 @@ function parseDate(s: string): string {
 }
 
 /** Recomputes daily_aggregated_metrics for an org over the window. */
-export async function aggregateDaily(admin: SupabaseClient, orgId: string, sinceDays: number): Promise<number> {
-  const since = isoDaysAgo(sinceDays);
+export async function aggregateDaily(admin: SupabaseClient, orgId: string, sinceDays: number, full = false): Promise<number> {
+  const since = full ? '2000-01-01' : isoDaysAgo(sinceDays);
+
 
   const [meta, sms, donations] = await Promise.all([
     admin.from('meta_ad_metrics').select('date, spend, impressions, clicks').eq('organization_id', orgId).gte('date', since),

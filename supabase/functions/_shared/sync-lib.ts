@@ -233,14 +233,11 @@ async function syncSwitchboard(
       };
     }
     const payload = await res.json();
-    const items: Record<string, unknown>[] = payload.data ?? payload.broadcasts ?? [];
-    if (guard === 1) {
-      console.log('[switchboard] first page keys:', Object.keys(payload), 'items:', Array.isArray(items) ? items.length : 'n/a', 'sample:', JSON.stringify(items?.[0] ?? payload).slice(0, 600));
-    }
+    const data = (payload.data ?? {}) as Record<string, any>;
+    const items: Record<string, unknown>[] = data.page ?? data.broadcasts ?? (Array.isArray(data) ? data : []) ?? [];
     if (Array.isArray(items)) broadcasts.push(...items);
-    next = payload.next ?? payload.links?.next ?? payload.next_page ?? null;
+    next = data.next_page ?? payload.next_page ?? data.links?.next ?? null;
   }
-  console.log('[switchboard] total broadcasts fetched:', broadcasts.length, 'statuses:', JSON.stringify(broadcasts.slice(0, 20).map((b) => String((b as any).status ?? (b as any)?.attributes?.status))));
 
   const SENT_STATUSES = new Set(['sent', 'sending', 'stopped', 'paused']);
   const rows = broadcasts

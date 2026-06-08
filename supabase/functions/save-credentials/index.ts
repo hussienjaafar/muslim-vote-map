@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { encryptJson } from '../_shared/crypto.ts';
+import { encryptJson, decryptJson, type EncryptedPayload } from '../_shared/crypto.ts';
 import { runOrgSync } from '../_shared/sync-lib.ts';
 
 type Platform = 'meta' | 'switchboard' | 'actblue';

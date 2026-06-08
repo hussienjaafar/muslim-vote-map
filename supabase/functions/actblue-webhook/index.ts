@@ -69,10 +69,12 @@ Deno.serve(async (req) => {
     const c = body?.contribution ?? body?.lineitem ?? body;
     if (!c) return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400 });
 
-    const entityId = extractEntityId(c, body);
-    if (!entityId) return new Response(JSON.stringify({ error: 'Missing entity_id' }), { status: 400 });
+    const entityIds = collectEntityIds(c, body);
+    if (entityIds.length === 0) {
+      return new Response(JSON.stringify({ error: 'Missing entity_id' }), { status: 400 });
+    }
 
-    // Find the org whose stored credentials match this entity_id.
+    // Find the org whose stored credentials match one of the payload's entity ids.
     const { data: rows } = await admin
       .from('client_api_credentials')
       .select('organization_id, encrypted_credentials, is_active')
@@ -81,12 +83,14 @@ Deno.serve(async (req) => {
 
     let orgId: string | null = null;
     let creds: Record<string, string> | null = null;
+    let matchedEntityId: string | null = null;
     for (const r of rows ?? []) {
       try {
         const dec = await decryptJson<Record<string, string>>(r.encrypted_credentials as EncryptedPayload);
-        if (dec.entity_id && String(dec.entity_id) === entityId) {
+        if (dec.entity_id && entityIds.includes(String(dec.entity_id))) {
           orgId = r.organization_id as string;
           creds = dec;
+          matchedEntityId = String(dec.entity_id);
           break;
         }
       } catch {

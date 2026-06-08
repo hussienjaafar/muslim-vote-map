@@ -1636,6 +1636,14 @@ export type Database = {
         }
         Returns: number
       }
+      org_daily_rollup: {
+        Args: { _org_id: string; _since: string }
+        Returns: {
+          day: string
+          donations: number
+          funds: number
+        }[]
+      }
       org_new_donors_since: {
         Args: { _org_id: string; _since: string }
         Returns: {

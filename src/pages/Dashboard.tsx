@@ -49,7 +49,7 @@ export default function Dashboard() {
 
   const orgId = activeOrg?.id ?? null;
   useRealtimeFundraising(orgId);
-  const { data: summary, isLoading, isFetching: summaryFetching } = useFundraisingSummary(orgId, days);
+  const { data: summary, isLoading, isFetching: summaryFetching, dataUpdatedAt } = useFundraisingSummary(orgId, days);
   const {
     data: donationsData,
     isFetching: donationsFetching,
@@ -58,6 +58,13 @@ export default function Dashboard() {
     isFetchingNextPage,
   } = useRecentDonations(orgId);
   const refreshing = summaryFetching || donationsFetching;
+
+  const lastUpdated = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString('en-US', {
+        timeZone: 'America/New_York',
+        hour: 'numeric', minute: '2-digit', second: '2-digit',
+      }) + ' ET'
+    : null;
 
   const donationRows = useMemo(
     () => donationsData?.pages.flat() ?? [],
@@ -145,14 +152,21 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              title="Refresh data"
-              className="inline-flex items-center gap-1.5 px-3 h-9 text-xs font-bold rounded-md border border-border bg-card/60 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-60"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
-            </button>
+            <div className="flex flex-col items-end">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                title="Refresh data"
+                className="inline-flex items-center gap-1.5 px-3 h-9 text-xs font-bold rounded-md border border-border bg-card/60 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-60"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
+              </button>
+              {lastUpdated && (
+                <span className="mt-1 text-[10px] text-muted-foreground/70 tabular-nums whitespace-nowrap">
+                  {refreshing ? 'Updating…' : `Updated ${lastUpdated}`}
+                </span>
+              )}
+            </div>
             <OrgSwitcher />
             <div className="inline-flex rounded-md border border-border bg-card/60 p-0.5">
               {RANGES.map((r) => (

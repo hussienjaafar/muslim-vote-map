@@ -27,6 +27,19 @@ function fmtCompact(n: number): string {
   if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
   return n.toLocaleString();
 }
+// Render a UTC instant in Eastern Time so timestamps stay consistent with the
+// Eastern-Time daily bucketing used across the dashboard.
+function fmtEastern(iso: string): string {
+  const d = parseISO(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  }) + ' ET';
+}
+
+
 
 export default function Dashboard() {
   const { activeOrg, organizations, isLoading: orgLoading } = useOrg();

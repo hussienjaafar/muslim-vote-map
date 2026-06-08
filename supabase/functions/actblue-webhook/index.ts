@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { decryptJson, type EncryptedPayload } from '../_shared/crypto.ts';
 import { aggregateDaily } from '../_shared/sync-lib.ts';
+import { normalizeActBlueTimestamp } from '../_shared/actblue-timezone.ts';
 
 // Public endpoint (no JWT). ActBlue posts contributions here in real time.
 // Configure in ActBlue with this function URL.

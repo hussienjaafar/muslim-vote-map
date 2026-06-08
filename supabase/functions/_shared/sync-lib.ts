@@ -93,7 +93,7 @@ async function syncMeta(
   if (rows.length) {
     const { error } = await admin
       .from('meta_ad_metrics')
-      .upsert(rows, { onConflict: 'organization_id,campaign_id,ad_set_id,ad_id,date' });
+      .upsert(rows, { onConflict: 'organization_id,campaign_id,date' });
     if (error) return { platform: 'meta', ok: false, rows: 0, error: error.message };
   }
   return { platform: 'meta', ok: true, rows: rows.length };

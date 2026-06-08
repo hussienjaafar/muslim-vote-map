@@ -112,11 +112,12 @@ export function useMetaSaveConnection(orgId: string | undefined) {
 export function useRunSync(orgId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (sinceDays: number | void) => {
-      const days = typeof sinceDays === 'number' ? sinceDays : 30;
-      const { data, error } = await supabase.functions.invoke('sync-org', {
-        body: { organizationId: orgId, sinceDays: days },
-      });
+    mutationFn: async (arg?: number | { full?: boolean; sinceDays?: number }) => {
+      const opts = typeof arg === 'number' ? { sinceDays: arg } : (arg ?? {});
+      const body: Record<string, unknown> = { organizationId: orgId };
+      if (opts.full) body.full = true;
+      else body.sinceDays = typeof opts.sinceDays === 'number' ? opts.sinceDays : 30;
+      const { data, error } = await supabase.functions.invoke('sync-org', { body });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
       return data as { results: { platform: string; ok: boolean; rows: number; error?: string; queued?: boolean }[]; aggregated: number };
@@ -125,6 +126,7 @@ export function useRunSync(orgId: string | undefined) {
       qc.invalidateQueries({ queryKey: ['org-credentials', orgId] });
       qc.invalidateQueries({ queryKey: ['fundraising-summary'] });
       qc.invalidateQueries({ queryKey: ['recent-donations'] });
+      qc.invalidateQueries({ queryKey: ['actblue-jobs', orgId] });
     },
   });
 }

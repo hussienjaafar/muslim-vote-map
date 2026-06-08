@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { encryptJson } from '../_shared/crypto.ts';
+import { runOrgSync } from '../_shared/sync-lib.ts';
 
 type Platform = 'meta' | 'switchboard' | 'actblue';
 const PLATFORMS: Platform[] = ['meta', 'switchboard', 'actblue'];
@@ -91,6 +92,16 @@ Deno.serve(async (req) => {
 
     const encrypted = await encryptJson(clean);
 
+    // Determine whether this platform has ever been synced for this org.
+    // If not, this is a first connect and we kick off a full-history backfill.
+    const { data: existing } = await admin
+      .from('client_api_credentials')
+      .select('last_sync_at')
+      .eq('organization_id', organizationId)
+      .eq('platform', platform)
+      .maybeSingle();
+    const isFirstConnect = !existing || !existing.last_sync_at;
+
     const { error: upsertErr } = await admin
       .from('client_api_credentials')
       .upsert(
@@ -105,7 +116,20 @@ Deno.serve(async (req) => {
       );
     if (upsertErr) return json({ error: upsertErr.message }, 500);
 
-    return json({ ok: true, platform, status: 'connected' });
+    if (isFirstConnect) {
+      // Run the full-history backfill in the background so the save stays fast.
+      const backfill = runOrgSync(admin, organizationId, 30, { full: true, onlyPlatform: platform })
+        .catch((e) => console.error('first-connect backfill failed', e));
+      try {
+        // @ts-ignore EdgeRuntime is available in the Supabase runtime.
+        EdgeRuntime.waitUntil(backfill);
+      } catch {
+        // Fallback if waitUntil is unavailable in the runtime.
+        await backfill;
+      }
+    }
+
+    return json({ ok: true, platform, status: 'connected', backfill: isFirstConnect });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : 'Unknown error' }, 500);
   }

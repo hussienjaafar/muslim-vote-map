@@ -30,6 +30,7 @@ async function syncMeta(
   orgId: string,
   creds: Record<string, string>,
   sinceDays: number,
+  full = false,
 ): Promise<PlatformResult> {
   const token = creds.access_token;
   const account = creds.ad_account_id;
@@ -37,7 +38,9 @@ async function syncMeta(
     return { platform: 'meta', ok: false, rows: 0, error: 'Missing access_token or ad_account_id' };
   }
   const acct = account.startsWith('act_') ? account : `act_${account}`;
-  const since = isoDaysAgo(sinceDays);
+  // Meta only returns ad insights up to ~37 months back; cap full backfills there.
+  const META_MAX_DAYS = 37 * 30;
+  const since = isoDaysAgo(full ? META_MAX_DAYS : sinceDays);
   const until = todayIso();
 
   const params = new URLSearchParams({
@@ -49,52 +52,61 @@ async function syncMeta(
     limit: '500',
     access_token: token,
   });
-  const url = `https://graph.facebook.com/v19.0/${acct}/insights?${params.toString()}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    const text = await res.text();
-    return { platform: 'meta', ok: false, rows: 0, error: `Meta API ${res.status}: ${text.slice(0, 200)}` };
-  }
-  const payload = await res.json();
+  let url: string | null = `https://graph.facebook.com/v19.0/${acct}/insights?${params.toString()}`;
+
   const rows: Record<string, unknown>[] = [];
-  for (const r of payload.data ?? []) {
-    let conversions = 0;
-    let conversionValue = 0;
-    for (const a of r.actions ?? []) {
-      if (String(a.action_type).includes('purchase') || String(a.action_type).includes('donate')) {
-        conversions += num(a.value);
-      }
+  let guard = 0;
+  while (url && guard < 200) {
+    guard++;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const text = await res.text();
+      return { platform: 'meta', ok: false, rows: 0, error: `Meta API ${res.status}: ${text.slice(0, 200)}` };
     }
-    for (const a of r.action_values ?? []) {
-      if (String(a.action_type).includes('purchase') || String(a.action_type).includes('donate')) {
-        conversionValue += num(a.value);
+    const payload = await res.json();
+    for (const r of payload.data ?? []) {
+      let conversions = 0;
+      let conversionValue = 0;
+      for (const a of r.actions ?? []) {
+        if (String(a.action_type).includes('purchase') || String(a.action_type).includes('donate')) {
+          conversions += num(a.value);
+        }
       }
+      for (const a of r.action_values ?? []) {
+        if (String(a.action_type).includes('purchase') || String(a.action_type).includes('donate')) {
+          conversionValue += num(a.value);
+        }
+      }
+      rows.push({
+        organization_id: orgId,
+        campaign_id: String(r.campaign_id),
+        ad_set_id: null,
+        ad_id: null,
+        date: r.date_start,
+        spend: num(r.spend),
+        impressions: num(r.impressions),
+        clicks: num(r.clicks),
+        reach: num(r.reach),
+        cpc: num(r.cpc),
+        cpm: num(r.cpm),
+        ctr: num(r.ctr),
+        conversions,
+        conversion_value: conversionValue,
+        roas: num(r.spend) > 0 ? conversionValue / num(r.spend) : null,
+        synced_at: new Date().toISOString(),
+      });
     }
-    rows.push({
-      organization_id: orgId,
-      campaign_id: String(r.campaign_id),
-      ad_set_id: null,
-      ad_id: null,
-      date: r.date_start,
-      spend: num(r.spend),
-      impressions: num(r.impressions),
-      clicks: num(r.clicks),
-      reach: num(r.reach),
-      cpc: num(r.cpc),
-      cpm: num(r.cpm),
-      ctr: num(r.ctr),
-      conversions,
-      conversion_value: conversionValue,
-      roas: num(r.spend) > 0 ? conversionValue / num(r.spend) : null,
-      synced_at: new Date().toISOString(),
-    });
+    url = payload.paging?.next ?? null;
   }
 
   if (rows.length) {
-    const { error } = await admin
-      .from('meta_ad_metrics')
-      .upsert(rows, { onConflict: 'organization_id,campaign_id,date' });
-    if (error) return { platform: 'meta', ok: false, rows: 0, error: error.message };
+    // Upsert in chunks to stay well within request limits on large backfills.
+    for (let i = 0; i < rows.length; i += 1000) {
+      const { error } = await admin
+        .from('meta_ad_metrics')
+        .upsert(rows.slice(i, i + 1000), { onConflict: 'organization_id,campaign_id,date' });
+      if (error) return { platform: 'meta', ok: false, rows: 0, error: error.message };
+    }
   }
   return { platform: 'meta', ok: true, rows: rows.length };
 }
@@ -109,6 +121,7 @@ async function syncSwitchboard(
   orgId: string,
   creds: Record<string, string>,
   sinceDays: number,
+  full = false,
 ): Promise<PlatformResult> {
   const accountId = creds.account_id;
   const apiKey = creds.api_key;
@@ -117,13 +130,15 @@ async function syncSwitchboard(
   }
 
   const auth = 'Basic ' + btoa(`${accountId}:${apiKey}`);
-  const sinceMs = Date.now() - sinceDays * 24 * 60 * 60 * 1000;
+  // Full backfills pull every broadcast; incremental syncs filter by window.
+  const sinceMs = full ? 0 : Date.now() - sinceDays * 24 * 60 * 60 * 1000;
+
 
   // Page through broadcasts.
   const broadcasts: Record<string, unknown>[] = [];
   let next: string | null = 'https://api.oneswitchboard.com/v1/broadcasts';
   let guard = 0;
-  while (next && guard < 50) {
+  while (next && guard < (full ? 500 : 50)) {
     guard++;
     const res = await fetch(next, {
       headers: { Authorization: auth, 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -184,6 +199,7 @@ async function syncActblue(
   orgId: string,
   creds: Record<string, string>,
   sinceDays: number,
+  full = false,
 ): Promise<PlatformResult> {
   const username = creds.username;
   const password = creds.password;
@@ -195,11 +211,14 @@ async function syncActblue(
   const auth = 'Basic ' + btoa(`${username}:${password}`);
   const base = 'https://secure.actblue.com/api/v1';
 
+  // Full backfills pull all-time contributions (ActBlue launched in 2004).
+  const dateRangeStart = full ? '2004-01-01' : isoDaysAgo(sinceDays);
+
   // Request a CSV export for the window; the worker polls for completion later.
   const reqRes = await fetch(`${base}/csvs`, {
     method: 'POST',
     headers: { Authorization: auth, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ csv_type: 'paid_contributions', date_range_start: isoDaysAgo(sinceDays), date_range_end: todayIso() }),
+    body: JSON.stringify({ csv_type: 'paid_contributions', date_range_start: dateRangeStart, date_range_end: todayIso() }),
   });
   if (!reqRes.ok) {
     const text = await reqRes.text();
@@ -312,8 +331,9 @@ function parseDate(s: string): string {
 }
 
 /** Recomputes daily_aggregated_metrics for an org over the window. */
-export async function aggregateDaily(admin: SupabaseClient, orgId: string, sinceDays: number): Promise<number> {
-  const since = isoDaysAgo(sinceDays);
+export async function aggregateDaily(admin: SupabaseClient, orgId: string, sinceDays: number, full = false): Promise<number> {
+  const since = full ? '2000-01-01' : isoDaysAgo(sinceDays);
+
 
   const [meta, sms, donations] = await Promise.all([
     admin.from('meta_ad_metrics').select('date, spend, impressions, clicks').eq('organization_id', orgId).gte('date', since),
@@ -397,12 +417,16 @@ export async function runOrgSync(
   admin: SupabaseClient,
   orgId: string,
   sinceDays = 30,
+  opts: { full?: boolean; onlyPlatform?: Platform } = {},
 ): Promise<{ org_id: string; results: PlatformResult[]; aggregated: number }> {
-  const { data: creds } = await admin
+  const full = !!opts.full;
+  let query = admin
     .from('client_api_credentials')
     .select('platform, encrypted_credentials, is_active')
     .eq('organization_id', orgId)
     .eq('is_active', true);
+  if (opts.onlyPlatform) query = query.eq('platform', opts.onlyPlatform);
+  const { data: creds } = await query;
 
   const results: PlatformResult[] = [];
   for (const row of creds ?? []) {
@@ -415,9 +439,9 @@ export async function runOrgSync(
     }
 
     let result: PlatformResult;
-    if (row.platform === 'meta') result = await syncMeta(admin, orgId, decrypted, sinceDays);
-    else if (row.platform === 'switchboard') result = await syncSwitchboard(admin, orgId, decrypted, sinceDays);
-    else if (row.platform === 'actblue') result = await syncActblue(admin, orgId, decrypted, sinceDays);
+    if (row.platform === 'meta') result = await syncMeta(admin, orgId, decrypted, sinceDays, full);
+    else if (row.platform === 'switchboard') result = await syncSwitchboard(admin, orgId, decrypted, sinceDays, full);
+    else if (row.platform === 'actblue') result = await syncActblue(admin, orgId, decrypted, sinceDays, full);
     else result = { platform: row.platform, ok: false, rows: 0, error: 'Unknown platform' };
 
     results.push(result);
@@ -438,6 +462,6 @@ export async function runOrgSync(
       .eq('platform', row.platform);
   }
 
-  const aggregated = await aggregateDaily(admin, orgId, sinceDays);
+  const aggregated = await aggregateDaily(admin, orgId, sinceDays, full);
   return { org_id: orgId, results, aggregated };
 }

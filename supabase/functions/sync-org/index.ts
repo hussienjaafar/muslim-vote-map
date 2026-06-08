@@ -28,6 +28,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const organizationId = body?.organizationId;
+    const full = body?.full === true;
     const sinceDays = Math.min(Math.max(Number(body?.sinceDays) || 30, 1), 365);
     if (!organizationId) return json({ error: 'organizationId is required' }, 400);
 
@@ -41,7 +42,7 @@ Deno.serve(async (req) => {
     }
     if (!allowed) return json({ error: 'Forbidden' }, 403);
 
-    const result = await runOrgSync(admin, organizationId, sinceDays);
+    const result = await runOrgSync(admin, organizationId, sinceDays, { full });
     return json({ ok: true, ...result });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : 'Unknown error' }, 500);

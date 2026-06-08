@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
   try {
     const { data: jobs, error } = await admin
       .from('actblue_csv_jobs')
-      .select('id, organization_id, csv_id, since_days, attempts')
+      .select('id, organization_id, csv_id, since_days, attempts, date_range_start')
       .eq('status', 'processing')
       .order('created_at', { ascending: true })
       .limit(1); // Process one job per invocation to stay within the CPU budget.
@@ -88,7 +88,13 @@ Deno.serve(async (req) => {
           if (upsertFailed) continue;
         }
 
-        await aggregateDaily(admin, job.organization_id, job.since_days ?? 30);
+        // Aggregate over the full imported range so backfilled history (not just
+        // the last `since_days`) shows on the dashboard. Use the job's window
+        // start when available, otherwise fall back to a full re-aggregation.
+        const sinceDate = job.date_range_start
+          ? String(job.date_range_start).slice(0, 10)
+          : undefined;
+        await aggregateDaily(admin, job.organization_id, job.since_days ?? 30, !sinceDate, sinceDate);
 
         await admin.from('actblue_csv_jobs').update({ status: 'complete', last_error: null, rows_imported: rows.length }).eq('id', job.id);
         await admin

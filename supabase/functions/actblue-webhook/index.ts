@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { decryptJson, type EncryptedPayload } from '../_shared/crypto.ts';
 import { aggregateDaily } from '../_shared/sync-lib.ts';
+import { normalizeActBlueTimestamp } from '../_shared/actblue-timezone.ts';
 
 // Public endpoint (no JWT). ActBlue posts contributions here in real time.
 // Configure in ActBlue with this function URL.
@@ -147,7 +148,7 @@ Deno.serve(async (req) => {
       form_name: c.contributionForm ?? c.formName ?? c.fundraisingPageName ?? null,
       transaction_type: 'donation',
       is_recurring: isRecurring,
-      transaction_date: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
+      transaction_date: normalizeActBlueTimestamp(c.createdAt),
     };
 
     const { error } = await admin

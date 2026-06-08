@@ -1,5 +1,6 @@
 // Shared fundraising sync logic, used by sync-org and sync-all-orgs.
 import { decryptJson, type EncryptedPayload } from './crypto.ts';
+import { normalizeActBlueTimestamp } from './actblue-timezone.ts';
 
 // deno-lint-ignore no-explicit-any
 type SupabaseClient = any;
@@ -360,7 +361,7 @@ export function parseActblueCsv(text: string, orgId: string): Record<string, unk
       form_name: formName,
       transaction_type: 'donation',
       is_recurring: isRecurring,
-      transaction_date: parseDate(get('date')),
+      transaction_date: normalizeActBlueTimestamp(get('date')),
     });
   }
   return out;
@@ -386,10 +387,6 @@ function splitCsvLine(line: string): string[] {
   return out;
 }
 
-function parseDate(s: string): string {
-  const d = new Date(s);
-  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
-}
 
 /**
  * Recomputes daily_aggregated_metrics for an org over the window.

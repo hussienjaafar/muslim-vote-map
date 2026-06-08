@@ -1,38 +1,51 @@
-# Fix recurring flag + richer, infinite-scroll Recent Donations
+# Fix: donation times are an INGEST (timestamp) bug, not a visualization bug
 
-## 1. Fix the recurring detection (data bug)
-Per ActBlue's CSV field spec:
-- `Recurrence Number` shows `"1"` for one-time gifts (so matching `1` is wrong).
-- `Recurring Period` = `once` for one-time, `weekly`/`monthly` for recurring.
-- `Recurring Total Months` is empty for one-time, a number or `unlimited` for recurring.
+## Verdict after studying Molitico end-to-end
+This is **confirmed a timestamp/ingest problem**, not a charting/display problem. Proof: the newest stored row holds `2026-06-08 13:34:22+00`. Displaying that as Eastern gives 9:34 AM — but you know it was ~1:34 PM ET. A *correct* UTC instant for a 1:34 PM ET donation would be `17:34Z`. So the stored instant itself is wrong by the ET offset; no display tweak can recover the right time from a corrupted instant.
 
-In `supabase/functions/_shared/sync-lib.ts` (`parseActblueCsv`), replace the regex with:
-- `recurring = period !== '' && period !== 'once'` using `Recurring Period` / `Recurrence Frequency`; fallback to "`Recurring Total Months` is non-empty" when the period column is absent.
+### How Molitico does it (the reference, traced fully)
+**Ingest → stores a correct UTC instant.** ActBlue sends Eastern wall-clock with no timezone suffix. Molitico runs every incoming timestamp through `supabase/functions/_shared/actblue-timezone.ts` → `normalizeActBlueTimestamp()`:
+- If the string already has `Z` / `±HH:MM`, parse and keep.
+- If no offset, treat as **America/New_York**, compute EDT(−04:00) vs EST(−05:00) via a manual DST calc, append the offset, then `.toISOString()` → the true UTC instant.
+This runs in its `actblue-webhook` (real-time) and its CSV/sync paths, so `transaction_date` is always a genuine UTC instant.
 
-In `supabase/functions/actblue-webhook/index.ts`, align the live path: treat `recurringPeriod === 'once'` (or missing recurring fields) as one-time instead of `!!recurringPeriod`.
+**Read.** RPC `get_recent_donations(_organization_id, _date, _limit, _timezone)` returns `transaction_date` as the **raw TIMESTAMPTZ** (the true instant). It only uses `_timezone` to *filter* by local day: `(t.transaction_date AT TIME ZONE _timezone)::DATE = _date`. It does not shift the returned instant.
 
-## 2. Capture the form name
-Add a `form_name` column to `actblue_transactions` (migration). Populate it:
-- CSV (`parseActblueCsv`): from `Form Name` / `Contribution Form`.
-- Webhook: from `contributionForm` / `formName`.
-(`source_campaign` currently stores the fundraising-page link and is unused in the UI; leave it as-is.)
+**Display.** `RecentActivityFeed.tsx` renders `format(new Date(transaction_date), "h:mm a")` + `formatDistanceToNow(...)` "X minutes ago". Because the stored instant is correct, this shows the right time.
 
-## 3. Backfill existing rows
-The historical 10,978 rows are mis-flagged and have no form name. After deploying the parser fix, run a one-time full re-sync (the existing 4-window backfill in `sync-all-orgs` + per-minute `process-actblue-jobs` worker) so the corrected `is_recurring` and new `form_name` values upsert over the existing transactions.
+**"Live in real time" = webhook ingest + polling, not websockets.** Molitico ingests each donation the moment ActBlue posts to its `actblue-webhook`. The feed hook (`useRecentDonations`) is a react-query poll: `refetchInterval: 30s` when viewing today (`5 min` for the combined metrics), with a pulsing "Live" badge. No Postgres realtime channel is used for donations.
 
-## 4. Recent Donations: more detail + infinite scroll
-**Query** (`src/queries/useFundraisingQueries.ts`): convert `useRecentDonations` to a `useInfiniteQuery` that pages `actblue_transactions` with `.range()` (e.g. 25/page), ordered by `transaction_date desc`, selecting `donor_name, amount, is_recurring, transaction_date, refcode, form_name`. Keep the 60s refetch behavior.
+### Why ours is broken (contrast)
+- Ingest: `sync-lib.ts` `parseDate` does `new Date(s).toISOString()` → reads ActBlue's Eastern string as UTC → stores it 4–5h early.
+- Display: `Dashboard.tsx` `fmtEastern` then converts that already-wrong instant to ET, subtracting another 4h → 9:34 AM.
+- Real-time: our `actblue_transactions` rows all arrived via **CSV sync batches** (clustered `created_at`); there are **no webhook-ingested rows**. That's why the 2:19 PM donation wasn't there yet — data only advances when the CSV sync runs (last run 1:47 PM ET), not live. The webhook function exists but isn't producing rows.
 
-**Widget** (`src/pages/Dashboard.tsx`): render the flattened pages in the Recent Donations card with:
-- Full timestamp (date + time, e.g. `Jun 8, 2026 · 1:34 PM`).
-- Form name line (when present), alongside the existing refcode.
-- The "Recurring" badge only on truly recurring rows.
-- Infinite scroll: a sentinel div observed via `IntersectionObserver` that calls `fetchNextPage()` when it enters view, with a loading spinner while fetching and a subtle "end of list" state. The card body gets a max height with internal scroll so it doesn't push the page indefinitely.
+## Plan
 
-## Verification
-- Confirm new/re-synced June 8 rows show a realistic mix of one-time vs recurring (not ~100% recurring).
-- Scroll the widget and confirm older donations load in pages, each showing time + form name.
-- Confirm the 60s auto-refresh + manual Refresh still work.
+### 1. Port Molitico's normalization util
+Create `supabase/functions/_shared/actblue-timezone.ts` with `normalizeActBlueTimestamp()` + `isEasternDST()` (same logic as Molitico).
 
-## Open question
-For the infinite-scroll list, do you want it capped at a scrollable panel (e.g. ~480px tall, scroll within the card) or expanding the whole page as you scroll? I'll default to a scrollable panel unless you prefer full-page.
+### 2. Apply it at every ingest point
+- `supabase/functions/_shared/sync-lib.ts`: replace `parseDate(get('date'))` with `normalizeActBlueTimestamp(get('date'))`.
+- `supabase/functions/actblue-webhook/index.ts`: wrap `c.createdAt` with `normalizeActBlueTimestamp(...)`.
+
+### 3. Backfill existing mislabeled rows (migration)
+```sql
+UPDATE public.actblue_transactions
+SET transaction_date =
+  (transaction_date AT TIME ZONE 'UTC') AT TIME ZONE 'America/New_York';
+```
+Reinterprets each stored wall-clock as Eastern → writes back the true UTC instant (verified to yield the correct times). DST-safe.
+
+### 4. Re-aggregate daily metrics
+Re-run the rollup so `daily_aggregated_metrics` reflects corrected instants. `org_daily_rollup` / `org_new_donors_since` already bucket by `America/New_York`, so once instants are right the chart and new-donor counts are right.
+
+### 5. Verify
+Confirm newest donation shows real Eastern time and chart day totals stay correctly bucketed.
+
+## Decisions for you
+1. **Display timezone.** Molitico shows the viewer's **local** time; we currently force **Eastern** (`fmtEastern`). Your brand reports in ET, so I recommend keeping forced ET — just operating on corrected data. Want local-time (Molitico-exact) instead?
+2. **True real-time.** The CSV-only data flow is why the feed lags. Do you want me to (a) verify/enable the ActBlue webhook so donations land live, and/or (b) tighten the recent-donations poll to 30s like Molitico? (Webhook configuration may need the ActBlue endpoint/secret set up — separate from this timezone fix.)
+
+## Out of scope
+No schema changes beyond the one-time backfill; chart aggregation logic unchanged (already ET-correct once data is fixed).

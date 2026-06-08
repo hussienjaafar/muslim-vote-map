@@ -19,7 +19,7 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export type PlatformResult = { platform: Platform; ok: boolean; rows: number; error?: string };
+export type PlatformResult = { platform: Platform; ok: boolean; rows: number; error?: string; queued?: boolean };
 
 /**
  * Meta Ads sync. Pulls campaign-level daily insights via the Graph API.

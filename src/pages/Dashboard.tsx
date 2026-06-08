@@ -271,7 +271,7 @@ export default function Dashboard() {
                     <div className="min-w-0">
                       <p className="text-sm text-foreground truncate">{d.donor_name || 'Anonymous donor'}</p>
                       <p className="text-xs text-muted-foreground">
-                        {format(parseISO(d.transaction_date), "MMM d, yyyy 'at' h:mm a")}
+                        {fmtEastern(d.transaction_date)}
                       </p>
                       {(d.form_name || d.refcode) && (
                         <p className="text-[11px] text-muted-foreground/70 truncate">

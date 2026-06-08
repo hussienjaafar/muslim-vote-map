@@ -267,7 +267,11 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                   <XAxis
                     dataKey={isHourly ? 'hour' : 'date'}
-                    tickFormatter={(v) => (isHourly ? fmtHour(Number(v)) : format(parseISO(String(v)), 'MMM d'))}
+                    tickFormatter={(v) => {
+                      if (isHourly) return fmtHour(Number(v));
+                      const d = parseISO(String(v));
+                      return isNaN(d.getTime()) ? String(v) : format(d, 'MMM d');
+                    }}
                     tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}

@@ -11,12 +11,19 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { Building2, Search, Plus, Users, ChevronRight } from 'lucide-react';
+import { Building2, Search, Plus, Users, ChevronRight, Eye } from 'lucide-react';
 import { useAdminOrganizations, useCreateOrganization } from '@/queries/useAdminOrgQueries';
+import { useOrg } from '@/contexts/OrgContext';
 
 export default function Organizations() {
   const navigate = useNavigate();
+  const { startImpersonation } = useOrg();
   const { data: orgs, isLoading } = useAdminOrganizations();
+
+  const handleViewDashboard = (o: { id: string; name: string; logo_url: string | null }) => {
+    startImpersonation({ id: o.id, name: o.name, logo_url: o.logo_url });
+    navigate('/dashboard');
+  };
   const createOrg = useCreateOrganization();
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);

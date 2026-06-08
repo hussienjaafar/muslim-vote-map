@@ -143,11 +143,10 @@ const PLATFORMS: { id: Platform; name: string; icon: typeof Plug; fields: Field[
       { key: 'username', label: 'CSV API username', placeholder: 'CSV API username' },
       { key: 'password', label: 'CSV API password', placeholder: 'CSV API password' },
       { key: 'entity_id', label: 'Entity ID', placeholder: 'ActBlue entity ID' },
-      { key: 'webhook_secret', label: 'Webhook secret (optional)' },
-      { key: 'basic_auth_username', label: 'Webhook username (optional)' },
-      { key: 'basic_auth_password', label: 'Webhook password (optional)' },
+      { key: 'basic_auth_username', label: 'Webhook Username', placeholder: 'Choose a username' },
+      { key: 'basic_auth_password', label: 'Webhook Password', placeholder: 'Choose a password' },
     ],
-    help: 'CSV username, password & Entity ID power scheduled pulls. Add a webhook secret (HMAC) or webhook username/password to enable real-time donations.',
+    help: 'CSV API username/password + Entity ID power scheduled pulls. For real-time donations: copy the Webhook URL below, then in ActBlue → Tools → Integrations → Webhooks → "Create a new webhook" → choose "ActBlue Default", paste the Webhook URL as the Endpoint URL, and set a Username & Password there that match the Webhook Username/Password you enter here. Your Entity ID is shown on ActBlue\'s Webhook Integrations page.',
   },
 
 ];

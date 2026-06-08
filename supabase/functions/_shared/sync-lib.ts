@@ -211,35 +211,65 @@ async function syncActblue(
   const auth = 'Basic ' + btoa(`${username}:${password}`);
   const base = 'https://secure.actblue.com/api/v1';
 
-  // Full backfills pull all-time contributions (ActBlue launched in 2004).
-  const dateRangeStart = full ? '2004-01-01' : isoDaysAgo(sinceDays);
-
-  // Request a CSV export for the window; the worker polls for completion later.
-  const reqRes = await fetch(`${base}/csvs`, {
-    method: 'POST',
-    headers: { Authorization: auth, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ csv_type: 'paid_contributions', date_range_start: dateRangeStart, date_range_end: todayIso() }),
-  });
-  if (!reqRes.ok) {
-    const text = await reqRes.text();
-    return { platform: 'actblue', ok: false, rows: 0, error: `ActBlue API ${reqRes.status}: ${text.slice(0, 200)}` };
+  // ActBlue rejects any export whose date range exceeds 6 months. Build a list
+  // of <=6-month windows to request. Full backfills cover the last 2 years in
+  // four 6-month chunks; incremental syncs use a single clamped window.
+  const isoMonthsAgo = (months: number): string => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - months);
+    return d.toISOString().slice(0, 10);
+  };
+  const windows: { start: string; end: string }[] = [];
+  if (full) {
+    for (const startMonths of [24, 18, 12, 6]) {
+      windows.push({ start: isoMonthsAgo(startMonths), end: isoMonthsAgo(startMonths - 6) });
+    }
+  } else {
+    const days = Math.min(Math.max(sinceDays, 1), 180); // cap at ~6 months
+    windows.push({ start: isoDaysAgo(days), end: todayIso() });
   }
-  const reqJson = await reqRes.json();
-  const csvId = reqJson.id;
-  if (!csvId) {
-    return { platform: 'actblue', ok: false, rows: 0, error: 'ActBlue did not return an export id' };
+
+  let queuedCount = 0;
+  const errors: string[] = [];
+  for (const w of windows) {
+    const reqRes = await fetch(`${base}/csvs`, {
+      method: 'POST',
+      headers: { Authorization: auth, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csv_type: 'paid_contributions', date_range_start: w.start, date_range_end: w.end }),
+    });
+    if (!reqRes.ok) {
+      const text = await reqRes.text();
+      errors.push(`${w.start}..${w.end}: ${reqRes.status} ${text.slice(0, 120)}`);
+      continue;
+    }
+    const reqJson = await reqRes.json();
+    const csvId = reqJson.id;
+    if (!csvId) {
+      errors.push(`${w.start}..${w.end}: no export id`);
+      continue;
+    }
+    const { error: jobErr } = await admin.from('actblue_csv_jobs').insert({
+      organization_id: orgId,
+      csv_id: String(csvId),
+      status: 'processing',
+      since_days: sinceDays,
+      date_range_start: w.start,
+      date_range_end: w.end,
+    });
+    if (jobErr) {
+      errors.push(`${w.start}..${w.end}: ${jobErr.message}`);
+      continue;
+    }
+    queuedCount++;
   }
 
-  // Record a background job so the worker can finish the import.
-  const { error: jobErr } = await admin.from('actblue_csv_jobs').insert({
-    organization_id: orgId,
-    csv_id: String(csvId),
-    status: 'processing',
-    since_days: sinceDays,
-  });
-  if (jobErr) return { platform: 'actblue', ok: false, rows: 0, error: jobErr.message };
-
-  return { platform: 'actblue', ok: true, rows: 0, queued: true };
+  if (queuedCount === 0) {
+    return { platform: 'actblue', ok: false, rows: 0, error: `ActBlue export failed: ${errors.join('; ').slice(0, 200)}` };
+  }
+  const note = full
+    ? `${queuedCount} ActBlue export window(s) queued${errors.length ? ` (${errors.length} failed)` : ''}`
+    : undefined;
+  return { platform: 'actblue', ok: true, rows: 0, queued: true, note };
 }
 
 /**

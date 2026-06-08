@@ -27,6 +27,7 @@ import OrderDetail from "./pages/admin/OrderDetail.tsx";
 import ProductsPage from "./pages/admin/Products.tsx";
 import DataManagement from "./pages/admin/DataManagement.tsx";
 import LiveActivity from "./pages/admin/LiveActivity.tsx";
+import WebhookDeliveries from "./pages/admin/WebhookDeliveries.tsx";
 import Organizations from "./pages/admin/Organizations.tsx";
 import OrganizationDetail from "./pages/admin/OrganizationDetail.tsx";
 import RequestAccess from "./pages/RequestAccess.tsx";
@@ -78,6 +79,7 @@ const App = () => (
             <Route path="orgs/:orgId" element={<OrganizationDetail />} />
             <Route path="issue-map" element={<IssueDonorMap isAdminView />} />
             <Route path="live" element={<LiveActivity />} />
+            <Route path="webhooks" element={<WebhookDeliveries />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

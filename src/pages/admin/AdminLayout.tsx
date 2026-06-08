@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, ShoppingCart, Package, Database, Map, LogOut, Search, User, Activity, Target, MoreHorizontal, Building2 } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, Package, Database, Map, LogOut, Search, User, Activity, Target, MoreHorizontal, Building2, Radio } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/hooks/useAuth';
@@ -21,6 +21,7 @@ const navItems = [
   { title: 'Data', url: '/admin/data', icon: Database },
   { title: 'Map', url: '/admin/issue-map', icon: Map },
   { title: 'Live', url: '/admin/live', icon: Activity },
+  { title: 'Webhooks', url: '/admin/webhooks', icon: Radio },
 ];
 
 // Top 4 + "More" overflow on mobile bottom nav

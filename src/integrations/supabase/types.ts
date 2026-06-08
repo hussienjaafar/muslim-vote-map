@@ -84,6 +84,7 @@ export type Database = {
           id: string
           last_error: string | null
           organization_id: string
+          rows_imported: number | null
           since_days: number
           status: string
           updated_at: string
@@ -95,6 +96,7 @@ export type Database = {
           id?: string
           last_error?: string | null
           organization_id: string
+          rows_imported?: number | null
           since_days?: number
           status?: string
           updated_at?: string
@@ -106,6 +108,7 @@ export type Database = {
           id?: string
           last_error?: string | null
           organization_id?: string
+          rows_imported?: number | null
           since_days?: number
           status?: string
           updated_at?: string

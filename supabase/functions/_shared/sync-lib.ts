@@ -360,9 +360,19 @@ function parseDate(s: string): string {
   return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 }
 
-/** Recomputes daily_aggregated_metrics for an org over the window. */
-export async function aggregateDaily(admin: SupabaseClient, orgId: string, sinceDays: number, full = false): Promise<number> {
-  const since = full ? '2000-01-01' : isoDaysAgo(sinceDays);
+/**
+ * Recomputes daily_aggregated_metrics for an org over the window.
+ * Pass `sinceDate` (YYYY-MM-DD) to aggregate from an explicit start date,
+ * `full=true` to aggregate all history, otherwise the last `sinceDays` days.
+ */
+export async function aggregateDaily(
+  admin: SupabaseClient,
+  orgId: string,
+  sinceDays: number,
+  full = false,
+  sinceDate?: string,
+): Promise<number> {
+  const since = sinceDate ?? (full ? '2000-01-01' : isoDaysAgo(sinceDays));
 
 
   const [meta, sms, donations] = await Promise.all([

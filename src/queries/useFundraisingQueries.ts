@@ -60,6 +60,8 @@ export function useFundraisingSummary(orgId: string | null, range: ResolvedRange
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    retry: 2,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const empty: FundraisingSummary = {
         fallback: false,

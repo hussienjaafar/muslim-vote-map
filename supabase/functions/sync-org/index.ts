@@ -28,6 +28,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const organizationId = body?.organizationId;
+    const full = body?.full === true;
     const sinceDays = Math.min(Math.max(Number(body?.sinceDays) || 30, 1), 365);
     if (!organizationId) return json({ error: 'organizationId is required' }, 400);
 

@@ -892,6 +892,48 @@ export type Database = {
         }
         Relationships: []
       }
+      meta_ad_hourly_metrics: {
+        Row: {
+          campaign_id: string
+          clicks: number
+          created_at: string
+          date: string
+          hour: number
+          id: string
+          impressions: number
+          organization_id: string
+          spend: number
+          synced_at: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          clicks?: number
+          created_at?: string
+          date: string
+          hour: number
+          id?: string
+          impressions?: number
+          organization_id: string
+          spend?: number
+          synced_at?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          clicks?: number
+          created_at?: string
+          date?: string
+          hour?: number
+          id?: string
+          impressions?: number
+          organization_id?: string
+          spend?: number
+          synced_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       meta_ad_metrics: {
         Row: {
           ad_id: string | null
@@ -1678,6 +1720,15 @@ export type Database = {
       }
       is_email_suppressed: { Args: never; Returns: boolean }
       is_invited: { Args: { check_email: string }; Returns: boolean }
+      meta_hourly_rollup: {
+        Args: { _day: string; _org_id: string }
+        Returns: {
+          clicks: number
+          hour: number
+          impressions: number
+          spend: number
+        }[]
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string

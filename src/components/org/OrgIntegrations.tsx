@@ -326,6 +326,7 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
                 </div>
               )}
               {p.id === 'actblue' && <WebhookUrlField url={ACTBLUE_WEBHOOK_URL} />}
+              {p.id === 'actblue' && connected && <ActblueHistory orgId={orgId} />}
               <div className="grid sm:grid-cols-2 gap-3">
 
 

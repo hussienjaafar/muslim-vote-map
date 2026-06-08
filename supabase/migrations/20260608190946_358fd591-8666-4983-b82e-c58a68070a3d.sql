@@ -1,0 +1,1 @@
+DELETE FROM public.actblue_transactions WHERE transaction_id IN ('WEBHOOK-TEST-001','WEBHOOK-TEST-002');

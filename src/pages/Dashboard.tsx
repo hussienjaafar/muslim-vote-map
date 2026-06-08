@@ -183,21 +183,8 @@ export default function Dashboard() {
               )}
             </div>
             <OrgSwitcher />
-            <div className="inline-flex rounded-md border border-border bg-card/60 p-0.5">
-              {RANGES.map((r) => (
-                <button
-                  key={r.days}
-                  onClick={() => setDays(r.days)}
-                  className={`px-3 h-8 text-xs font-bold rounded-[5px] transition-colors ${
-                    days === r.days
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
+            <DateRangePicker value={selection} onChange={setSelection} />
+
           </div>
         </header>
 

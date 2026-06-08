@@ -14,28 +14,6 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-async function computeHmac(body: string, secret: string): Promise<string> {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(body));
-  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return result === 0;
-}
-
-async function validateHmac(header: string | null, body: string, secret: string): Promise<boolean> {
-  if (!header || !secret) return false;
-  const parts = header.split('=');
-  if (parts.length !== 2 || parts[0] !== 'sha256') return false;
-  const computed = await computeHmac(body, secret);
-  return timingSafeEqual(parts[1], computed);
-}
-
 function validateBasicAuth(header: string | null, user: string, pass: string): boolean {
   if (!header || !header.startsWith('Basic ')) return false;
   try {

@@ -9,6 +9,14 @@ type Platform = 'meta' | 'switchboard' | 'actblue';
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
+// ActBlue treats a CSV export's date_range_end as EXCLUSIVE, so using today's
+// date cuts off all of today's donations. Use tomorrow as the end bound so the
+// current day is always fully included.
+function tomorrowIso(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 function isoDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);

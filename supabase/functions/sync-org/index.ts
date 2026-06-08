@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     }
     if (!allowed) return json({ error: 'Forbidden' }, 403);
 
-    const result = await runOrgSync(admin, organizationId, sinceDays);
+    const result = await runOrgSync(admin, organizationId, sinceDays, { full });
     return json({ ok: true, ...result });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : 'Unknown error' }, 500);

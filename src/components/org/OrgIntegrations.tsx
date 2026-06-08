@@ -92,7 +92,11 @@ function ActblueHistory({ orgId }: { orgId: string }) {
               {j.status === 'complete' && <CheckCircle2 className="w-3 h-3 text-primary shrink-0" />}
               {j.status === 'error' && <AlertCircle className="w-3 h-3 text-destructive shrink-0" />}
               <span className="capitalize font-medium">{j.status}</span>
-              <span className="text-muted-foreground">· last {j.since_days}d</span>
+              {j.date_range_start && j.date_range_end ? (
+                <span className="text-muted-foreground">· {j.date_range_start} → {j.date_range_end}</span>
+              ) : (
+                <span className="text-muted-foreground">· last {j.since_days}d</span>
+              )}
               {j.status === 'complete' && j.rows_imported != null && (
                 <span className="text-muted-foreground">· {j.rows_imported} record(s)</span>
               )}

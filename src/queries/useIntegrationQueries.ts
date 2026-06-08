@@ -139,6 +139,8 @@ export type ActblueJob = {
   attempts: number;
   rows_imported: number | null;
   last_error: string | null;
+  date_range_start: string | null;
+  date_range_end: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -155,7 +157,7 @@ export function useActblueJobs(orgId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('actblue_csv_jobs')
-        .select('id, csv_id, status, since_days, attempts, rows_imported, last_error, created_at, updated_at')
+        .select('id, csv_id, status, since_days, attempts, rows_imported, last_error, date_range_start, date_range_end, created_at, updated_at')
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false })
         .limit(10);

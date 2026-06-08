@@ -417,12 +417,16 @@ export async function runOrgSync(
   admin: SupabaseClient,
   orgId: string,
   sinceDays = 30,
+  opts: { full?: boolean; onlyPlatform?: Platform } = {},
 ): Promise<{ org_id: string; results: PlatformResult[]; aggregated: number }> {
-  const { data: creds } = await admin
+  const full = !!opts.full;
+  let query = admin
     .from('client_api_credentials')
     .select('platform, encrypted_credentials, is_active')
     .eq('organization_id', orgId)
     .eq('is_active', true);
+  if (opts.onlyPlatform) query = query.eq('platform', opts.onlyPlatform);
+  const { data: creds } = await query;
 
   const results: PlatformResult[] = [];
   for (const row of creds ?? []) {
@@ -435,9 +439,9 @@ export async function runOrgSync(
     }
 
     let result: PlatformResult;
-    if (row.platform === 'meta') result = await syncMeta(admin, orgId, decrypted, sinceDays);
-    else if (row.platform === 'switchboard') result = await syncSwitchboard(admin, orgId, decrypted, sinceDays);
-    else if (row.platform === 'actblue') result = await syncActblue(admin, orgId, decrypted, sinceDays);
+    if (row.platform === 'meta') result = await syncMeta(admin, orgId, decrypted, sinceDays, full);
+    else if (row.platform === 'switchboard') result = await syncSwitchboard(admin, orgId, decrypted, sinceDays, full);
+    else if (row.platform === 'actblue') result = await syncActblue(admin, orgId, decrypted, sinceDays, full);
     else result = { platform: row.platform, ok: false, rows: 0, error: 'Unknown platform' };
 
     results.push(result);
@@ -458,6 +462,6 @@ export async function runOrgSync(
       .eq('platform', row.platform);
   }
 
-  const aggregated = await aggregateDaily(admin, orgId, sinceDays);
+  const aggregated = await aggregateDaily(admin, orgId, sinceDays, full);
   return { org_id: orgId, results, aggregated };
 }

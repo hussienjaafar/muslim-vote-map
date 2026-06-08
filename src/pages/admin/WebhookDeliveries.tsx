@@ -97,6 +97,8 @@ export default function WebhookDeliveries() {
                 <th className="px-4 py-3 font-bold">Received</th>
                 <th className="px-4 py-3 font-bold">Status</th>
                 <th className="px-4 py-3 font-bold">HTTP</th>
+                <th className="px-4 py-3 font-bold">Donation</th>
+                <th className="px-4 py-3 font-bold">Donor</th>
                 <th className="px-4 py-3 font-bold">Auth</th>
                 <th className="px-4 py-3 font-bold">Source IP</th>
                 <th className="px-4 py-3 font-bold">Entity IDs</th>
@@ -105,7 +107,9 @@ export default function WebhookDeliveries() {
               </tr>
             </thead>
             <tbody>
-              {data.map((d) => (
+              {data.map((d) => {
+                const { amount, donor } = parseDonation(d.payload);
+                return (
                 <tr key={d.id} className="border-b border-white/5 hover:bg-white/[0.02]">
                   <td className="px-4 py-3 whitespace-nowrap text-muted-foreground tabular-nums">
                     {format(new Date(d.received_at), 'MMM d, HH:mm:ss')}
@@ -114,6 +118,10 @@ export default function WebhookDeliveries() {
                     {d.processing_status}
                   </td>
                   <td className="px-4 py-3 tabular-nums text-foreground">{d.response_status ?? '—'}</td>
+                  <td className="px-4 py-3 tabular-nums text-emerald-400 font-bold whitespace-nowrap">
+                    {amount != null ? `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground max-w-[180px] truncate" title={donor ?? ''}>{donor ?? '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground">{String((d.headers as any)?.auth_scheme ?? '—')}</td>
                   <td className="px-4 py-3 text-muted-foreground tabular-nums">{d.source_ip ?? '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground">{d.entity_ids_found?.join(', ') || '—'}</td>

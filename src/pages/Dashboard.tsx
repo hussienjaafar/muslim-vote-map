@@ -49,7 +49,7 @@ export default function Dashboard() {
 
   const orgId = activeOrg?.id ?? null;
   useRealtimeFundraising(orgId);
-  const { data: summary, isLoading, isFetching: summaryFetching } = useFundraisingSummary(orgId, days);
+  const { data: summary, isLoading, isFetching: summaryFetching, dataUpdatedAt } = useFundraisingSummary(orgId, days);
   const {
     data: donationsData,
     isFetching: donationsFetching,
@@ -58,6 +58,13 @@ export default function Dashboard() {
     isFetchingNextPage,
   } = useRecentDonations(orgId);
   const refreshing = summaryFetching || donationsFetching;
+
+  const lastUpdated = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString('en-US', {
+        timeZone: 'America/New_York',
+        hour: 'numeric', minute: '2-digit', second: '2-digit',
+      }) + ' ET'
+    : null;
 
   const donationRows = useMemo(
     () => donationsData?.pages.flat() ?? [],

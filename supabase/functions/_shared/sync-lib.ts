@@ -312,7 +312,7 @@ function parseDate(s: string): string {
 }
 
 /** Recomputes daily_aggregated_metrics for an org over the window. */
-async function aggregateDaily(admin: SupabaseClient, orgId: string, sinceDays: number): Promise<number> {
+export async function aggregateDaily(admin: SupabaseClient, orgId: string, sinceDays: number): Promise<number> {
   const since = isoDaysAgo(sinceDays);
 
   const [meta, sms, donations] = await Promise.all([

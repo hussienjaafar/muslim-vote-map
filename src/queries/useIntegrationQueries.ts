@@ -119,7 +119,7 @@ export function useRunSync(orgId: string | undefined) {
       });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);
-      return data as { results: { platform: string; ok: boolean; rows: number; error?: string }[]; aggregated: number };
+      return data as { results: { platform: string; ok: boolean; rows: number; error?: string; queued?: boolean }[]; aggregated: number };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['org-credentials', orgId] });

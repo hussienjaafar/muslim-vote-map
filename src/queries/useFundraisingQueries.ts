@@ -1,5 +1,6 @@
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { etDayStartUtc, etDayEndUtc, type ResolvedRange } from '@/lib/dateRanges';
 
 export type DailyMetric = {
   date: string;
@@ -12,6 +13,13 @@ export type DailyMetric = {
   meta_impressions: number;
   meta_clicks: number;
   sms_conversions: number;
+};
+
+export type HourlyMetric = {
+  /** 0-23 ET hour */
+  hour: number;
+  donations: number;
+  funds: number;
 };
 
 export type RecentDonation = {
@@ -38,19 +46,13 @@ export type FundraisingSummary = {
   };
 };
 
-function isoDaysAgo(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
-}
-
 /**
- * Aggregated daily fundraising metrics for an org over a window of days.
+ * Aggregated daily fundraising metrics for an org over an inclusive ET date range.
  * Resolves with { fallback: true, error } on failure so the UI never crashes.
  */
-export function useFundraisingSummary(orgId: string | null, days: number) {
+export function useFundraisingSummary(orgId: string | null, range: ResolvedRange) {
   return useQuery<FundraisingSummary>({
-    queryKey: ['fundraising-summary', orgId, days],
+    queryKey: ['fundraising-summary', orgId, range.start, range.end],
     enabled: !!orgId,
     staleTime: 15_000,
     refetchInterval: 30_000,
@@ -71,7 +73,8 @@ export function useFundraisingSummary(orgId: string | null, days: number) {
           'date, total_ad_spend, total_sms_cost, total_funds_raised, total_donations, new_donors, roi_percentage, meta_impressions, meta_clicks, sms_conversions'
         )
         .eq('organization_id', orgId)
-        .gte('date', isoDaysAgo(days))
+        .gte('date', range.start)
+        .lte('date', range.end)
         .order('date', { ascending: true });
 
       if (error) {
@@ -110,12 +113,53 @@ export function useFundraisingSummary(orgId: string | null, days: number) {
   });
 }
 
+/**
+ * Hourly donation rollup (ET) for a single day — powers the Today/Yesterday chart.
+ * Returns a zero-filled 24-bucket array. Only enabled for single-day views.
+ */
+export function useHourlyFundraising(orgId: string | null, day: string | null, enabled: boolean) {
+  return useQuery<HourlyMetric[]>({
+    queryKey: ['fundraising-hourly', orgId, day],
+    enabled: !!orgId && !!day && enabled,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    queryFn: async () => {
+      const buckets: HourlyMetric[] = Array.from({ length: 24 }, (_, hour) => ({ hour, donations: 0, funds: 0 }));
+      if (!orgId || !day) return buckets;
+
+      const { data, error } = await supabase.rpc('org_hourly_rollup', { _org_id: orgId, _day: day });
+      if (error) return buckets;
+
+      for (const r of (data ?? []) as any[]) {
+        const h = Number(r.hour);
+        if (h >= 0 && h < 24) {
+          buckets[h].donations = Number(r.donations) || 0;
+          buckets[h].funds = Number(r.funds) || 0;
+        }
+      }
+      return buckets;
+    },
+  });
+}
+
 const DONATIONS_PAGE_SIZE = 25;
 
-/** Paginated recent ActBlue donations for an org (infinite scroll). Never throws. */
-export function useRecentDonations(orgId: string | null, pageSize = DONATIONS_PAGE_SIZE) {
+/**
+ * Paginated ActBlue donations for an org within the selected ET range
+ * (infinite scroll). Never throws.
+ */
+export function useRecentDonations(
+  orgId: string | null,
+  range: ResolvedRange,
+  pageSize = DONATIONS_PAGE_SIZE
+) {
+  const startUtc = etDayStartUtc(range.start);
+  const endUtc = etDayEndUtc(range.end);
+
   return useInfiniteQuery({
-    queryKey: ['recent-donations', orgId, pageSize],
+    queryKey: ['recent-donations', orgId, range.start, range.end, pageSize],
     enabled: !!orgId,
     staleTime: 10_000,
     refetchInterval: 20_000,
@@ -132,6 +176,8 @@ export function useRecentDonations(orgId: string | null, pageSize = DONATIONS_PA
         .from('actblue_transactions')
         .select('id, donor_name, amount, is_recurring, transaction_date, refcode, form_name')
         .eq('organization_id', orgId)
+        .gte('transaction_date', startUtc)
+        .lt('transaction_date', endUtc)
         .order('transaction_date', { ascending: false })
         .range(from, to);
 
@@ -149,4 +195,3 @@ export function useRecentDonations(orgId: string | null, pageSize = DONATIONS_PA
     },
   });
 }
-

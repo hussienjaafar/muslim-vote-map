@@ -1695,6 +1695,14 @@ export type Database = {
           funds: number
         }[]
       }
+      org_hourly_rollup: {
+        Args: { _day: string; _org_id: string }
+        Returns: {
+          donations: number
+          funds: number
+          hour: number
+        }[]
+      }
       org_new_donors_since: {
         Args: { _org_id: string; _since: string }
         Returns: {

@@ -2,9 +2,11 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOrg } from '@/contexts/OrgContext';
-import { useFundraisingSummary, useRecentDonations } from '@/queries/useFundraisingQueries';
+import { useFundraisingSummary, useRecentDonations, useHourlyFundraising } from '@/queries/useFundraisingQueries';
 import { useRealtimeFundraising } from '@/queries/useRealtimeFundraising';
 import { OrgSwitcher } from '@/components/org/OrgSwitcher';
+import { DateRangePicker } from '@/components/dashboard/DateRangePicker';
+import { type RangeSelection, presetSelection, resolveRange } from '@/lib/dateRanges';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
 } from 'recharts';
@@ -14,11 +16,12 @@ import {
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 
-const RANGES = [
-  { label: '7D', days: 7 },
-  { label: '30D', days: 30 },
-  { label: '90D', days: 90 },
-];
+function fmtHour(h: number): string {
+  if (h === 0) return '12a';
+  if (h === 12) return '12p';
+  return h < 12 ? `${h}a` : `${h - 12}p`;
+}
+
 
 function fmtCurrency(n: number): string {
   return `$${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -44,20 +47,24 @@ function fmtEastern(iso: string): string {
 
 export default function Dashboard() {
   const { activeOrg, organizations, isLoading: orgLoading } = useOrg();
-  const [days, setDays] = useState(30);
+  const [selection, setSelection] = useState<RangeSelection>(() => presetSelection('7d'));
   const queryClient = useQueryClient();
+
+  const range = useMemo(() => resolveRange(selection), [selection]);
+  const isHourly = range.granularity === 'hour';
 
   const orgId = activeOrg?.id ?? null;
   useRealtimeFundraising(orgId);
-  const { data: summary, isLoading, isFetching: summaryFetching, dataUpdatedAt } = useFundraisingSummary(orgId, days);
+  const { data: summary, isLoading, isFetching: summaryFetching, dataUpdatedAt } = useFundraisingSummary(orgId, range);
+  const { data: hourly, isFetching: hourlyFetching } = useHourlyFundraising(orgId, range.start, isHourly);
   const {
     data: donationsData,
     isFetching: donationsFetching,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useRecentDonations(orgId);
-  const refreshing = summaryFetching || donationsFetching;
+  } = useRecentDonations(orgId, range);
+  const refreshing = summaryFetching || donationsFetching || hourlyFetching;
 
   const lastUpdated = dataUpdatedAt
     ? new Date(dataUpdatedAt).toLocaleTimeString('en-US', {
@@ -89,6 +96,7 @@ export default function Dashboard() {
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['fundraising-summary', orgId] });
+    queryClient.invalidateQueries({ queryKey: ['fundraising-hourly', orgId] });
     queryClient.invalidateQueries({ queryKey: ['recent-donations', orgId] });
   };
 
@@ -128,12 +136,19 @@ export default function Dashboard() {
     { key: 'roi', label: 'ROI', icon: TrendingUp, value: totals?.roi != null ? `${totals.roi.toFixed(0)}%` : '—', accent: 'text-emerald-400' },
   ];
 
-  const chartData = (summary?.daily ?? []).map((d) => ({
+  const dailyChartData = (summary?.daily ?? []).map((d) => ({
     date: d.date,
     raised: d.total_funds_raised,
     spend: d.total_ad_spend + d.total_sms_cost,
   }));
-  const hasData = chartData.some((d) => d.raised > 0 || d.spend > 0);
+  const hourlyChartData = (hourly ?? []).map((h) => ({
+    hour: h.hour,
+    raised: h.funds,
+  }));
+  const hasData = isHourly
+    ? hourlyChartData.some((d) => d.raised > 0)
+    : dailyChartData.some((d) => d.raised > 0 || d.spend > 0);
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -168,21 +183,8 @@ export default function Dashboard() {
               )}
             </div>
             <OrgSwitcher />
-            <div className="inline-flex rounded-md border border-border bg-card/60 p-0.5">
-              {RANGES.map((r) => (
-                <button
-                  key={r.days}
-                  onClick={() => setDays(r.days)}
-                  className={`px-3 h-8 text-xs font-bold rounded-[5px] transition-colors ${
-                    days === r.days
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
+            <DateRangePicker value={selection} onChange={setSelection} />
+
           </div>
         </header>
 
@@ -210,9 +212,12 @@ export default function Dashboard() {
         {/* Chart */}
         <section className="surgical-glass p-4 sm:p-8">
           <div className="mb-6">
-            <h2 className="text-lg sm:text-xl font-display font-bold text-foreground">Funds Raised vs. Spend</h2>
+            <h2 className="text-lg sm:text-xl font-display font-bold text-foreground">
+              {isHourly ? 'Funds Raised by Hour' : 'Funds Raised vs. Spend'}
+            </h2>
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
-              Last {days} days · daily
+              {range.label}
+              {isHourly ? ' · ad/SMS spend shown in KPIs' : ''}
             </p>
           </div>
           {!hasData ? (
@@ -226,7 +231,7 @@ export default function Dashboard() {
           ) : (
             <div className="h-[260px] sm:h-[320px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                <AreaChart data={isHourly ? hourlyChartData : dailyChartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
                   <defs>
                     <linearGradient id="gRaised" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
@@ -239,12 +244,12 @@ export default function Dashboard() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                   <XAxis
-                    dataKey="date"
-                    tickFormatter={(v) => format(parseISO(v), 'MMM d')}
+                    dataKey={isHourly ? 'hour' : 'date'}
+                    tickFormatter={(v) => (isHourly ? fmtHour(Number(v)) : format(parseISO(String(v)), 'MMM d'))}
                     tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
-                    minTickGap={24}
+                    minTickGap={isHourly ? 12 : 24}
                   />
                   <YAxis
                     tickFormatter={(v) => fmtCompact(Number(v))}
@@ -260,14 +265,17 @@ export default function Dashboard() {
                       borderRadius: 8,
                       fontSize: 12,
                     }}
-                    labelFormatter={(v) => format(parseISO(String(v)), 'PP')}
+                    labelFormatter={(v) => (isHourly ? `${fmtHour(Number(v))} ET` : format(parseISO(String(v)), 'PP'))}
                     formatter={(value: number, name: string) => [fmtCurrency(Number(value)), name === 'raised' ? 'Raised' : 'Spend']}
                   />
                   <Area type="monotone" dataKey="raised" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#gRaised)" />
-                  <Area type="monotone" dataKey="spend" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gSpend)" />
+                  {!isHourly && (
+                    <Area type="monotone" dataKey="spend" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gSpend)" />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+
           )}
         </section>
 

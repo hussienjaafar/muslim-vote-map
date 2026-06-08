@@ -144,9 +144,10 @@ export default function Dashboard() {
   const hourlyChartData = (hourly ?? []).map((h) => ({
     hour: h.hour,
     raised: h.funds,
+    spend: h.adSpend,
   }));
   const hasData = isHourly
-    ? hourlyChartData.some((d) => d.raised > 0)
+    ? hourlyChartData.some((d) => d.raised > 0 || d.spend > 0)
     : dailyChartData.some((d) => d.raised > 0 || d.spend > 0);
 
 
@@ -213,11 +214,11 @@ export default function Dashboard() {
         <section className="surgical-glass p-4 sm:p-8">
           <div className="mb-6">
             <h2 className="text-lg sm:text-xl font-display font-bold text-foreground">
-              {isHourly ? 'Funds Raised by Hour' : 'Funds Raised vs. Spend'}
+              {isHourly ? 'Funds Raised vs. Ad Spend by Hour' : 'Funds Raised vs. Spend'}
             </h2>
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
               {range.label}
-              {isHourly ? ' · ad/SMS spend shown in KPIs' : ''}
+              {isHourly ? ' · Meta ad spend in advertiser timezone' : ''}
             </p>
           </div>
           {!hasData ? (
@@ -269,9 +270,7 @@ export default function Dashboard() {
                     formatter={(value: number, name: string) => [fmtCurrency(Number(value)), name === 'raised' ? 'Raised' : 'Spend']}
                   />
                   <Area type="monotone" dataKey="raised" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#gRaised)" />
-                  {!isHourly && (
-                    <Area type="monotone" dataKey="spend" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gSpend)" />
-                  )}
+                  <Area type="monotone" dataKey="spend" stroke="#fbbf24" strokeWidth={2.5} fill="url(#gSpend)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

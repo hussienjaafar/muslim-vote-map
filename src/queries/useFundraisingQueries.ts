@@ -207,7 +207,7 @@ export function useRecentDonations(
         .order('transaction_date', { ascending: false })
         .range(from, to);
 
-      if (error) return [];
+      if (error) throw new Error(error.message);
 
       return (data ?? []).map((r: any) => ({
         id: r.id,

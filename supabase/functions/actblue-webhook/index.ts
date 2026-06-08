@@ -130,18 +130,31 @@ Deno.serve(async (req) => {
       ? period !== 'once'
       : !!(c.recurringDuration || c.isRecurring === true);
 
+    // Pick the lineitem that belongs to this org's entity (split contributions
+    // can include lineitems for several committees); fall back to the first.
+    const lineitems = Array.isArray(body?.lineitems) ? body.lineitems : [];
+    const lineitem =
+      lineitems.find((li: any) => String(li?.entityId ?? li?.entity_id ?? '') === matchedEntityId) ??
+      lineitems[0] ??
+      null;
+
+    // Amount and paid date live on the lineitem in real ActBlue payloads;
+    // fall back to contribution-level fields for our simplified test payloads.
+    const amount = num(lineitem?.amount ?? c.amount);
+    const paidAt = lineitem?.paidAt ?? c.paidAt ?? c.createdAt;
+
     const row = {
       organization_id: orgId,
       transaction_id: txId,
       donor_email: donor.email ?? null,
       donor_name: [first, last].filter(Boolean).join(' ') || null,
-      amount: num(c.amount),
+      amount,
       refcode: c.refcode ?? c.refcodes?.refcode ?? null,
       source_campaign: c.fundraisingPageName ?? c.contributionForm ?? null,
-      form_name: c.contributionForm ?? c.formName ?? c.fundraisingPageName ?? null,
+      form_name: c.contributionForm ?? c.formName ?? c.fundraisingPageName ?? body?.form?.name ?? null,
       transaction_type: 'donation',
       is_recurring: isRecurring,
-      transaction_date: normalizeActBlueTimestamp(c.createdAt),
+      transaction_date: normalizeActBlueTimestamp(paidAt),
     };
 
     const { error } = await admin

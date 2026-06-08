@@ -108,16 +108,21 @@ export default function Organizations() {
               {/* Mobile cards */}
               <div className="md:hidden divide-y divide-border -mx-6">
                 {filtered.map((o) => (
-                  <button key={o.id} onClick={() => navigate(`/admin/orgs/${o.id}`)} className="w-full text-left px-6 py-4 flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-                      <Building2 className="w-4 h-4 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{o.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{o.slug}</p>
-                    </div>
+                  <div key={o.id} className="px-6 py-4 flex items-center gap-3">
+                    <button onClick={() => navigate(`/admin/orgs/${o.id}`)} className="flex-1 min-w-0 text-left flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                        <Building2 className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{o.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{o.slug}</p>
+                      </div>
+                    </button>
                     <Badge variant="secondary" className="gap-1"><Users className="w-3 h-3" />{o.member_count}/{o.seat_limit}</Badge>
-                  </button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" aria-label="View dashboard" onClick={() => handleViewDashboard(o)}>
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  </div>
                 ))}
               </div>
 

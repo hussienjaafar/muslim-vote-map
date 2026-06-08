@@ -24,10 +24,26 @@ function validateBasicAuth(header: string | null, user: string, pass: string): b
   }
 }
 
-function extractEntityId(c: any, body: any): string | null {
-  const raw = c?.entityId ?? c?.entity_id ?? body?.entityId ?? body?.entity_id ??
-    body?.contribution?.entityId ?? body?.contribution?.entity_id ?? null;
-  return raw != null ? String(raw) : null;
+// Real ActBlue "Default" webhooks place entityId inside each lineitem. Collect
+// every entity id we can find (lineitems first, then contribution/top-level
+// fallbacks used by our test payloads).
+function collectEntityIds(c: any, body: any): string[] {
+  const ids: string[] = [];
+  const push = (v: unknown) => {
+    if (v != null && String(v).trim() !== '') ids.push(String(v));
+  };
+  const lineitems = Array.isArray(body?.lineitems) ? body.lineitems : [];
+  for (const li of lineitems) {
+    push(li?.entityId);
+    push(li?.entity_id);
+  }
+  push(c?.entityId);
+  push(c?.entity_id);
+  push(body?.entityId);
+  push(body?.entity_id);
+  push(body?.contribution?.entityId);
+  push(body?.contribution?.entity_id);
+  return ids;
 }
 
 Deno.serve(async (req) => {
@@ -53,10 +69,12 @@ Deno.serve(async (req) => {
     const c = body?.contribution ?? body?.lineitem ?? body;
     if (!c) return new Response(JSON.stringify({ error: 'Invalid payload' }), { status: 400 });
 
-    const entityId = extractEntityId(c, body);
-    if (!entityId) return new Response(JSON.stringify({ error: 'Missing entity_id' }), { status: 400 });
+    const entityIds = collectEntityIds(c, body);
+    if (entityIds.length === 0) {
+      return new Response(JSON.stringify({ error: 'Missing entity_id' }), { status: 400 });
+    }
 
-    // Find the org whose stored credentials match this entity_id.
+    // Find the org whose stored credentials match one of the payload's entity ids.
     const { data: rows } = await admin
       .from('client_api_credentials')
       .select('organization_id, encrypted_credentials, is_active')
@@ -65,12 +83,14 @@ Deno.serve(async (req) => {
 
     let orgId: string | null = null;
     let creds: Record<string, string> | null = null;
+    let matchedEntityId: string | null = null;
     for (const r of rows ?? []) {
       try {
         const dec = await decryptJson<Record<string, string>>(r.encrypted_credentials as EncryptedPayload);
-        if (dec.entity_id && String(dec.entity_id) === entityId) {
+        if (dec.entity_id && entityIds.includes(String(dec.entity_id))) {
           orgId = r.organization_id as string;
           creds = dec;
+          matchedEntityId = String(dec.entity_id);
           break;
         }
       } catch {
@@ -110,18 +130,31 @@ Deno.serve(async (req) => {
       ? period !== 'once'
       : !!(c.recurringDuration || c.isRecurring === true);
 
+    // Pick the lineitem that belongs to this org's entity (split contributions
+    // can include lineitems for several committees); fall back to the first.
+    const lineitems = Array.isArray(body?.lineitems) ? body.lineitems : [];
+    const lineitem =
+      lineitems.find((li: any) => String(li?.entityId ?? li?.entity_id ?? '') === matchedEntityId) ??
+      lineitems[0] ??
+      null;
+
+    // Amount and paid date live on the lineitem in real ActBlue payloads;
+    // fall back to contribution-level fields for our simplified test payloads.
+    const amount = num(lineitem?.amount ?? c.amount);
+    const paidAt = lineitem?.paidAt ?? c.paidAt ?? c.createdAt;
+
     const row = {
       organization_id: orgId,
       transaction_id: txId,
       donor_email: donor.email ?? null,
       donor_name: [first, last].filter(Boolean).join(' ') || null,
-      amount: num(c.amount),
+      amount,
       refcode: c.refcode ?? c.refcodes?.refcode ?? null,
       source_campaign: c.fundraisingPageName ?? c.contributionForm ?? null,
-      form_name: c.contributionForm ?? c.formName ?? c.fundraisingPageName ?? null,
+      form_name: c.contributionForm ?? c.formName ?? c.fundraisingPageName ?? body?.form?.name ?? null,
       transaction_type: 'donation',
       is_recurring: isRecurring,
-      transaction_date: normalizeActBlueTimestamp(c.createdAt),
+      transaction_date: normalizeActBlueTimestamp(paidAt),
     };
 
     const { error } = await admin

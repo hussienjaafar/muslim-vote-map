@@ -55,7 +55,7 @@ export default function Dashboard() {
 
   const orgId = activeOrg?.id ?? null;
   useRealtimeFundraising(orgId);
-  const { data: summary, isLoading, isFetching: summaryFetching, dataUpdatedAt } = useFundraisingSummary(orgId, range);
+  const { data: summary, isLoading, isError: summaryError, isFetching: summaryFetching, dataUpdatedAt } = useFundraisingSummary(orgId, range);
   const { data: hourly, isFetching: hourlyFetching } = useHourlyFundraising(orgId, range.start, isHourly);
   const {
     data: donationsData,
@@ -183,6 +183,11 @@ export default function Dashboard() {
                   {refreshing ? 'Updating…' : `Updated ${lastUpdated}`}
                 </span>
               )}
+              {summaryError && summary && !refreshing && (
+                <span className="mt-0.5 text-[10px] text-amber-400/80 whitespace-nowrap">
+                  Couldn't refresh — showing last data
+                </span>
+              )}
             </div>
             <OrgSwitcher />
             <DateRangePicker value={selection} onChange={setSelection} />
@@ -222,7 +227,18 @@ export default function Dashboard() {
               {isHourly ? ' · Meta ad spend in advertiser timezone' : ''}
             </p>
           </div>
-          {!hasData ? (
+          {summaryError && !summary ? (
+            <div className="h-[260px] flex flex-col items-center justify-center text-center gap-2">
+              <Inbox className="w-8 h-8 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground">Couldn't load fundraising data.</p>
+              <button
+                onClick={handleRefresh}
+                className="text-xs text-primary hover:underline"
+              >
+                Try again
+              </button>
+            </div>
+          ) : !hasData ? (
             <div className="h-[260px] flex flex-col items-center justify-center text-center gap-2">
               <Inbox className="w-8 h-8 text-muted-foreground/50" />
               <p className="text-sm text-muted-foreground">No fundraising data for this period yet.</p>

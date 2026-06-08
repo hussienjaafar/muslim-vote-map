@@ -1,4 +1,4 @@
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, keepPreviousData } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { etDayStartUtc, etDayEndUtc, type ResolvedRange } from '@/lib/dateRanges';
 
@@ -60,6 +60,8 @@ export function useFundraisingSummary(orgId: string | null, range: ResolvedRange
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    retry: 2,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const empty: FundraisingSummary = {
         fallback: false,
@@ -80,7 +82,10 @@ export function useFundraisingSummary(orgId: string | null, range: ResolvedRange
         .order('date', { ascending: true });
 
       if (error) {
-        return { ...empty, fallback: true, error: error.message };
+        // Throw so React Query keeps the last good cached data instead of
+        // overwriting it with zeros (which made the dashboard blank on any
+        // transient failure during polling/refresh).
+        throw new Error(error.message);
       }
 
       const daily: DailyMetric[] = (data ?? []).map((r: any) => ({
@@ -127,6 +132,8 @@ export function useHourlyFundraising(orgId: string | null, day: string | null, e
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    retry: 2,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const buckets: HourlyMetric[] = Array.from({ length: 24 }, (_, hour) => ({ hour, donations: 0, funds: 0, adSpend: 0 }));
       if (!orgId || !day) return buckets;
@@ -136,22 +143,23 @@ export function useHourlyFundraising(orgId: string | null, day: string | null, e
         supabase.rpc('meta_hourly_rollup', { _org_id: orgId, _day: day }),
       ]);
 
-      if (!donationRes.error) {
-        for (const r of (donationRes.data ?? []) as any[]) {
-          const h = Number(r.hour);
-          if (h >= 0 && h < 24) {
-            buckets[h].donations = Number(r.donations) || 0;
-            buckets[h].funds = Number(r.funds) || 0;
-          }
+      // Throw on error so React Query keeps the last good data rather than
+      // replacing it with empty zero buckets.
+      if (donationRes.error) throw new Error(donationRes.error.message);
+      if (spendRes.error) throw new Error(spendRes.error.message);
+
+      for (const r of (donationRes.data ?? []) as any[]) {
+        const h = Number(r.hour);
+        if (h >= 0 && h < 24) {
+          buckets[h].donations = Number(r.donations) || 0;
+          buckets[h].funds = Number(r.funds) || 0;
         }
       }
 
-      if (!spendRes.error) {
-        for (const r of (spendRes.data ?? []) as any[]) {
-          const h = Number(r.hour);
-          if (h >= 0 && h < 24) {
-            buckets[h].adSpend = Number(r.spend) || 0;
-          }
+      for (const r of (spendRes.data ?? []) as any[]) {
+        const h = Number(r.hour);
+        if (h >= 0 && h < 24) {
+          buckets[h].adSpend = Number(r.spend) || 0;
         }
       }
 
@@ -164,7 +172,7 @@ const DONATIONS_PAGE_SIZE = 25;
 
 /**
  * Paginated ActBlue donations for an org within the selected ET range
- * (infinite scroll). Never throws.
+ * (infinite scroll). Throws on error so React Query keeps the last good page.
  */
 export function useRecentDonations(
   orgId: string | null,
@@ -181,6 +189,8 @@ export function useRecentDonations(
     refetchInterval: 20_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    retry: 2,
+    placeholderData: keepPreviousData,
     initialPageParam: 0,
     getNextPageParam: (lastPage: RecentDonation[] | undefined, allPages) =>
       (lastPage?.length ?? 0) < pageSize ? undefined : allPages.length,
@@ -197,7 +207,7 @@ export function useRecentDonations(
         .order('transaction_date', { ascending: false })
         .range(from, to);
 
-      if (error) return [];
+      if (error) throw new Error(error.message);
 
       return (data ?? []).map((r: any) => ({
         id: r.id,

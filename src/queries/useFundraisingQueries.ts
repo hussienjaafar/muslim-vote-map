@@ -82,7 +82,10 @@ export function useFundraisingSummary(orgId: string | null, range: ResolvedRange
         .order('date', { ascending: true });
 
       if (error) {
-        return { ...empty, fallback: true, error: error.message };
+        // Throw so React Query keeps the last good cached data instead of
+        // overwriting it with zeros (which made the dashboard blank on any
+        // transient failure during polling/refresh).
+        throw new Error(error.message);
       }
 
       const daily: DailyMetric[] = (data ?? []).map((r: any) => ({

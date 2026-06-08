@@ -128,19 +128,33 @@ export function useHourlyFundraising(orgId: string | null, day: string | null, e
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
     queryFn: async () => {
-      const buckets: HourlyMetric[] = Array.from({ length: 24 }, (_, hour) => ({ hour, donations: 0, funds: 0 }));
+      const buckets: HourlyMetric[] = Array.from({ length: 24 }, (_, hour) => ({ hour, donations: 0, funds: 0, adSpend: 0 }));
       if (!orgId || !day) return buckets;
 
-      const { data, error } = await supabase.rpc('org_hourly_rollup', { _org_id: orgId, _day: day });
-      if (error) return buckets;
+      const [donationRes, spendRes] = await Promise.all([
+        supabase.rpc('org_hourly_rollup', { _org_id: orgId, _day: day }),
+        supabase.rpc('meta_hourly_rollup', { _org_id: orgId, _day: day }),
+      ]);
 
-      for (const r of (data ?? []) as any[]) {
-        const h = Number(r.hour);
-        if (h >= 0 && h < 24) {
-          buckets[h].donations = Number(r.donations) || 0;
-          buckets[h].funds = Number(r.funds) || 0;
+      if (!donationRes.error) {
+        for (const r of (donationRes.data ?? []) as any[]) {
+          const h = Number(r.hour);
+          if (h >= 0 && h < 24) {
+            buckets[h].donations = Number(r.donations) || 0;
+            buckets[h].funds = Number(r.funds) || 0;
+          }
         }
       }
+
+      if (!spendRes.error) {
+        for (const r of (spendRes.data ?? []) as any[]) {
+          const h = Number(r.hour);
+          if (h >= 0 && h < 24) {
+            buckets[h].adSpend = Number(r.spend) || 0;
+          }
+        }
+      }
+
       return buckets;
     },
   });

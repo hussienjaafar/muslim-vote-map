@@ -1,5 +1,6 @@
 // Shared fundraising sync logic, used by sync-org and sync-all-orgs.
 import { decryptJson, type EncryptedPayload } from './crypto.ts';
+import { normalizeActBlueTimestamp } from './actblue-timezone.ts';
 
 // deno-lint-ignore no-explicit-any
 type SupabaseClient = any;

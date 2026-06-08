@@ -186,10 +186,17 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
   const handleSync = async () => {
     try {
       const res = await runSync.mutateAsync(30);
-      const ok = res.results.filter((r) => r.ok).length;
+      const queued = res.results.filter((r) => (r as any).queued);
+      const ok = res.results.filter((r) => r.ok && !(r as any).queued).length;
       const failed = res.results.filter((r) => !r.ok);
-      if (failed.length) toast.warning(`Synced ${ok} source(s). Issues: ${failed.map((f) => `${f.platform}: ${f.error}`).join('; ')}`);
-      else toast.success(`Synced ${ok} source(s), ${res.aggregated} day(s) aggregated`);
+      const parts: string[] = [];
+      if (ok) parts.push(`${ok} source(s) synced`);
+      if (queued.length) parts.push(`${queued.map((q) => q.platform).join(', ')} processing in background`);
+      if (failed.length) {
+        toast.warning(`${parts.join(', ') || 'Sync ran'}. Issues: ${failed.map((f) => `${f.platform}: ${f.error}`).join('; ')}`);
+      } else {
+        toast.success(parts.join(', ') || 'Sync complete');
+      }
     } catch (e: any) {
       toast.error(e.message ?? 'Sync failed');
     }

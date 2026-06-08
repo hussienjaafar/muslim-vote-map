@@ -66,7 +66,12 @@ Deno.serve(async (req) => {
         }
 
         // Export is ready — download, parse, upsert (in chunks), and re-aggregate.
-        const rows = await downloadActblueCsv(poll.downloadUrl!, job.organization_id);
+        const rawRows = await downloadActblueCsv(poll.downloadUrl!, job.organization_id);
+        // ActBlue exports can repeat the same receipt id; dedupe (keep last)
+        // so a single upsert batch never touches the same conflict key twice.
+        const deduped = new Map<string, Record<string, unknown>>();
+        for (const r of rawRows) deduped.set(String(r.transaction_id), r);
+        const rows = [...deduped.values()];
         if (rows.length) {
           let upsertFailed = false;
           for (let i = 0; i < rows.length; i += 1000) {

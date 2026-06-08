@@ -1633,6 +1633,13 @@ export type Database = {
         }
         Returns: number
       }
+      org_new_donors_since: {
+        Args: { _org_id: string; _since: string }
+        Returns: {
+          donor_email: string
+          first_date: string
+        }[]
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {

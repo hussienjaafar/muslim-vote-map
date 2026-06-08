@@ -30,6 +30,7 @@ async function syncMeta(
   orgId: string,
   creds: Record<string, string>,
   sinceDays: number,
+  full = false,
 ): Promise<PlatformResult> {
   const token = creds.access_token;
   const account = creds.ad_account_id;
@@ -37,7 +38,9 @@ async function syncMeta(
     return { platform: 'meta', ok: false, rows: 0, error: 'Missing access_token or ad_account_id' };
   }
   const acct = account.startsWith('act_') ? account : `act_${account}`;
-  const since = isoDaysAgo(sinceDays);
+  // Meta only returns ad insights up to ~37 months back; cap full backfills there.
+  const META_MAX_DAYS = 37 * 30;
+  const since = isoDaysAgo(full ? META_MAX_DAYS : sinceDays);
   const until = todayIso();
 
   const params = new URLSearchParams({
@@ -49,52 +52,61 @@ async function syncMeta(
     limit: '500',
     access_token: token,
   });
-  const url = `https://graph.facebook.com/v19.0/${acct}/insights?${params.toString()}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    const text = await res.text();
-    return { platform: 'meta', ok: false, rows: 0, error: `Meta API ${res.status}: ${text.slice(0, 200)}` };
-  }
-  const payload = await res.json();
+  let url: string | null = `https://graph.facebook.com/v19.0/${acct}/insights?${params.toString()}`;
+
   const rows: Record<string, unknown>[] = [];
-  for (const r of payload.data ?? []) {
-    let conversions = 0;
-    let conversionValue = 0;
-    for (const a of r.actions ?? []) {
-      if (String(a.action_type).includes('purchase') || String(a.action_type).includes('donate')) {
-        conversions += num(a.value);
-      }
+  let guard = 0;
+  while (url && guard < 200) {
+    guard++;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const text = await res.text();
+      return { platform: 'meta', ok: false, rows: 0, error: `Meta API ${res.status}: ${text.slice(0, 200)}` };
     }
-    for (const a of r.action_values ?? []) {
-      if (String(a.action_type).includes('purchase') || String(a.action_type).includes('donate')) {
-        conversionValue += num(a.value);
+    const payload = await res.json();
+    for (const r of payload.data ?? []) {
+      let conversions = 0;
+      let conversionValue = 0;
+      for (const a of r.actions ?? []) {
+        if (String(a.action_type).includes('purchase') || String(a.action_type).includes('donate')) {
+          conversions += num(a.value);
+        }
       }
+      for (const a of r.action_values ?? []) {
+        if (String(a.action_type).includes('purchase') || String(a.action_type).includes('donate')) {
+          conversionValue += num(a.value);
+        }
+      }
+      rows.push({
+        organization_id: orgId,
+        campaign_id: String(r.campaign_id),
+        ad_set_id: null,
+        ad_id: null,
+        date: r.date_start,
+        spend: num(r.spend),
+        impressions: num(r.impressions),
+        clicks: num(r.clicks),
+        reach: num(r.reach),
+        cpc: num(r.cpc),
+        cpm: num(r.cpm),
+        ctr: num(r.ctr),
+        conversions,
+        conversion_value: conversionValue,
+        roas: num(r.spend) > 0 ? conversionValue / num(r.spend) : null,
+        synced_at: new Date().toISOString(),
+      });
     }
-    rows.push({
-      organization_id: orgId,
-      campaign_id: String(r.campaign_id),
-      ad_set_id: null,
-      ad_id: null,
-      date: r.date_start,
-      spend: num(r.spend),
-      impressions: num(r.impressions),
-      clicks: num(r.clicks),
-      reach: num(r.reach),
-      cpc: num(r.cpc),
-      cpm: num(r.cpm),
-      ctr: num(r.ctr),
-      conversions,
-      conversion_value: conversionValue,
-      roas: num(r.spend) > 0 ? conversionValue / num(r.spend) : null,
-      synced_at: new Date().toISOString(),
-    });
+    url = payload.paging?.next ?? null;
   }
 
   if (rows.length) {
-    const { error } = await admin
-      .from('meta_ad_metrics')
-      .upsert(rows, { onConflict: 'organization_id,campaign_id,date' });
-    if (error) return { platform: 'meta', ok: false, rows: 0, error: error.message };
+    // Upsert in chunks to stay well within request limits on large backfills.
+    for (let i = 0; i < rows.length; i += 1000) {
+      const { error } = await admin
+        .from('meta_ad_metrics')
+        .upsert(rows.slice(i, i + 1000), { onConflict: 'organization_id,campaign_id,date' });
+      if (error) return { platform: 'meta', ok: false, rows: 0, error: error.message };
+    }
   }
   return { platform: 'meta', ok: true, rows: rows.length };
 }

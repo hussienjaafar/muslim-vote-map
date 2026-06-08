@@ -128,3 +128,56 @@ export function useRunSync(orgId: string | undefined) {
     },
   });
 }
+
+export type ActblueJob = {
+  id: string;
+  csv_id: string;
+  status: 'processing' | 'complete' | 'error';
+  since_days: number;
+  attempts: number;
+  rows_imported: number | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Reads recent ActBlue background export jobs for an org. Polls while any job is still processing. */
+export function useActblueJobs(orgId: string | undefined) {
+  return useQuery<ActblueJob[]>({
+    queryKey: ['actblue-jobs', orgId],
+    enabled: !!orgId,
+    refetchInterval: (query) => {
+      const rows = query.state.data;
+      return rows?.some((j) => j.status === 'processing') ? 15000 : false;
+    },
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('actblue_csv_jobs')
+        .select('id, csv_id, status, since_days, attempts, rows_imported, last_error, created_at, updated_at')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return (data ?? []) as ActblueJob[];
+    },
+  });
+}
+
+/** Triggers the background worker immediately instead of waiting for the cron schedule. */
+export function useRunActblueWorker(orgId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('process-actblue-jobs', { body: {} });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      return data as { ok: boolean; processed: number; summary: { result: string }[] };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['actblue-jobs', orgId] });
+      qc.invalidateQueries({ queryKey: ['org-credentials', orgId] });
+      qc.invalidateQueries({ queryKey: ['fundraising-summary'] });
+      qc.invalidateQueries({ queryKey: ['recent-donations'] });
+    },
+  });
+}

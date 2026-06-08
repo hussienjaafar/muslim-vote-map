@@ -132,6 +132,8 @@ export function useHourlyFundraising(orgId: string | null, day: string | null, e
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    retry: 2,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const buckets: HourlyMetric[] = Array.from({ length: 24 }, (_, hour) => ({ hour, donations: 0, funds: 0, adSpend: 0 }));
       if (!orgId || !day) return buckets;
@@ -141,22 +143,23 @@ export function useHourlyFundraising(orgId: string | null, day: string | null, e
         supabase.rpc('meta_hourly_rollup', { _org_id: orgId, _day: day }),
       ]);
 
-      if (!donationRes.error) {
-        for (const r of (donationRes.data ?? []) as any[]) {
-          const h = Number(r.hour);
-          if (h >= 0 && h < 24) {
-            buckets[h].donations = Number(r.donations) || 0;
-            buckets[h].funds = Number(r.funds) || 0;
-          }
+      // Throw on error so React Query keeps the last good data rather than
+      // replacing it with empty zero buckets.
+      if (donationRes.error) throw new Error(donationRes.error.message);
+      if (spendRes.error) throw new Error(spendRes.error.message);
+
+      for (const r of (donationRes.data ?? []) as any[]) {
+        const h = Number(r.hour);
+        if (h >= 0 && h < 24) {
+          buckets[h].donations = Number(r.donations) || 0;
+          buckets[h].funds = Number(r.funds) || 0;
         }
       }
 
-      if (!spendRes.error) {
-        for (const r of (spendRes.data ?? []) as any[]) {
-          const h = Number(r.hour);
-          if (h >= 0 && h < 24) {
-            buckets[h].adSpend = Number(r.spend) || 0;
-          }
+      for (const r of (spendRes.data ?? []) as any[]) {
+        const h = Number(r.hour);
+        if (h >= 0 && h < 24) {
+          buckets[h].adSpend = Number(r.spend) || 0;
         }
       }
 

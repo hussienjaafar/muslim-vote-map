@@ -189,6 +189,8 @@ export function useRecentDonations(
     refetchInterval: 20_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+    retry: 2,
+    placeholderData: keepPreviousData,
     initialPageParam: 0,
     getNextPageParam: (lastPage: RecentDonation[] | undefined, allPages) =>
       (lastPage?.length ?? 0) < pageSize ? undefined : allPages.length,

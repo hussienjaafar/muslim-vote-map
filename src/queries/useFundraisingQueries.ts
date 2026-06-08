@@ -172,7 +172,7 @@ const DONATIONS_PAGE_SIZE = 25;
 
 /**
  * Paginated ActBlue donations for an org within the selected ET range
- * (infinite scroll). Never throws.
+ * (infinite scroll). Throws on error so React Query keeps the last good page.
  */
 export function useRecentDonations(
   orgId: string | null,

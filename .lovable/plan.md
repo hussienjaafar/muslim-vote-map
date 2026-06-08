@@ -1,53 +1,49 @@
-# Hourly Meta Ad Spend for the Single-Day View
+# Visualize SMS Cost (Switchboard)
 
-## Goal
-Show real per-hour Meta ad **spend** on the Today/Yesterday hourly chart, alongside the existing hourly ActBlue donations. SMS stays daily/flat (out of scope per your choice).
+## Root problem found
+The SMS table is empty and the sync reads the wrong Switchboard field names, so cost would be `$0` even when broadcasts sync. Per Switchboard's API docs, a broadcast object exposes:
+`cost_estimate`, `total_messages`, `delivered`, `failed_to_deliver`, `opt_outs`, `clicks`, `donations`, `amount_raised`, `status`, `created_at`, `started_at`.
 
-## Why a separate table
-Meta's API returns daily insights today. Multi-day charts (7D/30D/90D) read daily rows and must stay fast. Storing 24 hourly rows in `meta_ad_metrics` would make every multi-day scan ~24× heavier. So hourly spend goes in its own table that is only touched on the single-day view.
+The current code maps `cost` from `cost ?? spend` (nonexistent), `messages_sent` from `messages_sent/sent` (nonexistent), and dates from `sent_at/scheduled_at` (nonexistent). Fixing this mapping is step one — without it there is nothing to visualize.
 
 ## What gets built
 
-### 1. New table: `meta_ad_hourly_metrics`
-Stores hourly Meta spend per campaign per day, bucketed by Meta's advertiser-timezone hour.
+### 1. Fix the Switchboard sync mapping (`supabase/functions/_shared/sync-lib.ts`)
+In `syncSwitchboard`, map to the real fields:
+- `date` -> from `started_at` (fallback `created_at`), sliced to `YYYY-MM-DD`
+- `cost` -> `cost_estimate`
+- `messages_sent` -> `total_messages`
+- `messages_delivered` -> `delivered`
+- `messages_failed` -> `failed_to_deliver`
+- `opt_outs` -> `opt_outs`
+- `clicks` -> `clicks`
+- `conversions` -> `donations`
+- `amount_raised` -> `amount_raised`
+- `campaign_name` -> `title`
 
-Domain fields:
-- `organization_id`, `campaign_id`
-- `date` (the ad day)
-- `hour` (0-23, advertiser timezone)
-- `spend`, `impressions`, `clicks`
-- `synced_at`
+Also only count actually-sent broadcasts (skip `draft`/`scheduled`/`error` so cost reflects real spend). Pagination already uses `next_page` correctly. Optionally pass a `filter=started_at>"<since>"` query param on incremental syncs to reduce paging.
 
-Constraints/indexes:
-- Unique on (`organization_id`, `campaign_id`, `date`, `hour`) for clean upserts
-- Index on (`organization_id`, `date`) for the single-day read
-- RLS: same access model as `meta_ad_metrics` — members of the org (or admins) can read; writes are service-role only (edge function). GRANTs for `authenticated` (select) and `service_role` (all).
+### 2. Re-aggregation
+The daily rollup in the same file already sums `sms_campaign_metrics.cost` into `daily_aggregated_metrics.total_sms_cost`, and the dashboard already reads `total_sms_cost`. Once the mapping is fixed and a sync runs, SMS cost flows through automatically — no schema change needed.
 
-### 2. Ingestion change (`supabase/functions/_shared/sync-lib.ts`)
-Extend `syncMeta` to also pull the hourly breakdown:
-- A second Insights request (or added breakdown) using Meta's `hourly_stats_aggregated_by_advertiser_time_zone` time breakdown with `time_increment: '1'`, fields `spend,impressions,clicks`, level `campaign`.
-- Meta returns the hour as a range string (e.g. `"13:00:00 - 13:59:59"`); parse the leading hour into an integer 0-23.
-- To keep API cost and row volume bounded, only fetch hourly for a **short recent window** (e.g. last 7 days), not the full 37-month backfill. The single-day view only ever shows Today/Yesterday, so a rolling recent window is sufficient. Daily backfill behavior is unchanged.
-- Upsert rows into `meta_ad_hourly_metrics` on the unique key. Existing daily upsert into `meta_ad_metrics` is untouched.
+### 3. Dashboard chart: split Ad Spend vs SMS Cost (`src/pages/Dashboard.tsx`)
+Currently the daily chart shows one combined `spend = ad + sms` line. Change to two separate series:
+- `adSpend` (amber, existing color)
+- `smsCost` (sky/teal — to match the existing SMS KPI accent)
+- Keep `raised` (primary) as-is.
 
-### 3. Read RPC: `meta_hourly_rollup(_org_id, _day)`
-Mirrors the existing `org_hourly_rollup` pattern: `SECURITY DEFINER`, guarded by `can_access_organization_data(auth.uid(), _org_id)`, returns `hour, spend, impressions, clicks` aggregated across campaigns for the given day. Returns 0-row hours as absent (frontend fills gaps to 24 buckets, same as donations).
+Update `dailyChartData` to carry `adSpend` and `smsCost` separately, add a second gradient + `<Area>` for SMS, update the tooltip formatter labels (Raised / Ad Spend / SMS Cost), and the `hasData` check.
 
-### 4. Frontend (`src/queries/useFundraisingQueries.ts`)
-- Add `useHourlyMetaSpend(orgId, day)` calling `meta_hourly_rollup`, enabled only for single-day ranges.
-- Merge its results into the hourly chart dataset by hour, so each hour bucket has both `funds` (ActBlue) and `adSpend` (Meta).
+For the single-day hourly view: SMS stays daily-only per your choice. The hourly chart keeps Funds Raised + Meta hourly Ad Spend; SMS is represented in the SMS Cost KPI card only (no hourly SMS line).
 
-### 5. Chart (`src/pages/Dashboard.tsx`)
-- On single-day view, the hourly area chart gains a Meta **spend** series (line/area) keyed to the hour axis.
-- SMS remains a flat daily reference (unchanged).
-- Multi-day charts unchanged.
+### 4. Backfill
+After deploying the fixed sync, trigger a sync for the org so `sms_campaign_metrics` and the daily rollup repopulate with real cost. Verify the chart shows a distinct SMS Cost line and the SMS Cost KPI is non-zero.
 
-## Notes & limits
-- **Backfill:** historical days before this ships won't have hourly Meta rows, so Yesterday becomes accurate after the next sync runs; older single days stay flat. The rolling recent-window fetch keeps Today/Yesterday populated going forward.
-- **Timezone:** Meta hourly is in the advertiser account timezone, while ActBlue is bucketed in ET. If the ad account isn't set to ET, the two hourly series can be offset by a few hours. We'll label the Meta series clearly; aligning to ET exactly isn't possible from Meta's hourly aggregation alone.
-- **Cost:** one extra Insights call per sync over a small window; negligible row growth (≤24 rows/day/campaign for ~7 days).
+## Out of scope (per your answers)
+- No hourly SMS bucketing (daily only).
+- No extra SMS metrics (messages, cost-per-message, SMS ROI) — cost only.
 
 ## Validation
-- Run a sync, confirm `meta_ad_hourly_metrics` populates 0-23 hours with non-zero spend.
-- `meta_hourly_rollup` returns expected hourly spend for a known day and is access-guarded.
-- Single-day chart shows both donations and Meta spend by hour; multi-day views and SMS unchanged.
+- Run sync; confirm `sms_campaign_metrics` has rows with non-zero `cost` and correct dates.
+- Confirm `daily_aggregated_metrics.total_sms_cost` is populated.
+- Dashboard multi-day chart shows three lines (Raised, Ad Spend, SMS Cost); SMS Cost KPI matches the summed cost; single-day view unchanged except spend split.

@@ -214,11 +214,11 @@ export default function Dashboard() {
         <section className="surgical-glass p-4 sm:p-8">
           <div className="mb-6">
             <h2 className="text-lg sm:text-xl font-display font-bold text-foreground">
-              {isHourly ? 'Funds Raised by Hour' : 'Funds Raised vs. Spend'}
+              {isHourly ? 'Funds Raised vs. Ad Spend by Hour' : 'Funds Raised vs. Spend'}
             </h2>
             <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-1">
               {range.label}
-              {isHourly ? ' · ad/SMS spend shown in KPIs' : ''}
+              {isHourly ? ' · Meta ad spend in advertiser timezone' : ''}
             </p>
           </div>
           {!hasData ? (

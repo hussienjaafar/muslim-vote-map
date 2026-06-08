@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
       .select('id, organization_id, csv_id, since_days, attempts')
       .eq('status', 'processing')
       .order('created_at', { ascending: true })
-      .limit(25);
+      .limit(1); // Process one job per invocation to stay within the CPU budget.
     if (error) return json({ error: error.message }, 500);
 
     const summary: Record<string, unknown>[] = [];
@@ -65,17 +65,27 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Export is ready — download, parse, upsert, and re-aggregate.
-        const rows = await downloadActblueCsv(poll.downloadUrl!, job.organization_id);
+        // Export is ready — download, parse, upsert (in chunks), and re-aggregate.
+        const rawRows = await downloadActblueCsv(poll.downloadUrl!, job.organization_id);
+        // ActBlue exports can repeat the same receipt id; dedupe (keep last)
+        // so a single upsert batch never touches the same conflict key twice.
+        const deduped = new Map<string, Record<string, unknown>>();
+        for (const r of rawRows) deduped.set(String(r.transaction_id), r);
+        const rows = [...deduped.values()];
         if (rows.length) {
-          const { error: upErr } = await admin
-            .from('actblue_transactions')
-            .upsert(rows, { onConflict: 'organization_id,transaction_id' });
-          if (upErr) {
-            await failJob(admin, job, upErr.message);
-            summary.push({ job: job.id, result: 'error', reason: upErr.message });
-            continue;
+          let upsertFailed = false;
+          for (let i = 0; i < rows.length; i += 1000) {
+            const { error: upErr } = await admin
+              .from('actblue_transactions')
+              .upsert(rows.slice(i, i + 1000), { onConflict: 'organization_id,transaction_id' });
+            if (upErr) {
+              await failJob(admin, job, upErr.message);
+              summary.push({ job: job.id, result: 'error', reason: upErr.message });
+              upsertFailed = true;
+              break;
+            }
           }
+          if (upsertFailed) continue;
         }
 
         await aggregateDaily(admin, job.organization_id, job.since_days ?? 30);

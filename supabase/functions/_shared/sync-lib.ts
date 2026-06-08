@@ -422,11 +422,17 @@ export async function runOrgSync(
 
     results.push(result);
 
+    const statusText = result.queued
+      ? 'processing: ActBlue export queued'
+      : result.ok
+        ? 'success'
+        : `error: ${result.error ?? 'unknown'}`.slice(0, 280);
+
     await admin
       .from('client_api_credentials')
       .update({
         last_sync_at: new Date().toISOString(),
-        last_sync_status: result.ok ? 'success' : `error: ${result.error ?? 'unknown'}`.slice(0, 280),
+        last_sync_status: statusText,
       })
       .eq('organization_id', orgId)
       .eq('platform', row.platform);

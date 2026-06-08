@@ -508,7 +508,10 @@ export async function aggregateDaily(
   for (const r of sms.data ?? []) {
     const d = ensure(r.date);
     d.sms_cost += num(r.cost);
-    d.funds += num(r.amount_raised);
+    // NOTE: do NOT add SMS amount_raised into d.funds. SMS is a channel —
+    // those donations still process through ActBlue and are already counted
+    // in the org_daily_rollup below. Adding amount_raised here double-counts
+    // funds raised. Keep it out of the funds total.
     d.sms_sent += num(r.messages_sent);
     d.sms_conversions += num(r.conversions);
   }

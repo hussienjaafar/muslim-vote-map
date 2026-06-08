@@ -35,8 +35,35 @@ export default function Dashboard() {
 
   const orgId = activeOrg?.id ?? null;
   const { data: summary, isLoading, isFetching: summaryFetching } = useFundraisingSummary(orgId, days);
-  const { data: donations, isFetching: donationsFetching } = useRecentDonations(orgId);
+  const {
+    data: donationsData,
+    isFetching: donationsFetching,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useRecentDonations(orgId);
   const refreshing = summaryFetching || donationsFetching;
+
+  const donationRows = useMemo(
+    () => donationsData?.pages.flat() ?? [],
+    [donationsData]
+  );
+
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = loadMoreRef.current;
+    if (!node || !hasNextPage) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { rootMargin: '120px' }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['fundraising-summary', orgId] });

@@ -7,10 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import { Plug, RefreshCw, Megaphone, MessageSquare, HeartHandshake, Facebook, Loader2, Copy, Check } from 'lucide-react';
+import { Plug, RefreshCw, Megaphone, MessageSquare, HeartHandshake, Facebook, Loader2, Copy, Check, CheckCircle2, AlertCircle } from 'lucide-react';
 import {
   useOrgCredentials, useSaveCredentials, useDisconnectCredentials, useRunSync,
   useMetaOAuthInit, useMetaOAuthCallback, useMetaSaveConnection,
+  useActblueJobs, useRunActblueWorker,
   type Platform, type CredentialStatus, type MetaAdAccount,
 } from '@/queries/useIntegrationQueries';
 
@@ -46,6 +47,75 @@ function WebhookUrlField({ url }: { url: string }) {
     </div>
   );
 }
+
+function ActblueHistory({ orgId }: { orgId: string }) {
+  const { data: jobs, isLoading } = useActblueJobs(orgId);
+  const runWorker = useRunActblueWorker(orgId);
+
+  const handleRun = async () => {
+    try {
+      const res = await runWorker.mutateAsync();
+      const completed = res.summary.filter((s) => s.result === 'complete').length;
+      const pending = res.summary.filter((s) => s.result === 'pending').length;
+      if (completed) toast.success(`Checked — ${completed} export(s) completed`);
+      else if (pending) toast.info(`Checked — ${pending} export(s) still generating`);
+      else toast.info('Checked — no exports waiting');
+    } catch (e: any) {
+      toast.error(e.message ?? 'Could not run check');
+    }
+  };
+
+  return (
+    <div className="rounded-md border border-border bg-background/40 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-muted-foreground">Export history</span>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1.5 text-[11px]"
+          onClick={handleRun}
+          disabled={runWorker.isPending}
+        >
+          <RefreshCw className={`w-3 h-3 ${runWorker.isPending ? 'animate-spin' : ''}`} /> Run check now
+        </Button>
+      </div>
+      {isLoading ? (
+        <p className="text-[11px] text-muted-foreground">Loading…</p>
+      ) : !jobs?.length ? (
+        <p className="text-[11px] text-muted-foreground">No exports yet. Run a sync to request one.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {jobs.map((j) => (
+            <li key={j.id} className="flex items-center gap-2 text-[11px]">
+              {j.status === 'processing' && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground shrink-0" />}
+              {j.status === 'complete' && <CheckCircle2 className="w-3 h-3 text-primary shrink-0" />}
+              {j.status === 'error' && <AlertCircle className="w-3 h-3 text-destructive shrink-0" />}
+              <span className="capitalize font-medium">{j.status}</span>
+              <span className="text-muted-foreground">· last {j.since_days}d</span>
+              {j.status === 'complete' && j.rows_imported != null && (
+                <span className="text-muted-foreground">· {j.rows_imported} record(s)</span>
+              )}
+              {j.status === 'processing' && j.attempts > 0 && (
+                <span className="text-muted-foreground">· attempt {j.attempts}</span>
+              )}
+              <span className="text-muted-foreground ml-auto shrink-0">
+                {formatDistanceToNow(new Date(j.updated_at), { addSuffix: true })}
+              </span>
+            </li>
+          ))}
+          {jobs.some((j) => j.status === 'error' && j.last_error) && (
+            <li className="text-[11px] text-destructive pt-0.5">
+              {jobs.find((j) => j.status === 'error' && j.last_error)?.last_error}
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+
 
 const PLATFORMS: { id: Platform; name: string; icon: typeof Plug; fields: Field[]; help?: string }[] = [
   {
@@ -256,6 +326,7 @@ export default function OrgIntegrations({ orgId }: { orgId: string }) {
                 </div>
               )}
               {p.id === 'actblue' && <WebhookUrlField url={ACTBLUE_WEBHOOK_URL} />}
+              {p.id === 'actblue' && connected && <ActblueHistory orgId={orgId} />}
               <div className="grid sm:grid-cols-2 gap-3">
 
 

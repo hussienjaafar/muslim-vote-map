@@ -1,50 +1,32 @@
-# Background ActBlue export sync
+# Monitor ActBlue CSV processing (per-org)
 
-ActBlue generates its export asynchronously and it often takes longer than an edge function can safely wait. Today `syncActblue` polls inline for ~15s and throws "ActBlue CSV not ready (timeout)". We'll decouple it: the Sync action requests the export and returns immediately, and a scheduled background worker finishes the job when ActBlue is ready. Meta and Switchboard stay synchronous (they're fast).
+Add visibility into the background ActBlue export pipeline directly in each organization's Integrations panel, plus a button to run the worker on demand instead of waiting for the once-a-minute cron.
 
-## Flow
+## 1. Track rows imported (migration)
+Add a nullable `rows_imported` integer column to `actblue_csv_jobs` so the history can show how many donations each export brought in. (Status, attempts, errors, and timestamps already exist.)
 
-```text
-Admin clicks "Sync now"
-  -> sync-org runs Meta + Switchboard inline (as today)
-  -> for ActBlue: request export, store a job row (status=processing), return now
-Cron (every minute)
-  -> process-actblue-jobs polls ActBlue for each open job
-       ready?  -> download, parse, upsert donations, re-aggregate, mark success
-       not yet -> leave job, retry next minute
-       too old -> mark error
-UI shows "Processing…" until the worker finishes, then "Synced".
-```
+## 2. Worker writes the count
+In `process-actblue-jobs`, set `rows_imported` when a job completes (the count it upserts into `actblue_transactions`).
 
-## 1. New table `actblue_csv_jobs`
-Tracks each in-flight export: `organization_id`, `csv_id` (ActBlue's export id), `status` (`processing` / `complete` / `error`), `since_days`, `attempts`, `last_error`, plus standard id/created_at/updated_at. Indexed on `status`. RLS: admins and members of the org can read; full access for the service role (the worker). Includes the standard updated_at trigger.
+## 3. Data hook
+New `useActblueJobs(orgId)` in `useIntegrationQueries.ts` reading recent `actblue_csv_jobs` rows (latest ~10, newest first). Auto-poll every 15s while any job is still `processing` so the panel updates itself.
 
-## 2. Refactor `supabase/functions/_shared/sync-lib.ts`
-- `syncActblue`: stop inline polling. POST the export request (now with `date_range_end`, already fixed), capture `csv_id`, insert an `actblue_csv_jobs` row with status `processing`, and return `{ ok: true, rows: 0 }` with a "queued" note. Set the credential's `last_sync_status` to `processing: ActBlue export queued`.
-- Export `aggregateDaily`, `parseActblueCsv`, and a small `pollActblueCsv(csvId, creds)` helper so the worker can reuse them.
+Add `useRunActblueWorker()` that invokes the `process-actblue-jobs` edge function and, on success, refetches the jobs + credentials queries.
 
-## 3. New edge function `process-actblue-jobs`
-Service-role worker, no JWT (cron-invoked):
-- Load open jobs (`status = processing`). For each, decrypt that org's ActBlue credentials and poll `csvs/{csv_id}`.
-  - **Complete:** download + `parseActblueCsv`, upsert into `actblue_transactions`, run `aggregateDaily` for the org, mark job `complete`, set credential `last_sync_status = success` and `last_sync_at = now`.
-  - **Not ready:** increment `attempts`; once attempts exceed ~20 (≈20 min) mark `error` and write the error to the credential status.
-  - **API error:** record `last_error`, mark `error` past the cap.
+## 4. UI: "ActBlue export history" (in `OrgIntegrations.tsx`)
+Inside the ActBlue platform block, render a compact history list:
+- Status badge per job: Processing (spinner) / Complete / Error, themed with existing tokens.
+- Requested window (e.g. "last 30 days"), created time, and "updated X ago".
+- Rows imported on completed jobs; attempt count while processing; the error message on failed jobs.
+- Empty state when there are no jobs yet.
 
-## 4. Schedule the worker
-Enable `pg_cron`/`pg_net` and register a once-a-minute `cron.schedule` calling `process-actblue-jobs`. This is set up via the data/insert tool (not a migration) because the statement embeds the project function URL and anon key.
-
-## 5. UI: surface the processing state (`OrgIntegrations.tsx`)
-- Show a "Processing…" indicator (with spinner) when `last_sync_status` starts with `processing`, in addition to the existing error line.
-- While any platform is processing, gently auto-refetch credential status (poll the `org-credentials` query every ~15s) so the badge flips to "Synced" without a manual refresh.
-- Update the post-sync toast so ActBlue reads as "queued / processing in background" rather than success/failure.
+Add a small **"Run check now"** button (admin) near the history header that calls `useRunActblueWorker`, shows a spinner while running, and toasts the outcome (e.g. "Checked — 1 export completed").
 
 ## Files
-- Migration: create `actblue_csv_jobs` (+ grants, RLS, trigger).
-- `supabase/functions/_shared/sync-lib.ts`: rework ActBlue path; export helpers.
-- `supabase/functions/process-actblue-jobs/index.ts`: new worker.
-- `src/queries/useIntegrationQueries.ts`: optional polling while processing.
-- `src/components/org/OrgIntegrations.tsx`: processing UI + toast copy.
-- Cron registration via insert tool.
+- Migration: add `rows_imported` to `actblue_csv_jobs`.
+- `supabase/functions/process-actblue-jobs/index.ts`: write `rows_imported` on completion.
+- `src/queries/useIntegrationQueries.ts`: `useActblueJobs`, `useRunActblueWorker`.
+- `src/components/org/OrgIntegrations.tsx`: history list + run-now button.
 
 ## Verification
-Run Sync on Hamawy's org: toast should report Meta/Switchboard inline and ActBlue as queued. Watch `actblue_csv_jobs` and `process-actblue-jobs` logs over the next minute or two; confirm the job flips to `complete`, donations land in `actblue_transactions`, daily metrics re-aggregate, and the UI badge updates to Synced.
+On Hamawy's org, the history shows the already-completed export with its row count. Click "Run check now" to confirm it invokes the worker and the list refreshes. Trigger a new Sync and watch a fresh job appear as Processing and flip to Complete automatically.

@@ -1,0 +1,1 @@
+ALTER TABLE public.actblue_csv_jobs ADD COLUMN rows_imported INTEGER;

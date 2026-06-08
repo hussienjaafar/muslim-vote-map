@@ -1,26 +1,28 @@
-# Make the ActBlue webhook feed the dashboard in real time
+# Get June 8 in now + keep the dashboard up to date
 
-## Problem
+## Why Jun 8 is empty
+There are no ActBlue transactions dated June 8 in the database. The last backfill CSV only covered through June 7, and no sync (or live webhook donation) has run since. Nothing is broken — the data just hasn't been pulled yet.
 
-The `actblue-webhook` function upserts each incoming donation into the raw `actblue_transactions` table but never updates `daily_aggregated_metrics`. The dashboard's KPIs and chart read from that rollup table, which is only refreshed by the daily 03:30 cron sync. Result: webhook donations don't show in dashboard totals/chart until the next day (the "Recent Donations" list updates instantly because it reads raw transactions, but KPIs/chart lag).
+There are three freshness mechanisms, in increasing latency:
+1. **Real-time webhook** (`actblue-webhook`) — instant, but only fires if ActBlue is configured to POST to our endpoint.
+2. **On-demand "Sync now"** (`sync-org`) — pulls a fresh ActBlue CSV export for the recent window; the per-minute worker imports + aggregates it.
+3. **Scheduled cron** (`daily-fundraising-sync`) — currently runs only once a day at 03:30, pulling the last 7 days.
 
-## Fix
+## Plan
 
-After successfully upserting the donation, re-aggregate just that donation's day for that org so the rollup stays current.
+### 1. Pull June 8 right now (one-time)
+Trigger an incremental sync for the org (the same path as the "Sync now" button: `sync-org` with a small `sinceDays`, e.g. 7). This requests an ActBlue CSV export for the recent window, which the per-minute worker then imports and aggregates. Within a few minutes June 8 will populate. Then verify `actblue_transactions` and `daily_aggregated_metrics` both show June 8 rows with real totals.
 
-1. **`supabase/functions/actblue-webhook/index.ts`**
-   - Import `aggregateDaily` from `../_shared/sync-lib.ts`.
-   - After the successful `actblue_transactions` upsert, compute the transaction's day (`transaction_date` sliced to `YYYY-MM-DD`) and call `aggregateDaily(admin, orgId, 1, false, day)`. The `sinceDate` parameter (already added earlier) scopes the recompute to that single day — cheap, idempotent, well within CPU limits.
-   - Run the aggregation in a way that never fails the webhook response: wrap it in try/catch (and/or `EdgeRuntime.waitUntil`) so ActBlue still receives a 200 even if aggregation hiccups. ActBlue retries on non-2xx, so the insert must remain the authoritative success signal.
+### 2. Increase scheduled freshness (ongoing safety net)
+Reschedule the `daily-fundraising-sync` cron from once-daily (`30 3 * * *`) to **hourly** (`0 * * * *`) so the dashboard catches up at least every hour without anyone clicking "Sync now." This is done by re-running `cron.schedule` with the same job name (uses the project URL + anon key, so it goes through the data tool, not a migration). Hourly is a reasonable cadence given ActBlue CSV exports are generated asynchronously.
 
-## Why this is safe
-
-- `aggregateDaily` recomputes a day fully from the raw tables, so processing the same webhook (or a retry) twice yields the same rollup — no double counting.
-- Scoping to one day keeps each webhook invocation light, unlike a full re-aggregation.
-- New-donor counts stay correct because `aggregateDaily` derives first-seen dates from `org_new_donors_since` over the raw data.
+### 3. Confirm the real-time path (true "as up to date as possible")
+The webhook we just deployed already aggregates each donation's day on arrival — this is the only truly real-time route. The remaining step is operational, not code: **register the `actblue-webhook` URL in the ActBlue dashboard** so live donations stream in instantly. I'll surface the endpoint URL and the auth options (HMAC `webhook_secret` or Basic Auth) so it can be configured.
 
 ## Verification
+- After step 1: June 8 appears in `actblue_transactions` and `daily_aggregated_metrics`, and the dashboard KPIs/chart show it.
+- After step 2: confirm the cron row shows the hourly schedule.
+- After step 3 (once ActBlue is configured): send a test donation and confirm it appears within seconds.
 
-- Send a test payload via the webhook for the org and confirm: the row appears in `actblue_transactions`, and the matching `daily_aggregated_metrics` day's `total_funds_raised` / `total_donations` increases to match.
-- Confirm the dashboard KPIs/chart reflect the new donation without waiting for the 03:30 cron.
-- Confirm a duplicate/retried webhook for the same `transaction_id` does not change the day's totals a second time.
+## Open question
+For step 2, is **hourly** the right cadence, or do you want it tighter (e.g. every 15 minutes)? Tighter means more frequent ActBlue export requests but fresher catch-up data.

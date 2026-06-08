@@ -52,9 +52,10 @@ export function useFundraisingSummary(orgId: string | null, days: number) {
   return useQuery<FundraisingSummary>({
     queryKey: ['fundraising-summary', orgId, days],
     enabled: !!orgId,
-    staleTime: 30_000,
-    refetchInterval: 120_000,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     queryFn: async () => {
       const empty: FundraisingSummary = {
         fallback: false,
@@ -116,9 +117,10 @@ export function useRecentDonations(orgId: string | null, pageSize = DONATIONS_PA
   return useInfiniteQuery({
     queryKey: ['recent-donations', orgId, pageSize],
     enabled: !!orgId,
-    staleTime: 15_000,
-    refetchInterval: 60_000,
+    staleTime: 10_000,
+    refetchInterval: 20_000,
     refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     initialPageParam: 0,
     getNextPageParam: (lastPage: RecentDonation[] | undefined, allPages) =>
       (lastPage?.length ?? 0) < pageSize ? undefined : allPages.length,

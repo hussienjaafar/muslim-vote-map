@@ -75,6 +75,10 @@ export default function Attribution() {
               ))}
             </SelectContent>
           </Select>
+          <Button onClick={handleSyncMeta} disabled={!effectiveOrg || syncMeta.isPending} variant="outline" className="gap-2">
+            {syncMeta.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            Sync Meta ad links
+          </Button>
           <Button onClick={handleRecompute} disabled={!effectiveOrg || recompute.isPending} className="gap-2">
             {recompute.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Recompute

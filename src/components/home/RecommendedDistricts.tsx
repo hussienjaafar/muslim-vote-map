@@ -134,7 +134,7 @@ export function RecommendedDistricts({ issueId }: { issueId: string | null }) {
                 <span className="text-muted-foreground"> • {formatCompact(d.gold_donors)} gold</span>
               )}
             </p>
-            <QuickAdd district={d} product={quickAddProduct} />
+            <QuickAdd district={d} product={quickAddProduct} issueId={issueId} issueName={issueName} />
           </div>
         ))}
       </div>

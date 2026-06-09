@@ -17,8 +17,9 @@ import Dashboard from './Dashboard';
 export default function Workspace() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { organizations, isLoading: orgLoading } = useOrg();
-  const hasOrg = organizations.length > 0;
+  const { activeOrg, organizations, isLoading: orgLoading } = useOrg();
+  // True for real org members AND admins impersonating an org ("View as org").
+  const hasOrg = !!activeOrg || organizations.length > 0;
   const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: profile } = useQuery({

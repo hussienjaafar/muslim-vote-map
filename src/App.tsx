@@ -29,6 +29,7 @@ import DataManagement from "./pages/admin/DataManagement.tsx";
 import LiveActivity from "./pages/admin/LiveActivity.tsx";
 import WebhookDeliveries from "./pages/admin/WebhookDeliveries.tsx";
 import Organizations from "./pages/admin/Organizations.tsx";
+import Attribution from "./pages/admin/Attribution.tsx";
 import OrganizationDetail from "./pages/admin/OrganizationDetail.tsx";
 import RequestAccess from "./pages/RequestAccess.tsx";
 import ApplicationStatus from "./pages/ApplicationStatus.tsx";
@@ -80,6 +81,8 @@ const App = () => (
             <Route path="issue-map" element={<IssueDonorMap isAdminView />} />
             <Route path="live" element={<LiveActivity />} />
             <Route path="webhooks" element={<WebhookDeliveries />} />
+            <Route path="attribution" element={<Attribution />} />
+
           </Route>
 
           <Route path="*" element={<NotFound />} />

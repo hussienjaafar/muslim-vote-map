@@ -15,7 +15,7 @@ import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import IssueDonorMap from "./pages/admin/IssueDonorMap.tsx";
 import Account from "./pages/Account.tsx";
-import FundraisingDashboard from "./pages/Dashboard.tsx";
+
 import AdminLayout from "./pages/admin/AdminLayout.tsx";
 import Dashboard from "./pages/admin/Dashboard.tsx";
 import UsersLayout from "./pages/admin/UsersLayout.tsx";

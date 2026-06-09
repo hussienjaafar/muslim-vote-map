@@ -129,13 +129,15 @@ async function syncMeta(
 
   // Build deterministic refcode -> meta mappings from each ad's destination link.
   // Best-effort: never fail the daily metrics sync because of creative parsing.
+  let adLinkNote: string | undefined;
   try {
-    await syncMetaAdLinks(admin, orgId, acct, token);
-  } catch (_e) {
-    // best-effort
+    const r = await syncMetaAdLinks(admin, orgId, acct, token);
+    adLinkNote = `ad-links: ads=${r.ads} urls=${r.urls} refcodes=${r.mappings}${r.error ? ` err=${r.error}` : ''}`;
+  } catch (e) {
+    adLinkNote = `ad-links error: ${(e as Error).message}`;
   }
 
-  return { platform: 'meta', ok: true, rows: rows.length };
+  return { platform: 'meta', ok: true, rows: rows.length, note: adLinkNote };
 }
 
 /**

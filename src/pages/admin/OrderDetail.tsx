@@ -175,6 +175,7 @@ export default function OrderDetail() {
 
   // Computed total
   const total = items?.reduce((sum, it) => sum + (it.record_count ?? 0) * Number(it.unit_price ?? 0), 0) ?? 0;
+  const totalRecords = items?.reduce((sum, it) => sum + (it.record_count ?? 0), 0) ?? 0;
 
   if (isLoading) {
     return (

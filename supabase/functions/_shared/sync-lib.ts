@@ -165,15 +165,23 @@ export async function syncMetaAdLinks(
   const mappings = new Map<string, { campaign_label: string | null; meta_campaign_id: string | null }>();
 
   let guard = 0;
+  let adCount = 0;
+  let urlCount = 0;
+  let firstError: string | null = null;
   while (url && guard < 200) {
     guard++;
     const res = await fetch(url);
-    if (!res.ok) break; // best-effort
+    if (!res.ok) {
+      firstError = `Meta ads API ${res.status}: ${(await res.text()).slice(0, 300)}`;
+      break; // best-effort
+    }
     const payload = await res.json();
     for (const ad of payload.data ?? []) {
+      adCount++;
       const campaignName: string | null = ad?.campaign?.name ?? null;
       const campaignId: string | null = ad?.campaign?.id ? String(ad.campaign.id) : null;
       const urls = collectCreativeUrls(ad?.creative);
+      urlCount += urls.length;
       for (const u of urls) {
         const refcode = extractRefcode(u);
         if (!refcode) continue;
@@ -188,6 +196,11 @@ export async function syncMetaAdLinks(
     }
     url = payload.paging?.next ?? null;
   }
+
+  console.log(
+    `[syncMetaAdLinks] org=${orgId} ads=${adCount} urls=${urlCount} refcodes=${mappings.size}` +
+    (firstError ? ` error=${firstError}` : ''),
+  );
 
   if (!mappings.size) return { mappings: 0 };
 

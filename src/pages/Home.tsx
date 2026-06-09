@@ -592,7 +592,7 @@ export default function Home() {
                           <span className="text-muted-foreground"> • {formatCompact(d.gold_donors)} gold</span>
                         )}
                       </p>
-                      <QuickAddButton district={d} product={quickAddProduct} />
+                      <QuickAddButton district={d} product={quickAddProduct} issueId={activeIssueId} issueName={activeIssue?.name ?? null} />
                     </div>
                   ))}
                 </div>

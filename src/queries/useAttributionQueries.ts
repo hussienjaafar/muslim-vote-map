@@ -161,3 +161,26 @@ export function useRecomputeAttribution(orgId: string | null) {
     },
   });
 }
+
+/**
+ * Triggers a full org sync, which fetches every Meta ad's destination link,
+ * extracts the refcode, upserts deterministic meta mappings, and recomputes
+ * attribution. Used by the "Sync Meta ad links" admin action.
+ */
+export function useSyncMetaAdLinks(orgId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!orgId) throw new Error('No organization selected');
+      const { error } = await supabase.functions.invoke('sync-org', {
+        body: { organizationId: orgId, full: true },
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['refcode-mappings', orgId] });
+      qc.invalidateQueries({ queryKey: ['attribution-status', orgId] });
+      qc.invalidateQueries({ queryKey: ['channel-breakdown', orgId] });
+    },
+  });
+}

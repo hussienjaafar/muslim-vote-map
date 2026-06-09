@@ -104,7 +104,7 @@ function QuickAddButton({ district, product, issueId, issueName }: {
   );
 }
 
-export default function Home() {
+export default function Home({ embedded = false }: { embedded?: boolean }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { organizations } = useOrg();
@@ -232,6 +232,7 @@ export default function Home() {
       <link rel="prefetch" href="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" as="fetch" crossOrigin="anonymous" />
 
       {/* Header */}
+      {!embedded && (
       <header className="sticky top-0 z-40 bg-[hsl(0_0%_7.5%)]/40 backdrop-blur-2xl border-b border-white/[0.04] shadow-[0_0_20px_hsl(var(--primary)/0.05)]">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -269,6 +270,7 @@ export default function Home() {
           </div>
         </div>
       </header>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8">
         <main className="flex-1 min-w-0 space-y-8">

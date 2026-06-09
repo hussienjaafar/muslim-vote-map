@@ -1,22 +1,52 @@
-# Fix off-center Refresh button
+# Combine the user + org dashboards into one tabbed page
 
-## Problem
-In `src/pages/Dashboard.tsx`, the header is a single row with `items-center`. The Refresh button lives in a `flex flex-col items-end` column that also stacks the "Updated…", refresh-error, and Meta-stale status lines beneath it. When those lines appear, the column grows taller and `items-center` re-centers the whole column — pushing the button up so it no longer lines up with the OrgSwitcher and Date range picker next to it.
+## Goal
+Users who are both data users and members of a signed-up org should see a single page with two tabs:
+- **Fundraising** — the current org dashboard (Meta ads + ActBlue metrics)
+- **Data & Issues** — the current `/home` data dashboard (issues, districts, orders, map)
 
-## Fix
-Stop the status text from affecting the button's vertical position so the button stays aligned with its sibling controls regardless of whether a message is present.
+Org members land on **Fundraising** by default. Users with no org never see the Fundraising tab or any org sections — they see only the Data & Issues content (unchanged from today).
 
-Approach: anchor the status text below the button without adding to the row's measured height, by giving the button column `relative` positioning and rendering the stacked status messages in an absolutely-positioned block placed just under the button (`absolute top-full right-0`). The button itself becomes the only flow content in the column, so it aligns with the OrgSwitcher/DateRangePicker via the parent `items-center`.
+## Behavior
 
 ```text
-[ Refresh ▸ ]   [ Org ▾ ]   [ 7D | 30D | ... ]   ← all centered on button row
-  Updated 1:33 PM ET                               ← floats beneath, no layout shift
-  Meta Ads last synced …
+ Login (non-admin)
+        |
+        v
+   /home  (combined shell)
+   ┌───────────────────────────────────────────┐
+   │  Header: logo · [Fundraising][Data&Issues] │  <- tabs only show Fundraising if hasOrg
+   │          OrgSwitcher · account menu        │
+   ├───────────────────────────────────────────┤
+   │  active tab content                         │
+   └───────────────────────────────────────────┘
+
+ hasOrg === true   -> default tab = Fundraising
+ hasOrg === false  -> no Fundraising tab; render Data & Issues only (no tab bar)
 ```
 
-### Technical details (file: `src/pages/Dashboard.tsx`)
-- Change the button wrapper from `flex flex-col items-end` to `relative flex flex-col items-end`.
-- Move the three conditional status spans (`lastUpdated`, `summaryError`, `metaStale`) into a single `absolute top-full right-0 mt-1` container (right-aligned, `flex flex-col items-end`, `whitespace-nowrap`) so they render below the button but are removed from the row's height calculation.
-- No logic, data, or copy changes — purely a layout/markup adjustment.
+## Plan
 
-This keeps the Refresh button vertically centered with the adjacent controls whether or not the "Updated…" message (or the stale/error warnings) is showing.
+1. **Create a combined shell page** (`src/pages/Workspace.tsx`, mounted at `/home`).
+   - Reads `hasOrg` from `useOrg()` (`organizations.length > 0`).
+   - Renders one shared header (logo, OrgSwitcher, account dropdown — moved up from the two existing pages so it isn't duplicated).
+   - When `hasOrg`: render a tab bar (shadcn `Tabs`) with **Fundraising** (default) and **Data & Issues**; tab state synced to a `?tab=fundraising|data` query param so links/refresh are stable.
+   - When `!hasOrg`: render only the Data & Issues body, no tab bar, no Fundraising — identical to today's experience.
+
+2. **Refactor `Home.tsx` into a body component** (`HomeContent`) that renders only the data/issues content (everything below the current header). The header markup (logo, Dashboard button, OrgSwitcher, account menu) moves into the shell. Remove the now-redundant "Dashboard" button.
+
+3. **Refactor `Dashboard.tsx` into a body component** (`FundraisingContent`) that renders only the fundraising content (below its current header). Its header/back-link/OrgSwitcher move into the shell. The recent Refresh-button + Meta-stale layout stays intact inside the body.
+
+4. **Routing (`src/App.tsx`)**
+   - `/home` → combined shell (`Workspace`).
+   - Keep `/dashboard` working by redirecting it to `/home?tab=fundraising` (preserves existing internal links and bookmarks). The standalone `FundraisingDashboard` route is replaced by the shell.
+
+5. **Login redirect (`Login.tsx`)** — unchanged target `/home`. The shell itself picks the default tab (Fundraising when the user has an org), so org members effectively land on fundraising without special login logic.
+
+6. **Verify**: org member sees both tabs, lands on Fundraising, can switch to Data & Issues; non-org user sees only the data dashboard with no tab bar and no org UI; `/dashboard` and `/account` deep links still resolve.
+
+## Technical notes
+- No backend, schema, or query changes — purely a frontend restructure of two existing pages plus routing.
+- Both bodies keep their existing hooks (`useOrg`, `useFundraisingSummary`, `useIssueDonorData`, etc.); the fundraising hooks already no-op when `orgId` is null, so mounting is safe.
+- Tab state via `useSearchParams` (`?tab=`) keeps refresh/deep-linking predictable and lets `/dashboard` redirect map cleanly to the Fundraising tab.
+- Shared header avoids duplicate OrgSwitcher/account menus and keeps a single consistent top bar across tabs.

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,13 +9,13 @@ import { OrgProvider } from "@/contexts/OrgContext";
 import { ImpersonationBanner } from "@/components/org/ImpersonationBanner";
 import Index from "./pages/Index.tsx";
 import Login from "./pages/Login.tsx";
-import Home from "./pages/Home.tsx";
+import Workspace from "./pages/Workspace.tsx";
 import Signup from "./pages/Signup.tsx";
 import ResetPassword from "./pages/ResetPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import IssueDonorMap from "./pages/admin/IssueDonorMap.tsx";
 import Account from "./pages/Account.tsx";
-import FundraisingDashboard from "./pages/Dashboard.tsx";
+
 import AdminLayout from "./pages/admin/AdminLayout.tsx";
 import Dashboard from "./pages/admin/Dashboard.tsx";
 import UsersLayout from "./pages/admin/UsersLayout.tsx";
@@ -57,10 +57,10 @@ const App = () => (
           <Route path="/meta-oauth-callback" element={<AuthGuard><MetaOAuthCallback /></AuthGuard>} />
 
           {/* Auth-gated routes */}
-          <Route path="/home" element={<AuthGuard><Home /></AuthGuard>} />
+          <Route path="/home" element={<AuthGuard><Workspace /></AuthGuard>} />
           <Route path="/map" element={<AuthGuard><IssueDonorMap /></AuthGuard>} />
           <Route path="/account" element={<AuthGuard><Account /></AuthGuard>} />
-          <Route path="/dashboard" element={<AuthGuard><FundraisingDashboard /></AuthGuard>} />
+          <Route path="/dashboard" element={<Navigate to="/home?tab=fundraising" replace />} />
 
           {/* Admin routes — sidebar layout */}
           <Route path="/admin" element={<AuthGuard requireAdmin><AdminLayout /></AuthGuard>}>

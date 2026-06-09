@@ -33,6 +33,7 @@ export default function Attribution() {
   const { data: overrides } = useFormOverrides(effectiveOrg);
   const { data: status } = useAttributionStatus(effectiveOrg);
   const recompute = useRecomputeAttribution(effectiveOrg);
+  const syncMeta = useSyncMetaAdLinks(effectiveOrg);
 
   const totalRaised = useMemo(() => (status ?? []).reduce((a, s) => a + s.raised, 0), [status]);
 
@@ -42,6 +43,15 @@ export default function Attribution() {
       toast.success('Attribution recomputed for this organization.');
     } catch (e: any) {
       toast.error(e.message ?? 'Recompute failed');
+    }
+  };
+
+  const handleSyncMeta = async () => {
+    try {
+      await syncMeta.mutateAsync();
+      toast.success('Synced Meta ad links and recomputed attribution.');
+    } catch (e: any) {
+      toast.error(e.message ?? 'Meta ad link sync failed');
     }
   };
 

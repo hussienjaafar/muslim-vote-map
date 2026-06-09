@@ -229,8 +229,9 @@ export function IssueRegionSidebar({
           {/* Add to quote request */}
           <AddToQuoteSection
             region={region}
-            rows={selectedIssues.map(i => rowsByIssue.get(i.id)).filter(Boolean)}
+            issues={selectedIssues.map(i => ({ issue: i, row: rowsByIssue.get(i.id) })).filter(x => x.row)}
           />
+
 
       </div>
     </>

@@ -48,10 +48,12 @@ export function useUpsertMapping(orgId: string | null) {
       const row = {
         organization_id: orgId,
         pattern: m.pattern ?? null,
+        refcode: m.pattern ?? null,
         match_type: m.match_type ?? 'exact',
         channel: m.channel ?? null,
         campaign_label: m.campaign_label ?? null,
         priority: m.priority ?? 100,
+        source: 'manual',
         ...(m.id ? { id: m.id } : {}),
       };
       const { error } = await supabase.from('campaign_attribution').upsert(row);

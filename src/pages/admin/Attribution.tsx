@@ -214,7 +214,16 @@ function MappingsSection({ orgId, mappings }: { orgId: string | null; mappings: 
             <TableBody>
               {mappings.map((m) => (
                 <TableRow key={m.id} className="cursor-pointer" onClick={() => openEdit(m)}>
-                  <TableCell className="font-mono text-xs">{m.pattern ?? m.refcode}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    <span className="inline-flex items-center gap-2">
+                      {m.pattern ?? m.refcode}
+                      {m.source === 'meta_ad' && (
+                        <Badge variant="secondary" className="text-[10px] font-sans gap-1">
+                          <Sparkles className="w-3 h-3" /> from Meta ad
+                        </Badge>
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell className="capitalize text-xs">{m.match_type}</TableCell>
                   <TableCell><ChannelBadge channel={m.channel} /></TableCell>
                   <TableCell className="text-xs text-muted-foreground">{m.campaign_label ?? '—'}</TableCell>

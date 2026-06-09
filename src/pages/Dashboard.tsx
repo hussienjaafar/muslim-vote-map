@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOrg } from '@/contexts/OrgContext';
 import { useFundraisingSummary, useRecentDonations, useHourlyFundraising } from '@/queries/useFundraisingQueries';
+import { useOrgCredentials } from '@/queries/useIntegrationQueries';
 import { useRealtimeFundraising } from '@/queries/useRealtimeFundraising';
 import { OrgSwitcher } from '@/components/org/OrgSwitcher';
 import { DateRangePicker } from '@/components/dashboard/DateRangePicker';
@@ -72,6 +73,18 @@ export default function Dashboard() {
         hour: 'numeric', minute: '2-digit', second: '2-digit',
       }) + ' ET'
     : null;
+
+  // Surface true data freshness from the Meta sync. dataUpdatedAt above only
+  // reflects when the browser last fetched — it stays "fresh" even when the
+  // backend sync is stalled, which previously hid a multi-day outage.
+  const { data: credentials } = useOrgCredentials(orgId ?? undefined);
+  const metaStale = useMemo(() => {
+    const meta = credentials?.find((c) => c.platform === 'meta' && c.is_active);
+    if (!meta?.last_sync_at) return null;
+    const ageMs = Date.now() - new Date(meta.last_sync_at).getTime();
+    if (ageMs <= 2 * 60 * 60 * 1000) return null; // fresh within 2h
+    return fmtEastern(meta.last_sync_at);
+  }, [credentials]);
 
   const donationRows = useMemo(
     () => donationsData?.pages.flat() ?? [],
@@ -186,6 +199,11 @@ export default function Dashboard() {
               {summaryError && summary && !refreshing && (
                 <span className="mt-0.5 text-[10px] text-amber-400/80 whitespace-nowrap">
                   Couldn't refresh — showing last data
+                </span>
+              )}
+              {metaStale && (
+                <span className="mt-0.5 text-[10px] text-amber-400/80 whitespace-nowrap" title="The Meta Ads background sync has not run recently.">
+                  Meta Ads last synced {metaStale}
                 </span>
               )}
             </div>

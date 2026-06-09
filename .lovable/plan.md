@@ -1,41 +1,42 @@
-# Fix: Orders don't say which issue the data is for
+# Fix: Meta ads data not auto-updating on the client dashboard
 
-## Problem
-Orders placed from the Issue Map only record a generic product tier (e.g. "Issue Donors — Gold") and a region (e.g. "District TX-020"). The Issue Map is issue-scoped, but the **selected issue is never saved** on the cart or order line. Worse, the "Add to Quote Request" button sums record counts across *all* selected issues into one line, so even the per-issue counts are lost. Your team can't fulfill because they don't know which issue's donors/phones were requested.
+## What's happening
+The dashboard reads from `meta_ad_metrics` / `meta_ad_hourly_metrics` (rolled into `daily_aggregated_metrics`). For the only active org, the latest data is frozen at **2026-06-08 21:38 UTC** — nothing has synced today.
 
-## Goal
-Every quote line carries the exact **issue** it belongs to, as **one line per issue**, with that issue's own record count. Admins see the issue on the order detail page. Best-effort backfill of existing orders.
+## Root-cause evidence
+- The `sync-all-orgs` cron (jobid 2) runs every 5 minutes and the function **is booting** (edge logs show `booted` / `shutdown` at 17:05 and 17:10 today) — so pg_cron and pg_net are firing.
+- But `client_api_credentials.last_sync_at` for **all three platforms is stuck at 2026-06-08 21:38–21:48** with `last_sync_status = success`. `runOrgSync` always updates `last_sync_at` when it runs, so **`runOrgSync` is not executing** on these recent boots.
+- There are **no error logs** from the function — it returns early and quietly.
 
-## Approach
+The only early-return path that produces no log and no DB write is the **authorization check returning 401**:
 
-### 1. Database: add issue columns
-Add to both `data_cart_items` and `data_order_items`:
-- `issue_id uuid` (nullable, references `issues.id`)
-- `issue_name text` (denormalized snapshot so the label survives even if an issue is later renamed/removed)
+```ts
+if (apikey && (apikey === anon || apikey === service)) authorized = true;
+...
+if (!authorized) return json({ error: 'Unauthorized' }, 401);
+```
 
-Update the cart upsert conflict key so the same product in the same region but for a *different issue* is treated as a distinct line (conflict on `user_id, product_id, geo_type, geo_code, issue_id`).
+The cron job has the anon key **hardcoded** in its SQL command. If the project's API keys were rotated, the env `SUPABASE_ANON_KEY` no longer equals the stale hardcoded key, so `apikey === anon` is false → 401 → silent stop. This matches every symptom (boots, no writes, no error logs, frozen since a specific timestamp). Note ActBlue (jobid 3) is a *separate* cron with its own hardcoded key — it may still work, which is why other parts look partially alive.
 
-### 2. Add-to-cart: split per issue, attach issue
-- **Issue Map sidebar** (`IssueRegionSidebar.tsx` → `AddToQuoteSection`): instead of summing across selected issues, render the product list per selected issue (or, when multiple issues are selected, add one cart line per issue when a product is clicked). Each line gets that issue's `issue_id`, `issue_name`, and that issue's own record count for the product's `source_field`.
-- **Home page** (`Home.tsx`) and **RecommendedDistricts** (`RecommendedDistricts.tsx`): these already operate on a single active issue — pass that `issue_id`/`issue_name` into the add-to-cart call.
-- `useAddToCart` (`useDataProductQueries.ts`): accept and persist `issue_id` + `issue_name`.
+## Plan
 
-### 3. Carry issue into orders
-- `DataCart.tsx` `handleRequestQuote`: copy `issue_id` and `issue_name` from each cart item onto the inserted `data_order_items`. Show the issue name on each cart line in the drawer.
+### 1. Confirm the cause (no code changes)
+- Manually invoke `sync-all-orgs` with a valid service-role Authorization header and confirm it returns `200` with per-org summaries and that `last_sync_at` advances. If a manual valid-auth call works while the cron does not, the stale hardcoded key is confirmed.
+- Cross-check the cron's hardcoded anon key against the current anon key.
 
-### 4. Admin order detail
-- `OrderDetail.tsx`: add an "Issue" column to the Order Items table (falls back to "—" for legacy rows without an issue).
+### 2. Fix the cron auth (primary fix)
+- Reschedule the `sync-all-orgs` cron (jobid 2) so its `apikey`/Authorization header uses the **current** key, read from Vault at call time rather than a hardcoded literal — same pattern already used by the email cron (jobid 1), which pulls the key from `vault.decrypted_secrets`. This makes it survive future key rotations.
+- Do the same hardening for the ActBlue cron (jobid 3) to prevent the identical failure later.
 
-### 5. Backfill existing orders (best effort)
-For historical `data_order_items` where `issue_id` is null:
-- If the region + product line can be matched to exactly one issue that has data for that district/tier, set it.
-- Where the original selection is ambiguous (multiple issues had data, which is common), it cannot be reliably recovered — those rows stay `—`. We'll report how many were backfilled vs. left ambiguous after running it.
+### 3. Make failures observable (prevent silent recurrence)
+- In `sync-all-orgs`, add a concise log line on the unauthorized path and on entry (org count) so a future auth/expiry problem shows up in edge logs instead of failing silently.
+- Surface staleness to operators: the dashboard "Updated …" line should warn when the newest `meta_ad_metrics.synced_at` is older than a threshold (e.g. > 2 hours), so a stalled sync is visible in-product.
 
-## Technical notes
-- Migration adds the two nullable columns to both tables plus the new unique index on `data_cart_items`; existing GRANTs/RLS unchanged.
-- Backfill runs as a data update (not migration) after the schema lands and the types regenerate.
-- No pricing/terminology changes — stays quote-only.
+### 4. Backfill the gap
+- After the cron is fixed, trigger one `sync-all-orgs` run to pull the missing day(s) of Meta daily + hourly data and re-aggregate `daily_aggregated_metrics`.
 
-## Out of scope
-- Changing the product catalog or tier definitions.
-- Any pricing display.
+### 5. Secondary check (if step 1 disproves the key theory)
+- If a valid-auth manual call also fails to write Meta rows, inspect the Meta branch: an expired `access_token` would return a `Meta API 190` error and set `last_sync_status` to that error (which we are *not* seeing, making this less likely). In that case the fix is re-authorizing the Meta connection / refreshing the long-lived token.
+
+## Notes
+- Cron rescheduling uses project-specific keys/URLs, so it will be applied via the data/cron tooling (not a standard migration), consistent with how jobs 1–3 were created.

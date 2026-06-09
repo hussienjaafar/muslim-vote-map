@@ -39,7 +39,12 @@ Deno.serve(async (req) => {
         }
       }
     }
-    if (!authorized) return json({ error: 'Unauthorized' }, 401);
+    if (!authorized) {
+      // Surface auth failures loudly: a stale/rotated cron key was the cause of a
+      // silent multi-day sync outage. Logging here makes a recurrence visible.
+      console.error('sync-all-orgs: unauthorized request rejected (check cron Authorization key)');
+      return json({ error: 'Unauthorized' }, 401);
+    }
 
     const { data: orgs } = await admin
       .from('client_api_credentials')
@@ -47,6 +52,7 @@ Deno.serve(async (req) => {
       .eq('is_active', true);
 
     const uniqueOrgIds = [...new Set((orgs ?? []).map((o: { organization_id: string }) => o.organization_id))];
+    console.log(`sync-all-orgs: starting sync for ${uniqueOrgIds.length} org(s)`);
 
     const summaries = [];
     for (const orgId of uniqueOrgIds) {

@@ -46,7 +46,7 @@ function fmtEastern(iso: string): string {
 
 
 
-export default function Dashboard() {
+export default function Dashboard({ embedded = false }: { embedded?: boolean }) {
   const { activeOrg, organizations, isLoading: orgLoading } = useOrg();
   const [selection, setSelection] = useState<RangeSelection>(() => presetSelection('7d'));
   const queryClient = useQueryClient();
@@ -166,14 +166,16 @@ export default function Dashboard() {
 
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-10 space-y-8">
+    <div className={embedded ? '' : 'min-h-screen bg-background'}>
+      <div className={embedded ? 'space-y-8' : 'max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-10 space-y-8'}>
         {/* Header */}
         <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="space-y-2">
-            <Link to="/home" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-              <ArrowLeft className="w-3.5 h-3.5" /> Home
-            </Link>
+            {!embedded && (
+              <Link to="/home" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                <ArrowLeft className="w-3.5 h-3.5" /> Home
+              </Link>
+            )}
             <h1 className="text-3xl sm:text-4xl font-display font-bold text-foreground tracking-tight">
               Fundraising Intelligence
             </h1>

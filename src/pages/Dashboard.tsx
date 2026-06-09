@@ -74,6 +74,18 @@ export default function Dashboard() {
       }) + ' ET'
     : null;
 
+  // Surface true data freshness from the Meta sync. dataUpdatedAt above only
+  // reflects when the browser last fetched — it stays "fresh" even when the
+  // backend sync is stalled, which previously hid a multi-day outage.
+  const { data: credentials } = useOrgCredentials(orgId ?? undefined);
+  const metaStale = useMemo(() => {
+    const meta = credentials?.find((c) => c.platform === 'meta' && c.is_active);
+    if (!meta?.last_sync_at) return null;
+    const ageMs = Date.now() - new Date(meta.last_sync_at).getTime();
+    if (ageMs <= 2 * 60 * 60 * 1000) return null; // fresh within 2h
+    return fmtEastern(meta.last_sync_at);
+  }, [credentials]);
+
   const donationRows = useMemo(
     () => donationsData?.pages.flat() ?? [],
     [donationsData]

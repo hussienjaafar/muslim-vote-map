@@ -57,10 +57,10 @@ const App = () => (
           <Route path="/meta-oauth-callback" element={<AuthGuard><MetaOAuthCallback /></AuthGuard>} />
 
           {/* Auth-gated routes */}
-          <Route path="/home" element={<AuthGuard><Home /></AuthGuard>} />
+          <Route path="/home" element={<AuthGuard><Workspace /></AuthGuard>} />
           <Route path="/map" element={<AuthGuard><IssueDonorMap /></AuthGuard>} />
           <Route path="/account" element={<AuthGuard><Account /></AuthGuard>} />
-          <Route path="/dashboard" element={<AuthGuard><FundraisingDashboard /></AuthGuard>} />
+          <Route path="/dashboard" element={<Navigate to="/home?tab=fundraising" replace />} />
 
           {/* Admin routes — sidebar layout */}
           <Route path="/admin" element={<AuthGuard requireAdmin><AdminLayout /></AuthGuard>}>

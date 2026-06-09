@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCartItems, useDataProducts, useAddToCart } from '@/queries/useDataProductQueries';
-import { useIssueDonorDistricts } from '@/hooks/useIssueDonorData';
+import { useIssueDonorDistricts, useIssues } from '@/hooks/useIssueDonorData';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Lightbulb, Plus, CheckCircle2 } from 'lucide-react';
 

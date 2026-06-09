@@ -279,7 +279,9 @@ export default function OrderDetail() {
               })}
               {/* Total row */}
               <TableRow className="border-t border-white/10 hover:bg-transparent">
-                <TableCell colSpan={5} className="text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Total</TableCell>
+                <TableCell colSpan={3} className="text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Total</TableCell>
+                <TableCell className="text-right text-sm font-bold text-foreground tabular-nums">{totalRecords.toLocaleString()}</TableCell>
+                <TableCell />
                 <TableCell className="text-right text-lg font-bold text-primary tabular-nums">${total.toFixed(2)}</TableCell>
               </TableRow>
             </TableBody>

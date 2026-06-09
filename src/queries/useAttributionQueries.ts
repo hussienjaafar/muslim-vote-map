@@ -10,6 +10,7 @@ export type RefcodeMapping = {
   channel: string | null;
   campaign_label: string | null;
   priority: number;
+  source: string;
   created_at: string;
 };
 

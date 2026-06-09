@@ -32,7 +32,7 @@ export function useRefcodeMappings(orgId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('campaign_attribution')
-        .select('id, organization_id, pattern, refcode, match_type, channel, campaign_label, priority, created_at')
+        .select('id, organization_id, pattern, refcode, match_type, channel, campaign_label, priority, source, created_at')
         .eq('organization_id', orgId!)
         .order('priority', { ascending: true });
       if (error) throw new Error(error.message);

@@ -12,12 +12,12 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, RefreshCw, Target, Loader2 } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Target, Loader2, Sparkles } from 'lucide-react';
 import { useAdminOrganizations } from '@/queries/useAdminOrgQueries';
 import {
   useRefcodeMappings, useUpsertMapping, useDeleteMapping,
   useFormOverrides, useUpsertOverride, useDeleteOverride,
-  useAttributionStatus, useRecomputeAttribution,
+  useAttributionStatus, useRecomputeAttribution, useSyncMetaAdLinks,
   ATTRIBUTION_CHANNELS, MATCH_TYPES,
   type RefcodeMapping, type FormOverride,
 } from '@/queries/useAttributionQueries';

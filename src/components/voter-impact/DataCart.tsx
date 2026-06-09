@@ -138,6 +138,11 @@ export function DataCart({ open, onOpenChange }: DataCartProps) {
                           <span className="text-xs text-muted-foreground ml-2">
                             {formatNumber(records)} records
                           </span>
+                          {(item as any).issue_name && (
+                            <span className="block text-[11px] text-primary mt-0.5">
+                              Issue: {(item as any).issue_name}
+                            </span>
+                          )}
                         </div>
                         <Button
                           variant="ghost"

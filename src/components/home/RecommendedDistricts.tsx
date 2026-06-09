@@ -15,9 +15,11 @@ function formatCompact(n: number | null | undefined): string {
   return n.toLocaleString();
 }
 
-function QuickAdd({ district, product }: {
+function QuickAdd({ district, product, issueId, issueName }: {
   district: { cd_code: string; state_code: string; total_donors: number };
   product: { id: string } | undefined;
+  issueId: string | null;
+  issueName: string | null;
 }) {
   const { user } = useAuth();
   const addToCart = useAddToCart();
@@ -34,6 +36,8 @@ function QuickAdd({ district, product }: {
         geo_code: district.cd_code,
         geo_name: `${district.cd_code} (${district.state_code})`,
         record_count: district.total_donors,
+        issue_id: issueId,
+        issue_name: issueName,
       });
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);

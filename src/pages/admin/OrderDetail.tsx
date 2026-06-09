@@ -255,6 +255,7 @@ export default function OrderDetail() {
             <TableHeader>
               <TableRow className="border-b border-white/5 hover:bg-transparent">
                 <TableHead className="text-label-xs text-muted-foreground">Product</TableHead>
+                <TableHead className="text-label-xs text-muted-foreground">Issue</TableHead>
                 <TableHead className="text-label-xs text-muted-foreground">Region</TableHead>
                 <TableHead className="text-label-xs text-muted-foreground text-right">Records</TableHead>
                 <TableHead className="text-label-xs text-muted-foreground text-right">Unit Price</TableHead>
@@ -267,6 +268,7 @@ export default function OrderDetail() {
                 return (
                   <TableRow key={it.id} className={`border-b border-white/5 ${idx % 2 === 1 ? 'bg-white/[0.02]' : ''}`}>
                     <TableCell className="text-sm text-foreground font-medium">{(it as any).data_products?.name ?? it.product_id}</TableCell>
+                    <TableCell className="text-sm text-foreground">{(it as any).issue_name ?? '—'}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{it.geo_name || it.geo_code} ({it.geo_type})</TableCell>
                     <TableCell className="text-sm text-foreground tabular-nums text-right">{it.record_count?.toLocaleString() ?? 0}</TableCell>
                     <TableCell className="text-sm text-foreground tabular-nums text-right">${Number(it.unit_price ?? 0).toFixed(2)}</TableCell>
@@ -276,7 +278,7 @@ export default function OrderDetail() {
               })}
               {/* Total row */}
               <TableRow className="border-t border-white/10 hover:bg-transparent">
-                <TableCell colSpan={4} className="text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Total</TableCell>
+                <TableCell colSpan={5} className="text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Total</TableCell>
                 <TableCell className="text-right text-lg font-bold text-primary tabular-nums">${total.toFixed(2)}</TableCell>
               </TableRow>
             </TableBody>

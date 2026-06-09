@@ -204,7 +204,7 @@ export async function syncMetaAdLinks(
     (firstError ? ` error=${firstError}` : ''),
   );
 
-  if (!mappings.size) return { mappings: 0 };
+  if (!mappings.size) return { mappings: 0, ads: adCount, urls: urlCount, error: firstError };
 
   const rows = [...mappings.entries()].map(([refcode, info]) => ({
     organization_id: orgId,

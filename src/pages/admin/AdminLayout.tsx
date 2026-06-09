@@ -22,6 +22,7 @@ const navItems = [
   { title: 'Map', url: '/admin/issue-map', icon: Map },
   { title: 'Live', url: '/admin/live', icon: Activity },
   { title: 'Webhooks', url: '/admin/webhooks', icon: Radio },
+  { title: 'Attribution', url: '/admin/attribution', icon: Target },
 ];
 
 // Top 4 + "More" overflow on mobile bottom nav

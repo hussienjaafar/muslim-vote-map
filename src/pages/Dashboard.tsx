@@ -7,6 +7,7 @@ import { useOrgCredentials } from '@/queries/useIntegrationQueries';
 import { useRealtimeFundraising } from '@/queries/useRealtimeFundraising';
 import { OrgSwitcher } from '@/components/org/OrgSwitcher';
 import { DateRangePicker } from '@/components/dashboard/DateRangePicker';
+import { ChannelBreakdownCard } from '@/components/dashboard/ChannelBreakdownCard';
 import { type RangeSelection, presetSelection, resolveRange } from '@/lib/dateRanges';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
@@ -336,7 +337,11 @@ export default function Dashboard({ embedded = false }: { embedded?: boolean }) 
           )}
         </section>
 
+        {/* Revenue by channel (refcode attribution) */}
+        <ChannelBreakdownCard orgId={orgId} range={range} />
+
         {/* Recent donations */}
+
         <section className="surgical-glass p-4 sm:p-8">
           <h2 className="text-lg sm:text-xl font-display font-bold text-foreground mb-6">Recent Donations</h2>
           {!donationRows.length ? (

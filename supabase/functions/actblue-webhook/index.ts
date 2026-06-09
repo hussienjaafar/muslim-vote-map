@@ -280,6 +280,13 @@ Deno.serve(async (req) => {
       console.error('aggregateDaily failed for', orgId, day, aggErr);
     }
 
+    // Derive channel attribution for this donation's day (idempotent, scoped).
+    try {
+      await admin.rpc('recompute_attribution', { _org_id: orgId, _since: `${day}T00:00:00Z` });
+    } catch (attrErr) {
+      console.error('recompute_attribution failed for', orgId, day, attrErr);
+    }
+
     return await finish(
       200,
       'processed',

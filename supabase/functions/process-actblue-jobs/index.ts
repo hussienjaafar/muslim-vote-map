@@ -96,6 +96,16 @@ Deno.serve(async (req) => {
           : undefined;
         await aggregateDaily(admin, job.organization_id, job.since_days ?? 30, !sinceDate, sinceDate);
 
+        // Re-derive channel attribution for the imported window (idempotent).
+        try {
+          await admin.rpc('recompute_attribution', {
+            _org_id: job.organization_id,
+            _since: sinceDate ? `${sinceDate}T00:00:00Z` : null,
+          });
+        } catch (attrErr) {
+          console.error('recompute_attribution failed for', job.organization_id, attrErr);
+        }
+
         await admin.from('actblue_csv_jobs').update({ status: 'complete', last_error: null, rows_imported: rows.length }).eq('id', job.id);
         await admin
           .from('client_api_credentials')

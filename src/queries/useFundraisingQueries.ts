@@ -48,6 +48,91 @@ export type FundraisingSummary = {
   };
 };
 
+export type ChannelRow = {
+  channel: string;
+  donations: number;
+  donors: number;
+  raised: number;
+  spend: number;
+  /** raised ÷ spend × 100, or null when no spend is tracked for the channel */
+  roi: number | null;
+  /** share of total raised, 0-100 */
+  share: number;
+  confidence: string | null;
+};
+
+export type ChannelBreakdown = {
+  channels: ChannelRow[];
+  totalRaised: number;
+};
+
+const CHANNEL_LABELS: Record<string, string> = {
+  meta: 'Meta',
+  sms: 'SMS',
+  email: 'Email',
+  organic: 'Organic',
+  other: 'Other',
+};
+
+export function channelLabel(channel: string): string {
+  return CHANNEL_LABELS[channel] ?? channel;
+}
+
+/**
+ * Per-channel raised / donors / ROI for an org over an ET date range.
+ * Reads the pre-computed `attributed_channel` via the org_channel_breakdown RPC
+ * and joins Meta spend + SMS cost to compute ROI for the paid channels.
+ */
+export function useChannelBreakdown(orgId: string | null, range: ResolvedRange) {
+  return useQuery<ChannelBreakdown>({
+    queryKey: ['channel-breakdown', orgId, range.start, range.end],
+    enabled: !!orgId,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 2,
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      if (!orgId) return { channels: [], totalRaised: 0 };
+
+      const { data, error } = await supabase.rpc('org_channel_breakdown', {
+        _org_id: orgId,
+        _start: range.start,
+        _end: range.end,
+      });
+      if (error) throw new Error(error.message);
+
+      const payload = (data ?? {}) as {
+        channels?: Array<{ channel: string; donations: number; donors: number; raised: number; confidence: string | null }>;
+        meta_spend?: number;
+        sms_cost?: number;
+      };
+      const metaSpend = Number(payload.meta_spend) || 0;
+      const smsCost = Number(payload.sms_cost) || 0;
+      const rows = payload.channels ?? [];
+      const totalRaised = rows.reduce((acc, r) => acc + (Number(r.raised) || 0), 0);
+
+      const channels: ChannelRow[] = rows.map((r) => {
+        const raised = Number(r.raised) || 0;
+        const spend = r.channel === 'meta' ? metaSpend : r.channel === 'sms' ? smsCost : 0;
+        const roi = spend > 0 ? ((raised - spend) / spend) * 100 : null;
+        return {
+          channel: r.channel,
+          donations: Number(r.donations) || 0,
+          donors: Number(r.donors) || 0,
+          raised,
+          spend,
+          roi,
+          share: totalRaised > 0 ? (raised / totalRaised) * 100 : 0,
+          confidence: r.confidence ?? null,
+        };
+      });
+
+      return { channels, totalRaised };
+    },
+  });
+}
+
 /**
  * Aggregated daily fundraising metrics for an org over an inclusive ET date range.
  * Resolves with { fallback: true, error } on failure so the UI never crashes.

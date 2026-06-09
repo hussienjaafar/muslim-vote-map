@@ -132,6 +132,10 @@ export type Database = {
       actblue_transactions: {
         Row: {
           amount: number
+          attributed_campaign: string | null
+          attributed_channel: string
+          attribution_confidence: string | null
+          attribution_method: string | null
           created_at: string
           donor_email: string | null
           donor_name: string | null
@@ -147,6 +151,10 @@ export type Database = {
         }
         Insert: {
           amount: number
+          attributed_campaign?: string | null
+          attributed_channel?: string
+          attribution_confidence?: string | null
+          attribution_method?: string | null
           created_at?: string
           donor_email?: string | null
           donor_name?: string | null
@@ -162,6 +170,10 @@ export type Database = {
         }
         Update: {
           amount?: number
+          attributed_campaign?: string | null
+          attributed_channel?: string
+          attribution_confidence?: string | null
+          attribution_method?: string | null
           created_at?: string
           donor_email?: string | null
           donor_name?: string | null
@@ -220,10 +232,15 @@ export type Database = {
       }
       campaign_attribution: {
         Row: {
+          campaign_label: string | null
+          channel: string | null
           created_at: string
           id: string
+          match_type: string
           meta_campaign_id: string | null
           organization_id: string
+          pattern: string | null
+          priority: number
           refcode: string | null
           switchboard_campaign_id: string | null
           utm_campaign: string | null
@@ -231,10 +248,15 @@ export type Database = {
           utm_source: string | null
         }
         Insert: {
+          campaign_label?: string | null
+          channel?: string | null
           created_at?: string
           id?: string
+          match_type?: string
           meta_campaign_id?: string | null
           organization_id: string
+          pattern?: string | null
+          priority?: number
           refcode?: string | null
           switchboard_campaign_id?: string | null
           utm_campaign?: string | null
@@ -242,10 +264,15 @@ export type Database = {
           utm_source?: string | null
         }
         Update: {
+          campaign_label?: string | null
+          channel?: string | null
           created_at?: string
           id?: string
+          match_type?: string
           meta_campaign_id?: string | null
           organization_id?: string
+          pattern?: string | null
+          priority?: number
           refcode?: string | null
           switchboard_campaign_id?: string | null
           utm_campaign?: string | null
@@ -1078,6 +1105,41 @@ export type Database = {
           },
         ]
       }
+      org_form_channel_overrides: {
+        Row: {
+          attributed_channel: string
+          contribution_form: string
+          created_at: string
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          attributed_channel: string
+          contribution_form: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          attributed_channel?: string
+          contribution_form?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_form_channel_overrides_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "client_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_memberships: {
         Row: {
           created_at: string
@@ -1794,6 +1856,10 @@ export type Database = {
           msg_id: number
           read_ct: number
         }[]
+      }
+      recompute_attribution: {
+        Args: { _org_id: string; _since?: string }
+        Returns: Json
       }
       self_delete_account: { Args: never; Returns: undefined }
       submit_access_request: {

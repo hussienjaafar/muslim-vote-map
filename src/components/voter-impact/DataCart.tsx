@@ -59,6 +59,8 @@ export function DataCart({ open, onOpenChange }: DataCartProps) {
         geo_code: item.geo_code,
         geo_name: item.geo_name,
         record_count: item.record_count ?? 1,
+        issue_id: (item as any).issue_id ?? null,
+        issue_name: (item as any).issue_name ?? null,
       }));
       const { error: itemsError } = await supabase.from('data_order_items').insert(orderItems);
       if (itemsError) throw itemsError;
@@ -136,6 +138,11 @@ export function DataCart({ open, onOpenChange }: DataCartProps) {
                           <span className="text-xs text-muted-foreground ml-2">
                             {formatNumber(records)} records
                           </span>
+                          {(item as any).issue_name && (
+                            <span className="block text-[11px] text-primary mt-0.5">
+                              Issue: {(item as any).issue_name}
+                            </span>
+                          )}
                         </div>
                         <Button
                           variant="ghost"

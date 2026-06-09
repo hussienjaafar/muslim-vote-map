@@ -56,9 +56,11 @@ function formatCompact(n: number | null | undefined): string {
 }
 
 /** Quick-add button for top district cards in sidebar */
-function QuickAddButton({ district, product }: {
+function QuickAddButton({ district, product, issueId, issueName }: {
   district: { cd_code: string; state_code: string; total_donors: number };
   product: { id: string } | undefined;
+  issueId: string | null;
+  issueName: string | null;
 }) {
   const { user } = useAuth();
   const addToCart = useAddToCart();
@@ -75,6 +77,8 @@ function QuickAddButton({ district, product }: {
         geo_code: district.cd_code,
         geo_name: `${district.cd_code} (${district.state_code})`,
         record_count: district.total_donors,
+        issue_id: issueId,
+        issue_name: issueName,
       });
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
@@ -588,7 +592,7 @@ export default function Home() {
                           <span className="text-muted-foreground"> • {formatCompact(d.gold_donors)} gold</span>
                         )}
                       </p>
-                      <QuickAddButton district={d} product={quickAddProduct} />
+                      <QuickAddButton district={d} product={quickAddProduct} issueId={activeIssueId} issueName={activeIssue?.name ?? null} />
                     </div>
                   ))}
                 </div>

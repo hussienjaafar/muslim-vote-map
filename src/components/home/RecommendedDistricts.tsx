@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCartItems, useDataProducts, useAddToCart } from '@/queries/useDataProductQueries';
-import { useIssueDonorDistricts } from '@/hooks/useIssueDonorData';
+import { useIssueDonorDistricts, useIssues } from '@/hooks/useIssueDonorData';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Lightbulb, Plus, CheckCircle2 } from 'lucide-react';
 
@@ -15,9 +15,11 @@ function formatCompact(n: number | null | undefined): string {
   return n.toLocaleString();
 }
 
-function QuickAdd({ district, product }: {
+function QuickAdd({ district, product, issueId, issueName }: {
   district: { cd_code: string; state_code: string; total_donors: number };
   product: { id: string } | undefined;
+  issueId: string | null;
+  issueName: string | null;
 }) {
   const { user } = useAuth();
   const addToCart = useAddToCart();
@@ -34,6 +36,8 @@ function QuickAdd({ district, product }: {
         geo_code: district.cd_code,
         geo_name: `${district.cd_code} (${district.state_code})`,
         record_count: district.total_donors,
+        issue_id: issueId,
+        issue_name: issueName,
       });
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
@@ -60,6 +64,8 @@ export function RecommendedDistricts({ issueId }: { issueId: string | null }) {
   const navigate = useNavigate();
   const { data: cartItems } = useCartItems();
   const { data: products } = useDataProducts();
+  const { data: issues } = useIssues();
+  const issueName = issues?.find(i => i.id === issueId)?.name ?? null;
   const quickAddProduct = products?.[0];
 
   const { data: savedStateCodes } = useQuery({
@@ -128,7 +134,7 @@ export function RecommendedDistricts({ issueId }: { issueId: string | null }) {
                 <span className="text-muted-foreground"> • {formatCompact(d.gold_donors)} gold</span>
               )}
             </p>
-            <QuickAdd district={d} product={quickAddProduct} />
+            <QuickAdd district={d} product={quickAddProduct} issueId={issueId} issueName={issueName} />
           </div>
         ))}
       </div>

@@ -229,8 +229,9 @@ export function IssueRegionSidebar({
           {/* Add to quote request */}
           <AddToQuoteSection
             region={region}
-            rows={selectedIssues.map(i => rowsByIssue.get(i.id)).filter(Boolean)}
+            issues={selectedIssues.map(i => ({ issue: i, row: rowsByIssue.get(i.id) })).filter(x => x.row)}
           />
+
 
       </div>
     </>
@@ -270,28 +271,29 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 
 function AddToQuoteSection({
   region,
-  rows,
+  issues,
 }: {
   region: { code: string; type: 'state' | 'district' };
-  rows: any[];
+  issues: { issue: Issue; row: any }[];
 }) {
   const { user } = useAuth();
   const { data: products } = useDataProducts();
   const addToCart = useAddToCart();
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
 
-  if (!user || !products?.length) return null;
+  if (!user || !products?.length || !issues.length) return null;
 
   const geoName = region.type === 'district'
     ? `District ${region.code}`
     : (STATE_ABBREVIATIONS[region.code] || region.code);
 
-  const recordsForProduct = (sourceField?: string | null): number => {
+  const recordsFor = (row: any, sourceField?: string | null): number => {
     if (!sourceField) return 0;
-    return rows.reduce((sum, row) => sum + (Number(row?.[sourceField]) || 0), 0);
+    return Number(row?.[sourceField]) || 0;
   };
 
-  const handleAdd = async (productId: string, recordCount: number) => {
+  const handleAdd = async (issueId: string, issueName: string, productId: string, recordCount: number) => {
+    const key = `${issueId}:${productId}`;
     try {
       await addToCart.mutateAsync({
         product_id: productId,
@@ -299,52 +301,60 @@ function AddToQuoteSection({
         geo_code: region.code,
         geo_name: geoName,
         record_count: recordCount,
+        issue_id: issueId,
+        issue_name: issueName,
       });
-      setAddedIds(prev => new Set(prev).add(productId));
+      setAddedIds(prev => new Set(prev).add(key));
       setTimeout(() => {
         setAddedIds(prev => {
           const next = new Set(prev);
-          next.delete(productId);
+          next.delete(key);
           return next;
         });
       }, 2000);
     } catch { /* handled by mutation */ }
   };
 
-
   return (
-    <div className="border border-primary/20 rounded-md p-4 bg-primary/[0.04]">
-      <p className="text-[10px] uppercase tracking-[0.15em] text-primary font-display mb-3">
+    <div className="border border-primary/20 rounded-md p-4 bg-primary/[0.04] space-y-4">
+      <p className="text-[10px] uppercase tracking-[0.15em] text-primary font-display">
         Add to Quote Request
       </p>
-      <div className="space-y-2">
-        {products.map(p => {
-          const added = addedIds.has(p.id);
-          const records = recordsForProduct((p as any).source_field);
-          return (
-            <button
-              key={p.id}
-              onClick={() => handleAdd(p.id, records)}
-              disabled={addToCart.isPending || added}
-              className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all border ${
-                added
-                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                  : 'bg-white/[0.02] text-foreground hover:bg-primary/10 border-white/[0.06] hover:border-primary/30'
-              }`}
-            >
-              <span className="truncate text-left flex-1">{p.name}</span>
-              <span className="tabular-nums text-muted-foreground shrink-0">{fmt(records)}</span>
-              {added ? (
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              ) : (
-                <Plus className="w-3.5 h-3.5 shrink-0 text-primary" />
-              )}
-            </button>
-          );
-        })}
-
-      </div>
-      <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
+      {issues.map(({ issue, row }) => (
+        <div key={issue.id} className="space-y-2">
+          {issues.length > 1 && (
+            <p className="text-[11px] font-medium text-foreground">{issue.name}</p>
+          )}
+          <div className="space-y-2">
+            {products.map(p => {
+              const key = `${issue.id}:${p.id}`;
+              const added = addedIds.has(key);
+              const records = recordsFor(row, (p as any).source_field);
+              return (
+                <button
+                  key={key}
+                  onClick={() => handleAdd(issue.id, issue.name, p.id, records)}
+                  disabled={addToCart.isPending || added}
+                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md text-xs font-medium transition-all border ${
+                    added
+                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                      : 'bg-white/[0.02] text-foreground hover:bg-primary/10 border-white/[0.06] hover:border-primary/30'
+                  }`}
+                >
+                  <span className="truncate text-left flex-1">{p.name}</span>
+                  <span className="tabular-nums text-muted-foreground shrink-0">{fmt(records)}</span>
+                  {added ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <Plus className="w-3.5 h-3.5 shrink-0 text-primary" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      <p className="text-[10px] text-muted-foreground leading-relaxed">
         Quote-only — no charge. Submit your request and our team will follow up with pricing and delivery.
       </p>
     </div>

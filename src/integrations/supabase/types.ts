@@ -406,6 +406,8 @@ export type Database = {
           geo_name: string | null
           geo_type: string
           id: string
+          issue_id: string | null
+          issue_name: string | null
           organization_id: string | null
           product_id: string
           quantity: number | null
@@ -419,6 +421,8 @@ export type Database = {
           geo_name?: string | null
           geo_type: string
           id?: string
+          issue_id?: string | null
+          issue_name?: string | null
           organization_id?: string | null
           product_id: string
           quantity?: number | null
@@ -432,6 +436,8 @@ export type Database = {
           geo_name?: string | null
           geo_type?: string
           id?: string
+          issue_id?: string | null
+          issue_name?: string | null
           organization_id?: string | null
           product_id?: string
           quantity?: number | null
@@ -439,6 +445,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "data_cart_items_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issues"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "data_cart_items_organization_id_fkey"
             columns: ["organization_id"]
@@ -462,6 +475,8 @@ export type Database = {
           geo_name: string | null
           geo_type: string
           id: string
+          issue_id: string | null
+          issue_name: string | null
           order_id: string
           product_id: string
           record_count: number | null
@@ -473,6 +488,8 @@ export type Database = {
           geo_name?: string | null
           geo_type: string
           id?: string
+          issue_id?: string | null
+          issue_name?: string | null
           order_id: string
           product_id: string
           record_count?: number | null
@@ -484,12 +501,21 @@ export type Database = {
           geo_name?: string | null
           geo_type?: string
           id?: string
+          issue_id?: string | null
+          issue_name?: string | null
           order_id?: string
           product_id?: string
           record_count?: number | null
           unit_price?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "data_order_items_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "issues"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "data_order_items_order_id_fkey"
             columns: ["order_id"]

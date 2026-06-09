@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOrg } from '@/contexts/OrgContext';
 import { useFundraisingSummary, useRecentDonations, useHourlyFundraising } from '@/queries/useFundraisingQueries';
+import { useOrgCredentials } from '@/queries/useIntegrationQueries';
 import { useRealtimeFundraising } from '@/queries/useRealtimeFundraising';
 import { OrgSwitcher } from '@/components/org/OrgSwitcher';
 import { DateRangePicker } from '@/components/dashboard/DateRangePicker';

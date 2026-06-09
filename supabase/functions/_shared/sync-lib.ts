@@ -753,5 +753,14 @@ export async function runOrgSync(
   }
 
   const aggregated = await aggregateDaily(admin, orgId, sinceDays, full);
+
+  // Re-resolve attribution so newly-synced ad-link mappings and fresh
+  // transactions are reflected. Best-effort; never fail the sync on this.
+  try {
+    await admin.rpc('recompute_attribution', { _org_id: orgId, _since: null });
+  } catch (_e) {
+    // best-effort
+  }
+
   return { org_id: orgId, results, aggregated };
 }

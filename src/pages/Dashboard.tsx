@@ -212,7 +212,7 @@ export default function Dashboard({ embedded = false }: { embedded?: boolean }) 
               </div>
             </div>
 
-            <OrgSwitcher />
+            {!embedded && <OrgSwitcher />}
             <DateRangePicker value={selection} onChange={setSelection} />
 
           </div>

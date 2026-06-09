@@ -64,6 +64,8 @@ export function RecommendedDistricts({ issueId }: { issueId: string | null }) {
   const navigate = useNavigate();
   const { data: cartItems } = useCartItems();
   const { data: products } = useDataProducts();
+  const { data: issues } = useIssues();
+  const issueName = issues?.find(i => i.id === issueId)?.name ?? null;
   const quickAddProduct = products?.[0];
 
   const { data: savedStateCodes } = useQuery({

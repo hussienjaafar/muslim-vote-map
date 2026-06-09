@@ -48,13 +48,21 @@ export function useAddToCart() {
       geo_code: string;
       geo_name: string;
       record_count: number;
+      issue_id?: string | null;
+      issue_name?: string | null;
     }) => {
       if (!user) throw new Error('Not authenticated');
       const { error } = await supabase
         .from('data_cart_items')
         .upsert(
-          { ...item, user_id: user.id, organization_id: activeOrg?.id ?? null },
-          { onConflict: 'user_id,product_id,geo_type,geo_code' }
+          {
+            ...item,
+            issue_id: item.issue_id ?? null,
+            issue_name: item.issue_name ?? null,
+            user_id: user.id,
+            organization_id: activeOrg?.id ?? null,
+          },
+          { onConflict: 'user_id,product_id,geo_type,geo_code,issue_id' }
         );
       if (error) throw error;
     },

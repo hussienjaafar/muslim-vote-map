@@ -12,12 +12,12 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, RefreshCw, Target, Loader2 } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Target, Loader2, Sparkles } from 'lucide-react';
 import { useAdminOrganizations } from '@/queries/useAdminOrgQueries';
 import {
   useRefcodeMappings, useUpsertMapping, useDeleteMapping,
   useFormOverrides, useUpsertOverride, useDeleteOverride,
-  useAttributionStatus, useRecomputeAttribution,
+  useAttributionStatus, useRecomputeAttribution, useSyncMetaAdLinks,
   ATTRIBUTION_CHANNELS, MATCH_TYPES,
   type RefcodeMapping, type FormOverride,
 } from '@/queries/useAttributionQueries';
@@ -33,6 +33,7 @@ export default function Attribution() {
   const { data: overrides } = useFormOverrides(effectiveOrg);
   const { data: status } = useAttributionStatus(effectiveOrg);
   const recompute = useRecomputeAttribution(effectiveOrg);
+  const syncMeta = useSyncMetaAdLinks(effectiveOrg);
 
   const totalRaised = useMemo(() => (status ?? []).reduce((a, s) => a + s.raised, 0), [status]);
 
@@ -42,6 +43,15 @@ export default function Attribution() {
       toast.success('Attribution recomputed for this organization.');
     } catch (e: any) {
       toast.error(e.message ?? 'Recompute failed');
+    }
+  };
+
+  const handleSyncMeta = async () => {
+    try {
+      await syncMeta.mutateAsync();
+      toast.success('Synced Meta ad links and recomputed attribution.');
+    } catch (e: any) {
+      toast.error(e.message ?? 'Meta ad link sync failed');
     }
   };
 
@@ -65,6 +75,10 @@ export default function Attribution() {
               ))}
             </SelectContent>
           </Select>
+          <Button onClick={handleSyncMeta} disabled={!effectiveOrg || syncMeta.isPending} variant="outline" className="gap-2">
+            {syncMeta.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            Sync Meta ad links
+          </Button>
           <Button onClick={handleRecompute} disabled={!effectiveOrg || recompute.isPending} className="gap-2">
             {recompute.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             Recompute
@@ -200,7 +214,16 @@ function MappingsSection({ orgId, mappings }: { orgId: string | null; mappings: 
             <TableBody>
               {mappings.map((m) => (
                 <TableRow key={m.id} className="cursor-pointer" onClick={() => openEdit(m)}>
-                  <TableCell className="font-mono text-xs">{m.pattern ?? m.refcode}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    <span className="inline-flex items-center gap-2">
+                      {m.pattern ?? m.refcode}
+                      {m.source === 'meta_ad' && (
+                        <Badge variant="secondary" className="text-[10px] font-sans gap-1">
+                          <Sparkles className="w-3 h-3" /> from Meta ad
+                        </Badge>
+                      )}
+                    </span>
+                  </TableCell>
                   <TableCell className="capitalize text-xs">{m.match_type}</TableCell>
                   <TableCell><ChannelBadge channel={m.channel} /></TableCell>
                   <TableCell className="text-xs text-muted-foreground">{m.campaign_label ?? '—'}</TableCell>

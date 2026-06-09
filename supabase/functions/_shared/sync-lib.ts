@@ -127,7 +127,161 @@ async function syncMeta(
     // best-effort; daily sync already succeeded
   }
 
-  return { platform: 'meta', ok: true, rows: rows.length };
+  // Build deterministic refcode -> meta mappings from each ad's destination link.
+  // Best-effort: never fail the daily metrics sync because of creative parsing.
+  let adLinkNote: string | undefined;
+  try {
+    const r = await syncMetaAdLinks(admin, orgId, acct, token);
+    adLinkNote = `ad-links: ads=${r.ads} urls=${r.urls} refcodes=${r.mappings}${r.error ? ` err=${r.error}` : ''}`;
+  } catch (e) {
+    adLinkNote = `ad-links error: ${(e as Error).message}`;
+  }
+
+  return { platform: 'meta', ok: true, rows: rows.length, note: adLinkNote };
+}
+
+/**
+ * Reads every Meta ad's creative destination link, extracts the `refcode`
+ * (and ActBlue form slug) from the URL, and upserts an exact refcode -> meta
+ * mapping into campaign_attribution. This makes Meta attribution deterministic
+ * instead of relying on refcode keyword guessing.
+ *
+ * Mappings are tagged source='meta_ad' so they refresh on every sync without
+ * clobbering admin-created ('manual') mappings.
+ */
+export async function syncMetaAdLinks(
+  admin: SupabaseClient,
+  orgId: string,
+  acct: string,
+  token: string,
+): Promise<{ mappings: number; ads: number; urls: number; error: string | null }> {
+  const params = new URLSearchParams({
+    fields:
+      'id,name,effective_status,campaign{id,name},creative{object_story_spec,asset_feed_spec,url_tags,template_url,link_url,effective_object_story_spec}',
+    limit: '200',
+    access_token: token,
+  });
+  let url: string | null = `https://graph.facebook.com/v19.0/${acct}/ads?${params.toString()}`;
+
+  // refcode -> { channel, campaign_label, meta_campaign_id }
+  const mappings = new Map<string, { campaign_label: string | null; meta_campaign_id: string | null }>();
+
+  let guard = 0;
+  let adCount = 0;
+  let urlCount = 0;
+  let firstError: string | null = null;
+  while (url && guard < 200) {
+    guard++;
+    const res = await fetch(url);
+    if (!res.ok) {
+      firstError = `Meta ads API ${res.status}: ${(await res.text()).slice(0, 300)}`;
+      break; // best-effort
+    }
+    const payload = await res.json();
+    for (const ad of payload.data ?? []) {
+      adCount++;
+      const campaignName: string | null = ad?.campaign?.name ?? null;
+      const campaignId: string | null = ad?.campaign?.id ? String(ad.campaign.id) : null;
+      const urls = collectCreativeUrls(ad?.creative);
+      urlCount += urls.length;
+      for (const u of urls) {
+        const refcode = extractRefcode(u);
+        if (!refcode) continue;
+        // First write wins per refcode within this run (active ads listed first).
+        if (!mappings.has(refcode.toLowerCase())) {
+          mappings.set(refcode.toLowerCase(), {
+            campaign_label: campaignName,
+            meta_campaign_id: campaignId,
+          });
+        }
+      }
+    }
+    url = payload.paging?.next ?? null;
+  }
+
+  console.log(
+    `[syncMetaAdLinks] org=${orgId} ads=${adCount} urls=${urlCount} refcodes=${mappings.size}` +
+    (firstError ? ` error=${firstError}` : ''),
+  );
+
+  if (!mappings.size) return { mappings: 0, ads: adCount, urls: urlCount, error: firstError };
+
+  const rows = [...mappings.entries()].map(([refcode, info]) => ({
+    organization_id: orgId,
+    pattern: refcode,
+    refcode,
+    channel: 'meta',
+    match_type: 'exact',
+    campaign_label: info.campaign_label,
+    meta_campaign_id: info.meta_campaign_id,
+    priority: 10,
+    source: 'meta_ad',
+  }));
+
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await admin
+      .from('campaign_attribution')
+      .upsert(rows.slice(i, i + 500), { onConflict: 'organization_id,pattern' });
+    if (error) {
+      // Fall back to per-row upsert if the batch hits a conflict edge case.
+      for (const row of rows.slice(i, i + 500)) {
+        await admin
+          .from('campaign_attribution')
+          .upsert(row, { onConflict: 'organization_id,pattern' });
+      }
+    }
+  }
+
+  return { mappings: rows.length, ads: adCount, urls: urlCount, error: firstError };
+}
+
+/** Collects all candidate destination URLs from a Meta ad creative object. */
+function collectCreativeUrls(creative: Record<string, unknown> | null | undefined): string[] {
+  const out: string[] = [];
+  if (!creative) return out;
+
+  const pushSpec = (spec: any) => {
+    const link = spec?.link_data;
+    if (link?.link) out.push(String(link.link));
+    for (const child of link?.child_attachments ?? []) {
+      if (child?.link) out.push(String(child.link));
+    }
+    const video = spec?.video_data;
+    if (video?.call_to_action?.value?.link) out.push(String(video.call_to_action.value.link));
+  };
+
+  pushSpec((creative as any).object_story_spec);
+  pushSpec((creative as any).effective_object_story_spec);
+
+  const afs = (creative as any).asset_feed_spec;
+  for (const l of afs?.link_urls ?? []) {
+    if (l?.website_url) out.push(String(l.website_url));
+  }
+
+  if ((creative as any).template_url) out.push(String((creative as any).template_url));
+  if ((creative as any).link_url) out.push(String((creative as any).link_url));
+
+  // url_tags is a query-fragment like "refcode=q2fad2&utm_source=fb".
+  const tags = (creative as any).url_tags;
+  if (typeof tags === 'string' && tags.includes('refcode')) {
+    out.push(`https://x.invalid/?${tags.replace(/^\?/, '')}`);
+  }
+
+  return out;
+}
+
+/** Extracts the `refcode` query parameter from a URL, if present. */
+function extractRefcode(rawUrl: string): string | null {
+  try {
+    const u = new URL(rawUrl);
+    const rc = u.searchParams.get('refcode') ?? u.searchParams.get('refcode2');
+    const trimmed = rc?.trim();
+    return trimmed ? trimmed : null;
+  } catch (_e) {
+    // Try a loose regex for non-standard / fragment URLs.
+    const m = rawUrl.match(/refcode2?=([^&#\s]+)/i);
+    return m ? decodeURIComponent(m[1]).trim() || null : null;
+  }
 }
 
 const META_HOURLY_WINDOW_DAYS = 7;
@@ -614,5 +768,14 @@ export async function runOrgSync(
   }
 
   const aggregated = await aggregateDaily(admin, orgId, sinceDays, full);
+
+  // Re-resolve attribution so newly-synced ad-link mappings and fresh
+  // transactions are reflected. Best-effort; never fail the sync on this.
+  try {
+    await admin.rpc('recompute_attribution', { _org_id: orgId, _since: null });
+  } catch (_e) {
+    // best-effort
+  }
+
   return { org_id: orgId, results, aggregated };
 }

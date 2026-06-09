@@ -10,6 +10,7 @@ export type RefcodeMapping = {
   channel: string | null;
   campaign_label: string | null;
   priority: number;
+  source: string;
   created_at: string;
 };
 
@@ -31,7 +32,7 @@ export function useRefcodeMappings(orgId: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('campaign_attribution')
-        .select('id, organization_id, pattern, refcode, match_type, channel, campaign_label, priority, created_at')
+        .select('id, organization_id, pattern, refcode, match_type, channel, campaign_label, priority, source, created_at')
         .eq('organization_id', orgId!)
         .order('priority', { ascending: true });
       if (error) throw new Error(error.message);
@@ -47,10 +48,12 @@ export function useUpsertMapping(orgId: string | null) {
       const row = {
         organization_id: orgId,
         pattern: m.pattern ?? null,
+        refcode: m.pattern ?? null,
         match_type: m.match_type ?? 'exact',
         channel: m.channel ?? null,
         campaign_label: m.campaign_label ?? null,
         priority: m.priority ?? 100,
+        source: 'manual',
         ...(m.id ? { id: m.id } : {}),
       };
       const { error } = await supabase.from('campaign_attribution').upsert(row);
@@ -153,6 +156,29 @@ export function useRecomputeAttribution(orgId: string | null) {
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attribution-status', orgId] });
+      qc.invalidateQueries({ queryKey: ['channel-breakdown', orgId] });
+    },
+  });
+}
+
+/**
+ * Triggers a full org sync, which fetches every Meta ad's destination link,
+ * extracts the refcode, upserts deterministic meta mappings, and recomputes
+ * attribution. Used by the "Sync Meta ad links" admin action.
+ */
+export function useSyncMetaAdLinks(orgId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!orgId) throw new Error('No organization selected');
+      const { error } = await supabase.functions.invoke('sync-org', {
+        body: { organizationId: orgId, full: true },
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['refcode-mappings', orgId] });
       qc.invalidateQueries({ queryKey: ['attribution-status', orgId] });
       qc.invalidateQueries({ queryKey: ['channel-breakdown', orgId] });
     },

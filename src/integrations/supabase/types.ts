@@ -242,6 +242,7 @@ export type Database = {
           pattern: string | null
           priority: number
           refcode: string | null
+          source: string
           switchboard_campaign_id: string | null
           utm_campaign: string | null
           utm_medium: string | null
@@ -258,6 +259,7 @@ export type Database = {
           pattern?: string | null
           priority?: number
           refcode?: string | null
+          source?: string
           switchboard_campaign_id?: string | null
           utm_campaign?: string | null
           utm_medium?: string | null
@@ -274,6 +276,7 @@ export type Database = {
           pattern?: string | null
           priority?: number
           refcode?: string | null
+          source?: string
           switchboard_campaign_id?: string | null
           utm_campaign?: string | null
           utm_medium?: string | null

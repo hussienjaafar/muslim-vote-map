@@ -232,7 +232,7 @@ export async function syncMetaAdLinks(
     }
   }
 
-  return { mappings: rows.length };
+  return { mappings: rows.length, ads: adCount, urls: urlCount, error: firstError };
 }
 
 /** Collects all candidate destination URLs from a Meta ad creative object. */

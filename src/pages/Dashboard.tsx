@@ -182,7 +182,7 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex flex-col items-end">
+            <div className="relative flex flex-col items-end">
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
@@ -191,22 +191,25 @@ export default function Dashboard() {
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
               </button>
-              {lastUpdated && (
-                <span className="mt-1 text-[10px] text-muted-foreground/70 tabular-nums whitespace-nowrap">
-                  {refreshing ? 'Updating…' : `Updated ${lastUpdated}`}
-                </span>
-              )}
-              {summaryError && summary && !refreshing && (
-                <span className="mt-0.5 text-[10px] text-amber-400/80 whitespace-nowrap">
-                  Couldn't refresh — showing last data
-                </span>
-              )}
-              {metaStale && (
-                <span className="mt-0.5 text-[10px] text-amber-400/80 whitespace-nowrap" title="The Meta Ads background sync has not run recently.">
-                  Meta Ads last synced {metaStale}
-                </span>
-              )}
+              <div className="absolute top-full right-0 mt-1 flex flex-col items-end whitespace-nowrap">
+                {lastUpdated && (
+                  <span className="text-[10px] text-muted-foreground/70 tabular-nums">
+                    {refreshing ? 'Updating…' : `Updated ${lastUpdated}`}
+                  </span>
+                )}
+                {summaryError && summary && !refreshing && (
+                  <span className="mt-0.5 text-[10px] text-amber-400/80">
+                    Couldn't refresh — showing last data
+                  </span>
+                )}
+                {metaStale && (
+                  <span className="mt-0.5 text-[10px] text-amber-400/80" title="The Meta Ads background sync has not run recently.">
+                    Meta Ads last synced {metaStale}
+                  </span>
+                )}
+              </div>
             </div>
+
             <OrgSwitcher />
             <DateRangePicker value={selection} onChange={setSelection} />
 

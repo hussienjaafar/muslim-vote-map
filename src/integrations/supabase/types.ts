@@ -1826,6 +1826,10 @@ export type Database = {
         }
         Returns: number
       }
+      org_channel_breakdown: {
+        Args: { _end: string; _org_id: string; _start: string }
+        Returns: Json
+      }
       org_daily_rollup: {
         Args: { _org_id: string; _since: string }
         Returns: {

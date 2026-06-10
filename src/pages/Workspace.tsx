@@ -40,7 +40,7 @@ export default function Workspace() {
 
   // Org members default to the Fundraising tab; non-org users only ever see Data.
   const tabParam = searchParams.get('tab');
-  const tab = hasOrg ? (tabParam === 'data' ? 'data' : 'fundraising') : 'data';
+  const tab = hasOrg ? (tabParam === 'data' ? 'data' : tabParam === 'sms' ? 'sms' : 'fundraising') : 'data';
 
   const setTab = (next: string) => {
     setSearchParams(

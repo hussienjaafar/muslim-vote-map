@@ -464,34 +464,27 @@ async function syncSwitchboard(
     .map(({ status, ...rest }) => rest);
 
   // Pull each broadcast's message body from the single-broadcast endpoint and
-  // extract the real `?refcode=` from the donate link inside it. This is the
-  // authoritative per-broadcast refcode (the list endpoint omits message_text).
-  let dbgCount = 0;
+  // extract the real `?refcode=` from a direct ActBlue donate link inside it.
+  // This is the authoritative per-broadcast refcode (the list endpoint omits
+  // message_text). Note: if a broadcast links through a reused vanity/redirect
+  // (e.g. example.org/donate) the refcode is not in the message and stays null;
+  // assign_sms_refcodes then falls back to date-based matching for that send.
   for (const r of rows) {
     try {
       const res = await fetch(`https://api.oneswitchboard.com/v1/broadcasts/${r.campaign_id}`, {
         headers: { Authorization: auth, 'Content-Type': 'application/json', Accept: 'application/json' },
       });
-      if (!res.ok) {
-        if (dbgCount < 3) console.log(`[sb-detail] ${r.campaign_id} status=${res.status}`);
-        dbgCount++;
-        continue;
-      }
+      if (!res.ok) continue;
       const payload = await res.json();
       const d = (payload.data ?? payload) as Record<string, any>;
       const attrs = (d.attributes ?? d) as Record<string, unknown>;
       const messageText = String(attrs.message_text ?? attrs.text ?? attrs.body ?? '');
       r.link_refcode = extractRefcodeFromText(messageText);
-      if (dbgCount < 4) {
-        const urls = messageText.match(/https?:\/\/[^\s"'<>]+/gi) ?? [];
-        console.log(`[sb-detail] ${r.campaign_id} urls=${JSON.stringify(urls)} rc=${r.link_refcode}`);
-        dbgCount++;
-      }
-    } catch (e) {
-      if (dbgCount < 3) { console.log(`[sb-detail] ${r.campaign_id} err=${String(e).slice(0, 120)}`); dbgCount++; }
+    } catch (_e) {
       // Leave link_refcode null; assign_sms_refcodes falls back to date matching.
     }
   }
+
 
   if (rows.length) {
     const { error } = await admin

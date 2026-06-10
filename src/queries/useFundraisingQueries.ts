@@ -113,6 +113,8 @@ export type SmsBroadcast = {
   optOutRate: number | null;
   /** raised ÷ donations */
   avgGift: number | null;
+  /** Whether the broadcast's link reaches ActBlue; false → excluded from ROAS */
+  hasActBlueLink: boolean;
 };
 
 function mapBroadcast(r: any): SmsBroadcast {

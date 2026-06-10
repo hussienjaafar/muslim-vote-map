@@ -144,6 +144,7 @@ export type Database = {
           is_recurring: boolean
           organization_id: string
           refcode: string | null
+          refcode2: string | null
           source_campaign: string | null
           transaction_date: string
           transaction_id: string
@@ -163,6 +164,7 @@ export type Database = {
           is_recurring?: boolean
           organization_id: string
           refcode?: string | null
+          refcode2?: string | null
           source_campaign?: string | null
           transaction_date: string
           transaction_id: string
@@ -182,6 +184,7 @@ export type Database = {
           is_recurring?: boolean
           organization_id?: string
           refcode?: string | null
+          refcode2?: string | null
           source_campaign?: string | null
           transaction_date?: string
           transaction_id?: string

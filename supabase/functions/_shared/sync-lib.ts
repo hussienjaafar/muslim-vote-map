@@ -489,6 +489,7 @@ async function syncSwitchboard(
         amount_raised: num(attrs.amount_raised),
         cost: num(attrs.cost_estimate ?? attrs.cost),
         link_refcode: null as string | null,
+        has_actblue_link: true as boolean,
         synced_at: new Date().toISOString(),
       };
     })

@@ -1,47 +1,38 @@
-# Reliable per-broadcast refcode extraction
+# Resolve per-broadcast refcode via vanity-link redirects
 
-## Goal
-Keep your existing refcode-based attribution. Stop guessing which refcode belongs to each SMS broadcast by date, and instead extract the real `?refcode=` straight from each broadcast's form link.
+## Idea
+For each Switchboard broadcast, read the vanity URL in its message body, follow that URL's redirect to the final ActBlue page, pull `?refcode=` from the resolved URL, and store it on the broadcast as the authoritative refcode.
 
-## Why today is unreliable
-- ActBlue donations already capture `refcode` correctly at the transaction level (e.g. `victory`, `electionday`). That part works.
-- The weak link is mapping each **broadcast** to a refcode. The Switchboard SMS message contains the donate link, but we never read it — `assign_sms_refcodes` instead infers a broadcast's refcode from whichever refcode happened to appear in donations on the send date. When two sends are close together or share a label, broadcasts get the wrong refcode or `NULL` (e.g. Copy of Frontrunner, Q1_Deadline, Fundraiser_3272026 all sit at `NULL` → 0.00x ROAS).
+## Critical unknown to resolve first
+The 4 most recent broadcasts all used the **same** vanity URL (`hamawyfornj.org/donate`), which today redirects to `...?refcode=victory`. We must find out whether each broadcast really has its **own** vanity path or whether one link is repointed per send — because HTTP redirects keep no history:
+- **Unique path per broadcast** → following each redirect yields the correct refcode for every broadcast, including historical ones. The feature works fully.
+- **One shared, repointed link** → following it today returns only the current target (`victory`) for all broadcasts; historical sends are not recoverable, and we must NOT overwrite them with the live value.
 
-## What we found
-The Switchboard list endpoint we currently call returns only summary fields (no message body). But the single-broadcast endpoint `GET /v1/broadcasts/{id}` returns `message_text`, which contains the ActBlue link the organizer pasted, e.g.:
+## Step 1 — Diagnostic (run a full sync, inspect, no data changes to attribution)
+Temporarily, in `syncSwitchboard`, for every broadcast:
+- Extract all URLs from `message_text`.
+- For each, follow the redirect chain server-side (`fetch(url, { redirect: 'manual' })` looping on `Location`, capped at ~5 hops, short timeout).
+- Log: broadcast id, name, date, vanity URL(s), final resolved URL, extracted refcode.
 
-```text
-"Hey {{firstname}}, donate here: https://secure.actblue.com/donate/moliticosms?refcode=victory&..."
-```
+Review the logs to confirm whether vanity paths are unique per broadcast and whether resolved refcodes line up with each broadcast's name/date.
 
-So we can parse `?refcode=` (and `refcode2`) directly from `message_text` per broadcast.
+## Step 2 — Implement extraction based on findings
+In `syncSwitchboard`, populate `sms_campaign_metrics.link_refcode`:
+1. First try a direct `?refcode=` already present in `message_text` (already implemented).
+2. Else, extract the vanity URL from `message_text` and follow its redirect chain to the final ActBlue URL, then read `refcode` from it.
+3. **Uniqueness guard (only if Step 1 shows a shared link):** if one vanity URL is used by more than one broadcast, treat the live-resolved refcode as ambiguous — apply it only to the single most-recent broadcast using that URL (its redirect target reflects the latest send) and leave the rest to the existing date-based fallback. If links are unique per broadcast, no guard is needed and all broadcasts get their resolved refcode.
 
-## Changes
+Redirect-following safety: only follow `https`, cap redirects, add an AbortController timeout, and ignore non-ActBlue final URLs.
 
-### 1. Pull the real link per broadcast (sync-lib.ts → syncSwitchboard)
-- For each broadcast we upsert, call `GET /v1/broadcasts/{id}` and read `message_text`.
-- Extract the refcode from any ActBlue URL in the text using a regex like `refcode2?=([^&#\s"']+)` (lowercased), reusing the existing `extractRefcode` helper pattern.
-- Store it on `sms_campaign_metrics` in a new dedicated column `link_refcode` (so it is never clobbered by the date heuristic).
-- Incremental syncs only fetch detail for broadcasts in the window; full backfills fetch all. A small per-call guard keeps request volume bounded.
+## Step 3 — Assignment + backfill
+- `assign_sms_refcodes` already prefers `link_refcode` over the date heuristic (done previously); no change needed.
+- Run a full org re-sync to backfill `link_refcode`, then attribution recomputes automatically and the SMS ROI/detail widgets reflect the corrected per-broadcast refcodes.
 
-### 2. Make the link refcode authoritative (assign_sms_refcodes)
-- Change the function so each broadcast's `refcode` is set to `coalesce(link_refcode, <existing date-based guess>)`.
-- The deterministic link refcode always wins; the date heuristic only fills broadcasts whose message had no extractable ActBlue link (e.g. media-only sends or shortened links).
-
-### 3. Attribution flows through unchanged
-- `recompute_attribution` already matches ActBlue transactions to broadcasts via `sms_campaign_metrics.refcode`. With correct per-broadcast refcodes, the SMS ROI / detail widgets show the right Raised and ROAS automatically.
-
-### 4. Backfill
-- Run a full org re-sync so historical broadcasts get their `link_refcode` populated and attribution recomputes.
-
-## Honest limitation (no behavior hidden from you)
-If two different broadcasts genuinely use the **same** `refcode` (e.g. both link to `?refcode=victory`), ActBlue exports cannot tell them apart — the unique part of the link (`refcodeSB`/`t`) is not stored by ActBlue. In that case donations are split between the same-refcode broadcasts by closest send date. To get fully exact separation, each broadcast needs its own unique `?refcode=` in the form link. This plan guarantees we always capture whatever refcode the form actually used.
-
-## Out of scope
-- No use of Switchboard's reported donation/amount numbers (you asked to stay on the refcode system).
-- No change to the org-wide Channel Breakdown or Attribution admin logic beyond the improved SMS refcode mapping.
+## Honest outcome
+- If your broadcasts use unique vanity paths, this gives clean, exact per-broadcast attribution for past and future sends.
+- If they share one repointed link, this reliably fixes **future** sends (resolve right after each send) and the latest send, but cannot reconstruct historical broadcasts from the link — those keep using the date-based fallback. In that case the durable fix is a unique vanity path (or direct ActBlue link with a unique `?refcode=`) per broadcast.
 
 ## Technical notes
-- Migration: add `link_refcode text` to `sms_campaign_metrics`; update `assign_sms_refcodes` to prefer it.
-- Edge function: `supabase/functions/_shared/sync-lib.ts` (`syncSwitchboard`) gains the per-broadcast detail fetch + refcode parse + `link_refcode` write.
-- Frontend: no required changes; widgets read existing fields. ROAS rows that were 0.00x due to bad mapping populate once attribution recomputes.
+- File: `supabase/functions/_shared/sync-lib.ts` (`syncSwitchboard`) — add a `resolveRedirect()` helper and the per-broadcast resolution loop; reuse the existing `extractRefcode` / `extractRefcodeFromText` helpers.
+- No schema change required (`link_refcode` already exists).
+- Diagnostic logging is removed after Step 1.

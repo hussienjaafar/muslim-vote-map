@@ -287,6 +287,25 @@ function collectCreativeUrls(creative: Record<string, unknown> | null | undefine
   return out;
 }
 
+/**
+ * Extracts the `?refcode=` value from free text (e.g. an SMS message body that
+ * contains an ActBlue donate link). Falls back to `refcode2` if no `refcode`.
+ * Returned lowercased to match attribution comparisons.
+ */
+function extractRefcodeFromText(text: string | null | undefined): string | null {
+  if (!text) return null;
+  const m =
+    text.match(/[?&]refcode=([^&#\s"'<>)\]]+)/i) ??
+    text.match(/[?&]refcode2=([^&#\s"'<>)\]]+)/i);
+  if (!m) return null;
+  try {
+    const rc = decodeURIComponent(m[1]).trim().toLowerCase();
+    return rc || null;
+  } catch (_e) {
+    return m[1].trim().toLowerCase() || null;
+  }
+}
+
 /** Extracts the `refcode` query parameter from a URL, if present. */
 function extractRefcode(rawUrl: string): string | null {
   try {

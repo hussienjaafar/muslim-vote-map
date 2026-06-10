@@ -320,6 +320,40 @@ function extractRefcode(rawUrl: string): string | null {
   }
 }
 
+/**
+ * Follows an HTTP redirect chain manually (capped, with a timeout) and returns
+ * the final resolved URL. Used to resolve vanity/short links (e.g.
+ * example.org/donate) to the underlying ActBlue URL that carries `?refcode=`.
+ * Returns null on any network error, timeout, or non-https hop.
+ */
+async function resolveRedirect(startUrl: string, maxHops = 6): Promise<string | null> {
+  let current = startUrl;
+  for (let i = 0; i < maxHops; i++) {
+    if (!current.startsWith('https://')) return null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    let res: Response;
+    try {
+      res = await fetch(current, { method: 'GET', redirect: 'manual', signal: controller.signal });
+    } catch (_e) {
+      clearTimeout(timer);
+      return null;
+    }
+    clearTimeout(timer);
+    // Redirect response: follow the Location header.
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get('location');
+      if (!loc) return current;
+      try { current = new URL(loc, current).toString(); } catch (_e) { return current; }
+      continue;
+    }
+    // Terminal response (2xx/4xx/5xx): this is the resolved URL.
+    return res.url || current;
+  }
+  return current;
+}
+
+
 
 
 const META_HOURLY_WINDOW_DAYS = 7;
@@ -463,27 +497,72 @@ async function syncSwitchboard(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     .map(({ status, ...rest }) => rest);
 
-  // Pull each broadcast's message body from the single-broadcast endpoint and
-  // extract the real `?refcode=` from a direct ActBlue donate link inside it.
-  // This is the authoritative per-broadcast refcode (the list endpoint omits
-  // message_text). Note: if a broadcast links through a reused vanity/redirect
-  // (e.g. example.org/donate) the refcode is not in the message and stays null;
-  // assign_sms_refcodes then falls back to date-based matching for that send.
+  // Resolve each broadcast's refcode from its message link:
+  //   1) a direct `?refcode=` in the message text, else
+  //   2) follow the vanity URL's redirect chain to the final ActBlue URL and
+  //      read `?refcode=` from there.
+  // Uniqueness guard: a vanity link reused across several broadcasts (and
+  // repointed before each send) only reflects its CURRENT target, so a resolved
+  // refcode from a shared link is trusted ONLY for the most-recent broadcast
+  // using that link; older sends on the same link fall back to date matching.
+  const linkMeta: { vanity: string | null; resolvedRc: string | null; directRc: string | null }[] = [];
   for (const r of rows) {
+    let directRc: string | null = null;
+    let vanity: string | null = null;
+    let resolvedRc: string | null = null;
     try {
       const res = await fetch(`https://api.oneswitchboard.com/v1/broadcasts/${r.campaign_id}`, {
         headers: { Authorization: auth, 'Content-Type': 'application/json', Accept: 'application/json' },
       });
-      if (!res.ok) continue;
-      const payload = await res.json();
-      const d = (payload.data ?? payload) as Record<string, any>;
-      const attrs = (d.attributes ?? d) as Record<string, unknown>;
-      const messageText = String(attrs.message_text ?? attrs.text ?? attrs.body ?? '');
-      r.link_refcode = extractRefcodeFromText(messageText);
+      if (res.ok) {
+        const payload = await res.json();
+        const d = (payload.data ?? payload) as Record<string, any>;
+        const attrs = (d.attributes ?? d) as Record<string, unknown>;
+        const messageText = String(attrs.message_text ?? attrs.text ?? attrs.body ?? '');
+        directRc = extractRefcodeFromText(messageText);
+        if (!directRc) {
+          const urls = messageText.match(/https?:\/\/[^\s"'<>]+/gi) ?? [];
+          vanity = urls.find((u) => !/oneswitchboard|sb\.run|switchboard/i.test(u)) ?? urls[0] ?? null;
+          if (vanity) {
+            const resolved = await resolveRedirect(vanity);
+            if (resolved && /actblue\.com/i.test(resolved)) {
+              const v = extractRefcode(resolved);
+              resolvedRc = v ? v.toLowerCase() : null;
+            }
+          }
+        }
+      }
     } catch (_e) {
-      // Leave link_refcode null; assign_sms_refcodes falls back to date matching.
+      // Network error: leave everything null; date fallback handles it.
     }
+    linkMeta.push({ vanity, resolvedRc, directRc });
   }
+
+  // Count vanity-link usage and find the most-recent broadcast per shared link.
+  const vanityCount = new Map<string, number>();
+  const latestIdxForVanity = new Map<string, number>();
+  rows.forEach((r, i) => {
+    const v = linkMeta[i].vanity;
+    if (!v) return;
+    vanityCount.set(v, (vanityCount.get(v) ?? 0) + 1);
+    const cur = latestIdxForVanity.get(v);
+    if (cur === undefined || r.date > rows[cur].date) latestIdxForVanity.set(v, i);
+  });
+
+  rows.forEach((r, i) => {
+    const m = linkMeta[i];
+    if (m.directRc) {
+      r.link_refcode = m.directRc;
+    } else if (m.resolvedRc && m.vanity) {
+      const shared = (vanityCount.get(m.vanity) ?? 0) > 1;
+      // Unique link → trust it. Shared link → trust only for the latest send.
+      r.link_refcode = !shared || latestIdxForVanity.get(m.vanity) === i ? m.resolvedRc : null;
+    } else {
+      r.link_refcode = null;
+    }
+  });
+
+
 
 
   if (rows.length) {

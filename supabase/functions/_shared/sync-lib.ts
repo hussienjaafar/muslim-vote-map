@@ -501,39 +501,67 @@ async function syncSwitchboard(
   //   1) a direct `?refcode=` in the message text, else
   //   2) follow the vanity URL's redirect chain to the final ActBlue URL and
   //      read `?refcode=` from there.
-  // [DIAGNOSTIC] logs the vanity URL + resolved URL per broadcast so we can tell
-  // whether vanity paths are unique per broadcast or one shared/repointed link.
+  // Uniqueness guard: a vanity link reused across several broadcasts (and
+  // repointed before each send) only reflects its CURRENT target, so a resolved
+  // refcode from a shared link is trusted ONLY for the most-recent broadcast
+  // using that link; older sends on the same link fall back to date matching.
+  const linkMeta: { vanity: string | null; resolvedRc: string | null; directRc: string | null }[] = [];
   for (const r of rows) {
+    let directRc: string | null = null;
+    let vanity: string | null = null;
+    let resolvedRc: string | null = null;
     try {
       const res = await fetch(`https://api.oneswitchboard.com/v1/broadcasts/${r.campaign_id}`, {
         headers: { Authorization: auth, 'Content-Type': 'application/json', Accept: 'application/json' },
       });
-      if (!res.ok) continue;
-      const payload = await res.json();
-      const d = (payload.data ?? payload) as Record<string, any>;
-      const attrs = (d.attributes ?? d) as Record<string, unknown>;
-      const messageText = String(attrs.message_text ?? attrs.text ?? attrs.body ?? '');
-
-      let rc = extractRefcodeFromText(messageText);
-      let vanity: string | null = null;
-      let resolved: string | null = null;
-      if (!rc) {
-        const urls = messageText.match(/https?:\/\/[^\s"'<>]+/gi) ?? [];
-        vanity = urls.find((u) => !/oneswitchboard|sb\.run|switchboard/i.test(u)) ?? urls[0] ?? null;
-        if (vanity) {
-          resolved = await resolveRedirect(vanity);
-          if (resolved && /actblue\.com/i.test(resolved)) {
-            const v = extractRefcode(resolved);
-            rc = v ? v.toLowerCase() : null;
+      if (res.ok) {
+        const payload = await res.json();
+        const d = (payload.data ?? payload) as Record<string, any>;
+        const attrs = (d.attributes ?? d) as Record<string, unknown>;
+        const messageText = String(attrs.message_text ?? attrs.text ?? attrs.body ?? '');
+        directRc = extractRefcodeFromText(messageText);
+        if (!directRc) {
+          const urls = messageText.match(/https?:\/\/[^\s"'<>]+/gi) ?? [];
+          vanity = urls.find((u) => !/oneswitchboard|sb\.run|switchboard/i.test(u)) ?? urls[0] ?? null;
+          if (vanity) {
+            const resolved = await resolveRedirect(vanity);
+            if (resolved && /actblue\.com/i.test(resolved)) {
+              const v = extractRefcode(resolved);
+              resolvedRc = v ? v.toLowerCase() : null;
+            }
           }
         }
       }
-      r.link_refcode = rc;
-      console.log(`[sb-link] name="${r.campaign_name}" date=${r.date} vanity=${vanity ?? '(direct)'} resolved=${resolved ?? '-'} rc=${rc}`);
     } catch (_e) {
-      // Leave link_refcode null; assign_sms_refcodes falls back to date matching.
+      // Network error: leave everything null; date fallback handles it.
     }
+    linkMeta.push({ vanity, resolvedRc, directRc });
   }
+
+  // Count vanity-link usage and find the most-recent broadcast per shared link.
+  const vanityCount = new Map<string, number>();
+  const latestIdxForVanity = new Map<string, number>();
+  rows.forEach((r, i) => {
+    const v = linkMeta[i].vanity;
+    if (!v) return;
+    vanityCount.set(v, (vanityCount.get(v) ?? 0) + 1);
+    const cur = latestIdxForVanity.get(v);
+    if (cur === undefined || r.date > rows[cur].date) latestIdxForVanity.set(v, i);
+  });
+
+  rows.forEach((r, i) => {
+    const m = linkMeta[i];
+    if (m.directRc) {
+      r.link_refcode = m.directRc;
+    } else if (m.resolvedRc && m.vanity) {
+      const shared = (vanityCount.get(m.vanity) ?? 0) > 1;
+      // Unique link → trust it. Shared link → trust only for the latest send.
+      r.link_refcode = !shared || latestIdxForVanity.get(m.vanity) === i ? m.resolvedRc : null;
+    } else {
+      r.link_refcode = null;
+    }
+  });
+
 
 
 

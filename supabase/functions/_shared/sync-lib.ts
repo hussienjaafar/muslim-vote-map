@@ -489,6 +489,8 @@ async function syncSwitchboard(
         amount_raised: num(attrs.amount_raised),
         cost: num(attrs.cost_estimate ?? attrs.cost),
         link_refcode: null as string | null,
+        link_target_url: null as string | null,
+        link_resolved: false as boolean,
         has_actblue_link: true as boolean,
         synced_at: new Date().toISOString(),
       };
@@ -498,19 +500,56 @@ async function syncSwitchboard(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     .map(({ status, ...rest }) => rest);
 
-  // Resolve each broadcast's refcode from its message link:
+  // Load the previously-locked link state for these broadcasts. A vanity link
+  // repointed before each send only reflects its CURRENT target, so we resolve
+  // each broadcast's destination exactly ONCE — the first time we see it, while
+  // the link still points to that send — and never re-resolve it afterwards.
+  const existingLink = new Map<
+    string,
+    { link_resolved: boolean; link_refcode: string | null; link_target_url: string | null; has_actblue_link: boolean }
+  >();
+  if (rows.length) {
+    const ids = rows.map((r) => r.campaign_id);
+    const { data: existing } = await admin
+      .from('sms_campaign_metrics')
+      .select('campaign_id, link_resolved, link_refcode, link_target_url, has_actblue_link')
+      .eq('organization_id', orgId)
+      .in('campaign_id', ids);
+    for (const e of existing ?? []) {
+      existingLink.set(String((e as any).campaign_id), {
+        link_resolved: !!(e as any).link_resolved,
+        link_refcode: (e as any).link_refcode ?? null,
+        link_target_url: (e as any).link_target_url ?? null,
+        has_actblue_link: (e as any).has_actblue_link !== false,
+      });
+    }
+  }
+
+  // Resolve each NOT-YET-RESOLVED broadcast's refcode from its message link:
   //   1) a direct `?refcode=` in the message text, else
   //   2) follow the vanity URL's redirect chain to the final ActBlue URL and
   //      read `?refcode=` from there.
-  // Uniqueness guard: a vanity link reused across several broadcasts (and
-  // repointed before each send) only reflects its CURRENT target, so a resolved
-  // refcode from a shared link is trusted ONLY for the most-recent broadcast
-  // using that link; older sends on the same link fall back to date matching.
-  const linkMeta: { vanity: string | null; resolvedRc: string | null; directRc: string | null; hasActBlue: boolean }[] = [];
+  // Already-locked broadcasts (link_resolved = true) keep their stored values.
+  type LinkMeta = {
+    vanity: string | null;
+    resolvedRc: string | null;
+    directRc: string | null;
+    targetUrl: string | null;
+    hasActBlue: boolean;
+    needsResolve: boolean;
+  };
+  const linkMeta: LinkMeta[] = [];
   for (const r of rows) {
+    const prior = existingLink.get(r.campaign_id);
+    if (prior?.link_resolved) {
+      // Locked: never re-resolve. Carry stored values forward unchanged.
+      linkMeta.push({ vanity: null, resolvedRc: null, directRc: null, targetUrl: null, hasActBlue: prior.has_actblue_link, needsResolve: false });
+      continue;
+    }
     let directRc: string | null = null;
     let vanity: string | null = null;
     let resolvedRc: string | null = null;
+    let targetUrl: string | null = null;
     let hasActBlue = false;
     try {
       const res = await fetch(`https://api.oneswitchboard.com/v1/broadcasts/${r.campaign_id}`, {
@@ -532,6 +571,7 @@ async function syncSwitchboard(
             if (resolved && /actblue\.com/i.test(resolved)) {
               // The vanity link redirects to ActBlue (refcode optional).
               hasActBlue = true;
+              targetUrl = resolved;
               const v = extractRefcode(resolved);
               resolvedRc = v ? v.toLowerCase() : null;
             }
@@ -541,14 +581,19 @@ async function syncSwitchboard(
     } catch (_e) {
       // Network error: leave everything null; date fallback handles it.
     }
-    linkMeta.push({ vanity, resolvedRc, directRc, hasActBlue });
+    linkMeta.push({ vanity, resolvedRc, directRc, targetUrl, hasActBlue, needsResolve: true });
   }
 
-  // Count vanity-link usage and find the most-recent broadcast per shared link.
+  // Among the NOT-YET-RESOLVED broadcasts in this batch, a shared vanity link
+  // still only reflects its current target — so trust a resolved refcode only
+  // for the most-recent send sharing it; older same-batch sends fall back to
+  // date matching. (Locked broadcasts are excluded from this guard.)
   const vanityCount = new Map<string, number>();
   const latestIdxForVanity = new Map<string, number>();
   rows.forEach((r, i) => {
-    const v = linkMeta[i].vanity;
+    const m = linkMeta[i];
+    if (!m.needsResolve) return;
+    const v = m.vanity;
     if (!v) return;
     vanityCount.set(v, (vanityCount.get(v) ?? 0) + 1);
     const cur = latestIdxForVanity.get(v);
@@ -557,7 +602,19 @@ async function syncSwitchboard(
 
   rows.forEach((r, i) => {
     const m = linkMeta[i];
+    const prior = existingLink.get(r.campaign_id);
+    if (!m.needsResolve && prior?.link_resolved) {
+      // Locked broadcast: preserve everything captured at first sight.
+      r.link_refcode = prior.link_refcode;
+      r.link_target_url = prior.link_target_url;
+      r.has_actblue_link = prior.has_actblue_link;
+      r.link_resolved = true;
+      return;
+    }
+    // Freshly resolved this run → lock it in.
     r.has_actblue_link = m.hasActBlue;
+    r.link_target_url = m.targetUrl;
+    r.link_resolved = true;
     if (m.directRc) {
       r.link_refcode = m.directRc;
     } else if (m.resolvedRc && m.vanity) {
@@ -568,9 +625,6 @@ async function syncSwitchboard(
       r.link_refcode = null;
     }
   });
-
-
-
 
   if (rows.length) {
     const { error } = await admin

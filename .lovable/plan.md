@@ -1,42 +1,34 @@
-## Goal
+## Problem
 
-Go back to **time-relative SMS attribution**, using the **form name as the reference point** for which donations are SMS. Refcode matching stays as the high-confidence first pass; everything else falls back to "nearest broadcast by date."
+Some broadcasts share one vanity link that's **repointed to a new ActBlue target before each send**. Our sync resolves the vanity link *live* on every run, so it only ever reflects where the link points *now* — i.e. the most recent broadcast. Older sends that used the same link get the wrong refcode (or none), so their donations can't be attributed.
 
-This fixes broadcasts like **FECFiling** that have no extractable refcode: their SMS-form donations will now attribute to the closest broadcast in time instead of showing $0.
+## Key insight
 
-## How attribution will work (in `recompute_attribution`)
+The cron sync runs daily, so each broadcast is first seen within ~24h of its send — **while the vanity link still points to that broadcast's own target**, before the next send repoints it. If we resolve each broadcast's destination **once, the first time we see it, and lock it in**, every future broadcast captures its own refcode at send time. This differentiates shared-link sends going forward.
 
-The SMS matching happens in two steps inside `recompute_attribution`. Both get the time-relative ordering; the second step is redefined to key off the form name.
+(History can't be recovered: on the initial backfill the link only reflects the latest send, so older shared-link broadcasts stay on date-based fallback. Only new sends are fixed.)
 
-### Step 1 — Exact refcode match (unchanged logic, new ordering)
-For donations whose `refcode`/`refcode2` exactly equals a broadcast's `refcode`, attribute to that broadcast. When a refcode is shared by multiple broadcasts, pick the **closest by absolute date, preferring a send on/before the donation** on ties:
+## Changes
 
-```sql
-ORDER BY
-  abs((t.transaction_date AT TIME ZONE 'America/New_York')::date - s.date) ASC,
-  (s.date <= (t.transaction_date AT TIME ZONE 'America/New_York')::date) DESC
-LIMIT 1
-```
-- `attribution_method = 'sms_match'`, confidence `high`.
+### 1. Schema (one migration on `sms_campaign_metrics`)
+- Add `link_resolved boolean NOT NULL DEFAULT false` — marks broadcasts whose vanity link has already been resolved and locked.
+- Add `link_target_url text` — stores the resolved final destination URL (diagnostics + future re-derivation).
 
-### Step 2 — Form-name reference → nearest broadcast by date
-Replace the current fuzzy step (campaign_id-in-refcode / campaign_name-in-form_name) with a **form-name based** rule:
+### 2. Switchboard sync (`supabase/functions/_shared/sync-lib.ts`, `syncSwitchboard`)
+- Before the resolve loop, fetch existing `campaign_id → { link_resolved, link_refcode, link_target_url }` for this org.
+- **Only resolve broadcasts that are not yet resolved** (`link_resolved = false` or new). Skip the live fetch/redirect for already-locked broadcasts and carry their stored `link_refcode` / `link_target_url` forward unchanged.
+- For each newly resolved broadcast: store `link_refcode` (refcode from the message text or the resolved ActBlue URL), `link_target_url` (final resolved URL), set `has_actblue_link`, and set `link_resolved = true` — whether or not a refcode was found, so we never re-resolve and overwrite it later.
+- Keep the existing within-batch guard for the *not-yet-resolved* set only: when several unresolved broadcasts in the same sync share one vanity link, trust the resolved refcode only for the most recent one; the rest stay null and fall back to date matching. This stops the initial backfill from smearing the latest target across older sends.
+- The upsert must not clobber locked values: include `link_resolved`, `link_refcode`, `link_target_url` in the upserted rows using the preserved (existing) values for already-resolved broadcasts.
 
-- A donation is treated as SMS when its `form_name` identifies the SMS channel — i.e. `form_name` contains `sms` / `text` / `txt`, **or** it matches an `org_form_channel_overrides` row mapped to the `sms` channel.
-- Each such donation (still unattributed after Step 1) is credited to the **nearest SMS broadcast by absolute date**, preferring an on/before send on ties (same ORDER BY as above).
-- `attribution_method = 'sms_match'`, confidence `medium`.
+### 3. Attribution
+- No change to `recompute_attribution` or `assign_sms_refcodes`. They already prefer `link_refcode` and fall back to date/form-name matching. With per-broadcast `link_refcode` now correctly locked, exact refcode matching naturally attributes each shared-link broadcast to its own donations.
 
-This is the "form name as reference point" behavior: the form tells us it's SMS, and the closest broadcast in time gets the credit — no refcode required.
-
-## Result for FECFiling
-
-FECFiling (2026-03-28, no refcode) will now receive the SMS-form donations closest to its send date via Step 2, so it stops showing $0. Donations carrying real refcodes (e.g. `jdendorsement` → DoctorListFundraiser) still attribute correctly via Step 1 and won't be pulled away.
-
-## Apply to existing data
-
-After updating the function, run `recompute_attribution` for the org so all historical SMS donations re-attribute under the restored rule, then spot-check FECFiling and a couple of refcoded broadcasts.
+## Apply / verify
+- After deploy, run a sync; confirm new/unresolved broadcasts get distinct `link_refcode` / `link_target_url` and `link_resolved = true`.
+- Spot-check a set of broadcasts that share a vanity link: each should now carry its own refcode rather than all sharing the latest one.
+- Re-run `recompute_attribution` for the org and verify donations split correctly across the shared-link broadcasts.
 
 ## Technical notes
-- Only `recompute_attribution` changes (one migration). The two SMS `SELECT ... LIMIT 1` subqueries get the new ORDER BY; Step 2's `WHERE`/`EXISTS` predicate is rewritten to the form-name SMS test plus a nearest-broadcast lateral pick.
-- `sms_broadcast_roi` / `sms_broadcast_detail` already join on `attributed_campaign`, so the dashboard updates automatically once attribution is recomputed.
-- No schema or frontend changes.
+- Daily cadence is the assumption that makes first-sight capture correct. If two broadcasts share a link and are sent on the *same day*, the daily sync may still only catch the later target for both — increasing sync frequency would tighten this, but that's out of scope here.
+- No frontend changes; `sms_broadcast_roi` / `sms_broadcast_detail` already join on `attributed_campaign`.

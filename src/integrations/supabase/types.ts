@@ -1399,6 +1399,8 @@ export type Database = {
           has_actblue_link: boolean
           id: string
           link_refcode: string | null
+          link_resolved: boolean
+          link_target_url: string | null
           messages_delivered: number
           messages_failed: number
           messages_sent: number
@@ -1419,6 +1421,8 @@ export type Database = {
           has_actblue_link?: boolean
           id?: string
           link_refcode?: string | null
+          link_resolved?: boolean
+          link_target_url?: string | null
           messages_delivered?: number
           messages_failed?: number
           messages_sent?: number
@@ -1439,6 +1443,8 @@ export type Database = {
           has_actblue_link?: boolean
           id?: string
           link_refcode?: string | null
+          link_resolved?: boolean
+          link_target_url?: string | null
           messages_delivered?: number
           messages_failed?: number
           messages_sent?: number

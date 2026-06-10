@@ -78,6 +78,82 @@ export function channelLabel(channel: string): string {
   return CHANNEL_LABELS[channel] ?? channel;
 }
 
+export type SmsBroadcast = {
+  id: string;
+  campaignName: string;
+  date: string;
+  refcode: string | null;
+  cost: number;
+  messagesSent: number;
+  messagesDelivered: number;
+  clicks: number;
+  raised: number;
+  donations: number;
+  donors: number;
+  /** Raised ÷ cost (return multiple), null when no cost tracked */
+  roas: number | null;
+  /** Dollars raised per 1,000 delivered messages */
+  dollarsPer1kDelivered: number | null;
+  /** clicks ÷ delivered, 0-1 */
+  clickRate: number | null;
+  /** donations ÷ clicks, 0-1 */
+  conversionRate: number | null;
+  /** cost ÷ donations */
+  costPerDonation: number | null;
+};
+
+/**
+ * Per-broadcast SMS performance for an org over an ET date range. Returns only
+ * broadcasts that actually delivered messages, with attributed donation revenue
+ * and derived efficiency metrics. Throws on error so the last good data is kept.
+ */
+export function useSmsBroadcastRoi(orgId: string | null, range: ResolvedRange) {
+  return useQuery<SmsBroadcast[]>({
+    queryKey: ['sms-broadcast-roi', orgId, range.start, range.end],
+    enabled: !!orgId,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    retry: 2,
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase.rpc('sms_broadcast_roi', {
+        _org_id: orgId,
+        _start: range.start,
+        _end: range.end,
+      });
+      if (error) throw new Error(error.message);
+
+      return ((data ?? []) as any[]).map((r) => {
+        const cost = Number(r.cost) || 0;
+        const delivered = Number(r.messages_delivered) || 0;
+        const clicks = Number(r.clicks) || 0;
+        const raised = Number(r.raised) || 0;
+        const donations = Number(r.donations) || 0;
+        return {
+          id: r.id,
+          campaignName: r.campaign_name ?? '—',
+          date: r.date,
+          refcode: r.refcode ?? null,
+          cost,
+          messagesSent: Number(r.messages_sent) || 0,
+          messagesDelivered: delivered,
+          clicks,
+          raised,
+          donations,
+          donors: Number(r.donors) || 0,
+          roas: cost > 0 ? raised / cost : null,
+          dollarsPer1kDelivered: delivered > 0 ? (raised / delivered) * 1000 : null,
+          clickRate: delivered > 0 ? clicks / delivered : null,
+          conversionRate: clicks > 0 ? donations / clicks : null,
+          costPerDonation: donations > 0 ? cost / donations : null,
+        } as SmsBroadcast;
+      });
+    },
+  });
+}
+
 /**
  * Per-channel raised / donors / ROI for an org over an ET date range.
  * Reads the pre-computed `attributed_channel` via the org_channel_breakdown RPC

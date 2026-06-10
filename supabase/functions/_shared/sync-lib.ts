@@ -157,7 +157,7 @@ export async function syncMetaAdLinks(
 ): Promise<{ mappings: number; ads: number; urls: number; error: string | null }> {
   const params = new URLSearchParams({
     fields:
-      'id,name,effective_status,campaign{id,name},creative{object_story_spec,asset_feed_spec,url_tags,template_url,link_url,effective_object_story_spec}',
+      'id,name,effective_status,campaign{id,name},creative{object_story_spec,asset_feed_spec,url_tags,template_url,link_url}',
     limit: '200',
     access_token: token,
   });
@@ -206,28 +206,46 @@ export async function syncMetaAdLinks(
 
   if (!mappings.size) return { mappings: 0, ads: adCount, urls: urlCount, error: firstError };
 
-  const rows = [...mappings.entries()].map(([refcode, info]) => ({
-    organization_id: orgId,
-    pattern: refcode,
-    refcode,
-    channel: 'meta',
-    match_type: 'exact',
-    campaign_label: info.campaign_label,
-    meta_campaign_id: info.meta_campaign_id,
-    priority: 10,
-    source: 'meta_ad',
-  }));
+  // The unique index is expression-based (organization_id, lower(pattern)), which
+  // PostgREST upsert can't target via onConflict. Instead we refresh the
+  // auto-synced set: drop prior meta_ad rows, then insert the current refcodes,
+  // skipping any pattern an admin already created manually.
+  await admin
+    .from('campaign_attribution')
+    .delete()
+    .eq('organization_id', orgId)
+    .eq('source', 'meta_ad');
 
-  for (let i = 0; i < rows.length; i += 500) {
-    const { error } = await admin
-      .from('campaign_attribution')
-      .upsert(rows.slice(i, i + 500), { onConflict: 'organization_id,pattern' });
-    if (error) {
-      // Fall back to per-row upsert if the batch hits a conflict edge case.
-      for (const row of rows.slice(i, i + 500)) {
-        await admin
-          .from('campaign_attribution')
-          .upsert(row, { onConflict: 'organization_id,pattern' });
+  const { data: existing } = await admin
+    .from('campaign_attribution')
+    .select('pattern')
+    .eq('organization_id', orgId);
+  const manualPatterns = new Set(
+    (existing ?? []).map((r: { pattern: string | null }) => (r.pattern ?? '').toLowerCase()),
+  );
+
+  const rows = [...mappings.entries()]
+    .filter(([refcode]) => !manualPatterns.has(refcode.toLowerCase()))
+    .map(([refcode, info]) => ({
+      organization_id: orgId,
+      pattern: refcode,
+      refcode,
+      channel: 'meta',
+      match_type: 'exact',
+      campaign_label: info.campaign_label,
+      meta_campaign_id: info.meta_campaign_id,
+      priority: 10,
+      source: 'meta_ad',
+    }));
+
+  if (rows.length) {
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await admin
+        .from('campaign_attribution')
+        .insert(rows.slice(i, i + 500));
+      if (error) {
+        console.error(`[syncMetaAdLinks] insert error: ${error.message}`);
+        firstError = firstError ?? error.message;
       }
     }
   }
@@ -251,7 +269,6 @@ function collectCreativeUrls(creative: Record<string, unknown> | null | undefine
   };
 
   pushSpec((creative as any).object_story_spec);
-  pushSpec((creative as any).effective_object_story_spec);
 
   const afs = (creative as any).asset_feed_spec;
   for (const l of afs?.link_urls ?? []) {

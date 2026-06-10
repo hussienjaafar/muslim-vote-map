@@ -599,13 +599,18 @@ export function parseActblueCsv(text: string, orgId: string): Record<string, unk
     const fundraisingPage = get('fundraising page') || null;
     const formName =
       get('form name') || get('contribution form') || slugFromPage(fundraisingPage);
+    // ActBlue contribution exports name these columns "Reference Code" and
+    // "Reference Code 2" (lowercased here). Keep the short aliases as fallbacks.
+    const rc1 = get('reference code') || get('refcode') || '';
+    const rc2 = get('reference code 2') || get('refcode2') || '';
     out.push({
       organization_id: orgId,
       transaction_id: String(txId),
       donor_email: get('donor email') || null,
       donor_name: [first, last].filter(Boolean).join(' ') || null,
       amount: num(get('amount')),
-      refcode: get('refcode') || get('refcode2') || null,
+      refcode: rc1 || rc2 || null,
+      refcode2: rc2 || null,
       source_campaign: fundraisingPage,
       form_name: formName,
       transaction_type: 'donation',

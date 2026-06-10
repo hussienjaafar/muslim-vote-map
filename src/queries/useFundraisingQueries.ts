@@ -82,11 +82,16 @@ export type SmsBroadcast = {
   id: string;
   campaignName: string;
   date: string;
+  /** Full send timestamp (UTC ISO), null for broadcasts synced before time capture */
+  sentAt: string | null;
   refcode: string | null;
   cost: number;
   messagesSent: number;
   messagesDelivered: number;
+  messagesFailed: number;
+  optOuts: number;
   clicks: number;
+  conversions: number;
   raised: number;
   donations: number;
   donors: number;
@@ -100,6 +105,60 @@ export type SmsBroadcast = {
   conversionRate: number | null;
   /** cost ÷ donations */
   costPerDonation: number | null;
+  /** delivered ÷ sent, 0-1 */
+  deliveryRate: number | null;
+  /** failed ÷ sent, 0-1 */
+  failureRate: number | null;
+  /** opt-outs ÷ delivered, 0-1 */
+  optOutRate: number | null;
+  /** raised ÷ donations */
+  avgGift: number | null;
+};
+
+function mapBroadcast(r: any): SmsBroadcast {
+  const cost = Number(r.cost) || 0;
+  const sent = Number(r.messages_sent) || 0;
+  const delivered = Number(r.messages_delivered) || 0;
+  const failed = Number(r.messages_failed) || 0;
+  const optOuts = Number(r.opt_outs) || 0;
+  const clicks = Number(r.clicks) || 0;
+  const raised = Number(r.raised) || 0;
+  const donations = Number(r.donations) || 0;
+  return {
+    id: r.id,
+    campaignName: r.campaign_name ?? '—',
+    date: r.date,
+    sentAt: r.sent_at ?? null,
+    refcode: r.refcode ?? null,
+    cost,
+    messagesSent: sent,
+    messagesDelivered: delivered,
+    messagesFailed: failed,
+    optOuts,
+    clicks,
+    conversions: Number(r.conversions) || 0,
+    raised,
+    donations,
+    donors: Number(r.donors) || 0,
+    roas: cost > 0 ? raised / cost : null,
+    dollarsPer1kDelivered: delivered > 0 ? (raised / delivered) * 1000 : null,
+    clickRate: delivered > 0 ? clicks / delivered : null,
+    conversionRate: clicks > 0 ? donations / clicks : null,
+    costPerDonation: donations > 0 ? cost / donations : null,
+    deliveryRate: sent > 0 ? delivered / sent : null,
+    failureRate: sent > 0 ? failed / sent : null,
+    optOutRate: delivered > 0 ? optOuts / delivered : null,
+    avgGift: donations > 0 ? raised / donations : null,
+  };
+}
+
+export type SmsBroadcastDonation = {
+  id: string;
+  donorName: string | null;
+  amount: number;
+  isRecurring: boolean;
+  transactionDate: string;
+  refcode: string | null;
 };
 
 /**
@@ -124,32 +183,57 @@ export function useSmsBroadcastRoi(orgId: string | null, range: ResolvedRange) {
         _end: range.end,
       });
       if (error) throw new Error(error.message);
+      return ((data ?? []) as any[]).map(mapBroadcast);
+    },
+  });
+}
 
-      return ((data ?? []) as any[]).map((r) => {
-        const cost = Number(r.cost) || 0;
-        const delivered = Number(r.messages_delivered) || 0;
-        const clicks = Number(r.clicks) || 0;
-        const raised = Number(r.raised) || 0;
-        const donations = Number(r.donations) || 0;
-        return {
-          id: r.id,
-          campaignName: r.campaign_name ?? '—',
-          date: r.date,
-          refcode: r.refcode ?? null,
-          cost,
-          messagesSent: Number(r.messages_sent) || 0,
-          messagesDelivered: delivered,
-          clicks,
-          raised,
-          donations,
-          donors: Number(r.donors) || 0,
-          roas: cost > 0 ? raised / cost : null,
-          dollarsPer1kDelivered: delivered > 0 ? (raised / delivered) * 1000 : null,
-          clickRate: delivered > 0 ? clicks / delivered : null,
-          conversionRate: clicks > 0 ? donations / clicks : null,
-          costPerDonation: donations > 0 ? cost / donations : null,
-        } as SmsBroadcast;
+/** Full metrics for a single SMS broadcast. */
+export function useSmsBroadcastDetail(orgId: string | null, broadcastId: string | null) {
+  return useQuery<SmsBroadcast | null>({
+    queryKey: ['sms-broadcast-detail', orgId, broadcastId],
+    enabled: !!orgId && !!broadcastId,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    retry: 2,
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      if (!orgId || !broadcastId) return null;
+      const { data, error } = await supabase.rpc('sms_broadcast_detail', {
+        _org_id: orgId,
+        _broadcast_id: broadcastId,
       });
+      if (error) throw new Error(error.message);
+      const row = (data ?? [])[0];
+      return row ? mapBroadcast(row) : null;
+    },
+  });
+}
+
+/** Individual donations attributed to a single SMS broadcast. */
+export function useSmsBroadcastDonations(orgId: string | null, broadcastId: string | null) {
+  return useQuery<SmsBroadcastDonation[]>({
+    queryKey: ['sms-broadcast-donations', orgId, broadcastId],
+    enabled: !!orgId && !!broadcastId,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    retry: 2,
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      if (!orgId || !broadcastId) return [];
+      const { data, error } = await supabase.rpc('sms_broadcast_donations', {
+        _org_id: orgId,
+        _broadcast_id: broadcastId,
+      });
+      if (error) throw new Error(error.message);
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id,
+        donorName: r.donor_name ?? null,
+        amount: Number(r.amount) || 0,
+        isRecurring: !!r.is_recurring,
+        transactionDate: r.transaction_date,
+        refcode: r.refcode ?? null,
+      }));
     },
   });
 }

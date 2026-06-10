@@ -445,13 +445,14 @@ async function syncSwitchboard(
   }
 
   const SENT_STATUSES = new Set(['sent', 'sending', 'stopped', 'paused']);
-  const rows = broadcasts
+  const staged = broadcasts
     .map((b) => {
       const attrs = (b.attributes ?? b) as Record<string, unknown>;
       const status = String(attrs.status ?? '').toLowerCase();
       const date = String(attrs.started_at ?? attrs.created_at ?? todayIso()).slice(0, 10);
       return {
         status,
+        message_text: (attrs.message_text ?? attrs.body ?? null) as string | null,
         organization_id: orgId,
         campaign_id: String(b.id ?? attrs.id),
         campaign_name: attrs.title ?? attrs.name ?? null,
@@ -468,9 +469,21 @@ async function syncSwitchboard(
       };
     })
     .filter((r) => SENT_STATUSES.has(r.status))
-    .filter((r) => new Date(r.date).getTime() >= sinceMs - 24 * 60 * 60 * 1000)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    .map(({ status, ...rest }) => rest);
+    .filter((r) => new Date(r.date).getTime() >= sinceMs - 24 * 60 * 60 * 1000);
+
+  // Resolve each broadcast's ActBlue refcode from its message link (bounded concurrency).
+  let refcodeCount = 0;
+  const CONCURRENCY = 8;
+  for (let i = 0; i < staged.length; i += CONCURRENCY) {
+    const batch = staged.slice(i, i + CONCURRENCY);
+    const refcodes = await Promise.all(batch.map((r) => resolveRefcodeFromMessage(r.message_text)));
+    batch.forEach((r, j) => {
+      (r as Record<string, unknown>).refcode = refcodes[j];
+      if (refcodes[j]) refcodeCount++;
+    });
+  }
+
+  const rows = staged.map(({ status, message_text, ...rest }) => rest);
 
   if (rows.length) {
     const { error } = await admin
@@ -478,7 +491,8 @@ async function syncSwitchboard(
       .upsert(rows, { onConflict: 'organization_id,campaign_id,date' });
     if (error) return { platform: 'switchboard', ok: false, rows: 0, error: error.message };
   }
-  return { platform: 'switchboard', ok: true, rows: rows.length };
+  console.log(`[syncSwitchboard] org=${orgId} broadcasts=${rows.length} refcodes=${refcodeCount}`);
+  return { platform: 'switchboard', ok: true, rows: rows.length, note: `refcodes=${refcodeCount}` };
 }
 
 /**

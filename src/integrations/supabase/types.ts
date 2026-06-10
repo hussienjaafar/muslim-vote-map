@@ -1403,6 +1403,7 @@ export type Database = {
           opt_outs: number
           organization_id: string
           refcode: string | null
+          sent_at: string | null
           synced_at: string
         }
         Insert: {
@@ -1420,6 +1421,7 @@ export type Database = {
           opt_outs?: number
           organization_id: string
           refcode?: string | null
+          sent_at?: string | null
           synced_at?: string
         }
         Update: {
@@ -1437,6 +1439,7 @@ export type Database = {
           opt_outs?: number
           organization_id?: string
           refcode?: string | null
+          sent_at?: string | null
           synced_at?: string
         }
         Relationships: [
@@ -1876,20 +1879,55 @@ export type Database = {
         Returns: Json
       }
       self_delete_account: { Args: never; Returns: undefined }
-      sms_broadcast_roi: {
-        Args: { _end: string; _org_id: string; _start: string }
+      sms_broadcast_detail: {
+        Args: { _broadcast_id: string; _org_id: string }
         Returns: {
           campaign_name: string
           clicks: number
+          conversions: number
           cost: number
           date: string
           donations: number
           donors: number
           id: string
           messages_delivered: number
+          messages_failed: number
           messages_sent: number
+          opt_outs: number
           raised: number
           refcode: string
+          sent_at: string
+        }[]
+      }
+      sms_broadcast_donations: {
+        Args: { _broadcast_id: string; _org_id: string }
+        Returns: {
+          amount: number
+          donor_name: string
+          id: string
+          is_recurring: boolean
+          refcode: string
+          transaction_date: string
+        }[]
+      }
+      sms_broadcast_roi: {
+        Args: { _end: string; _org_id: string; _start: string }
+        Returns: {
+          campaign_name: string
+          clicks: number
+          conversions: number
+          cost: number
+          date: string
+          donations: number
+          donors: number
+          id: string
+          messages_delivered: number
+          messages_failed: number
+          messages_sent: number
+          opt_outs: number
+          raised: number
+          refcode: string
+          sent_at: string
         }[]
       }
       submit_access_request: {

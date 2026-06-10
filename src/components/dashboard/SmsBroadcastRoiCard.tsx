@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Inbox, MessageSquare, ArrowRight } from 'lucide-react';
 import { useSmsBroadcastRoi, type SmsBroadcast } from '@/queries/useFundraisingQueries';
 import type { ResolvedRange } from '@/lib/dateRanges';
-import { SmsBroadcastTable } from './SmsBroadcastTable';
+import { fmtSentEastern } from './SmsBroadcastTable';
 
 const TOP_N = 5;
 
@@ -13,36 +14,34 @@ function fmtRoas(n: number | null): string {
   return n == null ? '—' : `${n.toFixed(2)}x`;
 }
 
-function BroadcastRow({ b, maxRoas }: { b: SmsBroadcast; maxRoas: number }) {
+function BroadcastRow({ b, maxRoas, onClick }: { b: SmsBroadcast; maxRoas: number; onClick: () => void }) {
   const roasColor = b.roas == null ? 'text-muted-foreground' : b.roas >= 1 ? 'text-emerald-400' : 'text-rose-400';
   const barColor = b.roas == null ? '#64748b' : b.roas >= 1 ? '#34d399' : '#fb7185';
   const pct = b.roas != null && maxRoas > 0 ? Math.max(4, (b.roas / maxRoas) * 100) : 0;
   return (
-    <div className="py-3">
+    <button onClick={onClick} className="w-full text-left py-3 group">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-foreground truncate" title={b.campaignName}>
-          {b.campaignName}
-        </span>
-        <span className={`text-sm font-bold tabular-nums shrink-0 ${roasColor}`}>{fmtRoas(b.roas)}</span>
+        <div className="min-w-0">
+          <span className="text-sm font-medium text-foreground truncate block group-hover:text-primary transition-colors" title={b.campaignName}>
+            {b.campaignName}
+          </span>
+          <span className="text-[11px] text-muted-foreground">{fmtSentEastern(b)}</span>
+        </div>
+        <div className="text-right shrink-0">
+          <span className="text-sm font-bold text-emerald-400 tabular-nums block">{fmtCurrency(b.raised)}</span>
+          <span className={`text-[11px] font-semibold tabular-nums ${roasColor}`}>{fmtRoas(b.roas)} ROAS</span>
+        </div>
       </div>
-
       <div className="mt-2 h-1.5 w-full rounded-full bg-muted/40 overflow-hidden">
         <div className="h-full rounded-full" style={{ width: `${pct}%`, background: barColor }} />
       </div>
-
-      <div className="mt-1.5 flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
-        <span>
-          <span className="text-emerald-400 font-semibold">{fmtCurrency(b.raised)}</span> raised · {fmtCurrency(b.cost)} cost
-        </span>
-        <span>{b.donations.toLocaleString()} gifts</span>
-      </div>
-    </div>
+    </button>
   );
 }
 
 export function SmsBroadcastRoiCard({ orgId, range }: { orgId: string | null; range: ResolvedRange }) {
   const { data, isError } = useSmsBroadcastRoi(orgId, range);
-  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
   const broadcasts = data ?? [];
 
   const { topRows, totalRaised, totalCost, maxRoas } = useMemo(() => {
@@ -90,16 +89,15 @@ export function SmsBroadcastRoiCard({ orgId, range }: { orgId: string | null; ra
         <>
           <div className="divide-y divide-border/60">
             {topRows.map((b) => (
-              <BroadcastRow key={b.id} b={b} maxRoas={maxRoas} />
+              <BroadcastRow key={b.id} b={b} maxRoas={maxRoas} onClick={() => navigate(`/home?tab=sms&broadcast=${b.id}`)} />
             ))}
           </div>
           <button
-            onClick={() => setOpen(true)}
+            onClick={() => navigate('/home?tab=sms')}
             className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
           >
             View all {broadcasts.length} broadcasts <ArrowRight className="w-4 h-4" />
           </button>
-          <SmsBroadcastTable open={open} onOpenChange={setOpen} broadcasts={broadcasts} />
         </>
       )}
     </section>

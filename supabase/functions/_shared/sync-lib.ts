@@ -417,13 +417,16 @@ async function syncSwitchboard(
     .map((b) => {
       const attrs = (b.attributes ?? b) as Record<string, unknown>;
       const status = String(attrs.status ?? '').toLowerCase();
-      const date = String(attrs.started_at ?? attrs.created_at ?? todayIso()).slice(0, 10);
+      const startedRaw = attrs.started_at ?? attrs.created_at ?? null;
+      const date = String(startedRaw ?? todayIso()).slice(0, 10);
+      const sentAt = startedRaw ? new Date(String(startedRaw)).toISOString() : null;
       return {
         status,
         organization_id: orgId,
         campaign_id: String(b.id ?? attrs.id),
         campaign_name: attrs.title ?? attrs.name ?? null,
         date,
+        sent_at: sentAt,
         messages_sent: num(attrs.total_messages ?? attrs.messages_sent),
         messages_delivered: num(attrs.delivered ?? attrs.messages_delivered),
         messages_failed: num(attrs.failed_to_deliver ?? attrs.messages_failed),

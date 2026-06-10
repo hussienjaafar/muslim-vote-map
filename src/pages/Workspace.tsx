@@ -10,9 +10,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { OrgSwitcher } from '@/components/org/OrgSwitcher';
-import { User, LogOut, TrendingUp, Map, Loader2 } from 'lucide-react';
+import { User, LogOut, TrendingUp, Map, Loader2, MessageSquare } from 'lucide-react';
 import Home from './Home';
 import Dashboard from './Dashboard';
+import SmsBroadcasts from './SmsBroadcasts';
 
 export default function Workspace() {
   const { user } = useAuth();
@@ -39,7 +40,7 @@ export default function Workspace() {
 
   // Org members default to the Fundraising tab; non-org users only ever see Data.
   const tabParam = searchParams.get('tab');
-  const tab = hasOrg ? (tabParam === 'data' ? 'data' : 'fundraising') : 'data';
+  const tab = hasOrg ? (tabParam === 'data' ? 'data' : tabParam === 'sms' ? 'sms' : 'fundraising') : 'data';
 
   const setTab = (next: string) => {
     setSearchParams(
@@ -74,6 +75,9 @@ export default function Workspace() {
               <TabsList>
                 <TabsTrigger value="fundraising" className="gap-1.5">
                   <TrendingUp className="w-4 h-4" /> <span className="hidden sm:inline">Fundraising</span>
+                </TabsTrigger>
+                <TabsTrigger value="sms" className="gap-1.5">
+                  <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">SMS</span>
                 </TabsTrigger>
                 <TabsTrigger value="data" className="gap-1.5">
                   <Map className="w-4 h-4" /> <span className="hidden sm:inline">Data &amp; Issues</span>
@@ -113,6 +117,8 @@ export default function Workspace() {
         <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-10 py-6 sm:py-10">
           <Dashboard embedded />
         </div>
+      ) : tab === 'sms' ? (
+        <SmsBroadcasts />
       ) : (
         <Home embedded />
       )}

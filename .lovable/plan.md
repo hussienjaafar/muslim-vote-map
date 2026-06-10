@@ -1,36 +1,43 @@
 ## Goal
 
-When an SMS broadcast's link does **not** contain an ActBlue link or redirect to ActBlue, keep the broadcast visible in the table but exclude its cost and raised from the totals and ROAS (its ROAS shows "—").
+When the same refcode (e.g. `victory`) is used by more than one broadcast, attribute each donation to the **most recent broadcast sent on or before the donation date** — the send that actually drove it — instead of the broadcast that happens to be nearest in absolute time (which can be a *future* send).
 
-## How it works
+## Current behavior (the bug)
 
-During sync we already inspect each broadcast's message text, extract any direct ActBlue link, and follow vanity-link redirects. We'll record whether that inspection found an ActBlue destination at all, store it as a flag, surface it through the ROI query, and have the frontend exclude flagged broadcasts from ROAS math.
+`recompute_attribution` matches SMS donations to broadcasts in `sms_campaign_metrics` and tie-breaks with:
 
-```text
-sync → detect ActBlue link/redirect → has_actblue_link flag
-     → sms_broadcast_roi returns flag
-     → frontend: if !has_actblue_link → exclude from totals/ROAS, show "—" + badge
+```sql
+ORDER BY abs((t.transaction_date AT TIME ZONE 'America/New_York')::date - s.date) ASC
 ```
 
-## Changes
+Absolute distance means a donation can be credited to a broadcast that went out *after* it. With a reused refcode like `victory`, donations land on the wrong send.
 
-### 1. Database (migration)
-- Add column `has_actblue_link boolean NOT NULL DEFAULT true` to `sms_campaign_metrics`. Default `true` so existing rows are unaffected until the next sync recomputes them.
-- Update `sms_broadcast_roi` and `sms_broadcast_detail` RPCs to also return `has_actblue_link` (no row filtering — broadcasts still appear).
+## Change
 
-### 2. Sync logic (`supabase/functions/_shared/sync-lib.ts`)
-- In the per-broadcast link inspection, track a `hasActBlue` boolean per broadcast that is true when **either**:
-  - a direct ActBlue link is present in the message text (direct refcode path), **or**
-  - the vanity URL's redirect chain resolves to an `actblue.com` URL (even if it carries no `refcode`).
-- Set `r.has_actblue_link` on each row from that boolean. Broadcasts whose links never reach ActBlue get `false`.
-- Persist via the existing upsert (column added to the row object).
+In `recompute_attribution` (the only place SMS↔donation matching happens), replace the absolute-distance ordering in the SMS matching steps with a "most recent send on/before the donation, else nearest upcoming" ordering:
 
-### 3. Frontend
-- `src/pages/SmsBroadcasts.tsx` — when summing `raised` and `cost` for the totals/ROAS, skip broadcasts where `has_actblue_link === false`.
-- `src/components/dashboard/SmsBroadcastTable.tsx` — for flagged broadcasts, render ROAS as "—" and add a small "No ActBlue link" badge/indicator on the row so it's clear why it's excluded.
-- `src/components/dashboard/SmsBroadcastRoiCard.tsx` — exclude flagged broadcasts from the top-ROAS list and the total raised/cost it computes.
-- Regenerated Supabase types will include the new field for the RPC return shapes.
+```sql
+ORDER BY (s.date <= dd) DESC,
+         CASE WHEN s.date <= dd THEN dd - s.date
+              ELSE s.date - dd END ASC
+```
 
-## Notes / honest limits
-- The flag is only as accurate as the link resolution at sync time. A shared, repointed vanity link that *currently* resolves to ActBlue will be marked `has_actblue_link = true` even for older sends (consistent with the existing refcode uniqueness behavior). The exclusion targets broadcasts whose link genuinely never reaches ActBlue (e.g. the `/zoomfundraiser` style links that resolve elsewhere).
-- No changes to the attribution function or to ActBlue/Meta sync paths.
+where `dd = (t.transaction_date AT TIME ZONE 'America/New_York')::date`.
+
+This means:
+- Broadcasts sent on/before the donation rank first; among them the **most recent** wins (no day cap — "No limit" as requested).
+- If a donation predates every matching send, it falls back to the **earliest upcoming** matching broadcast (so early donations still get credited).
+
+Applied to both SMS matching steps in the function:
+1. the exact-refcode SMS match, and
+2. the fuzzy SMS match (campaign_id / campaign_name contains).
+
+No schema changes, no other functions touched. `sms_broadcast_roi` / `sms_broadcast_detail` already join on the chosen `attributed_campaign`, so they update automatically once attribution is recomputed.
+
+## Apply to existing data
+
+After updating the function, run `recompute_attribution` for the org so all historical SMS donations re-attribute under the new rule. Then spot-check `victory` and a couple of other reused refcodes to confirm donations now sit on the correct send.
+
+## Technical notes
+- Only the `ORDER BY` clauses inside the two SMS `SELECT ... LIMIT 1` subqueries change; matching predicates (`WHERE`) stay the same.
+- Date math uses the ET-localized donation date already used elsewhere in the function, keeping timezone behavior consistent.

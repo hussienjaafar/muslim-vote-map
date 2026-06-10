@@ -320,6 +320,40 @@ function extractRefcode(rawUrl: string): string | null {
   }
 }
 
+/**
+ * Follows an HTTP redirect chain manually (capped, with a timeout) and returns
+ * the final resolved URL. Used to resolve vanity/short links (e.g.
+ * example.org/donate) to the underlying ActBlue URL that carries `?refcode=`.
+ * Returns null on any network error, timeout, or non-https hop.
+ */
+async function resolveRedirect(startUrl: string, maxHops = 6): Promise<string | null> {
+  let current = startUrl;
+  for (let i = 0; i < maxHops; i++) {
+    if (!current.startsWith('https://')) return null;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    let res: Response;
+    try {
+      res = await fetch(current, { method: 'GET', redirect: 'manual', signal: controller.signal });
+    } catch (_e) {
+      clearTimeout(timer);
+      return null;
+    }
+    clearTimeout(timer);
+    // Redirect response: follow the Location header.
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get('location');
+      if (!loc) return current;
+      try { current = new URL(loc, current).toString(); } catch (_e) { return current; }
+      continue;
+    }
+    // Terminal response (2xx/4xx/5xx): this is the resolved URL.
+    return res.url || current;
+  }
+  return current;
+}
+
+
 
 
 const META_HOURLY_WINDOW_DAYS = 7;

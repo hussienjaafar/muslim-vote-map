@@ -482,8 +482,9 @@ async function syncSwitchboard(
       const attrs = (d.attributes ?? d) as Record<string, unknown>;
       const messageText = String(attrs.message_text ?? attrs.text ?? attrs.body ?? '');
       r.link_refcode = extractRefcodeFromText(messageText);
-      if (dbgCount < 3) {
-        console.log(`[sb-detail] ${r.campaign_id} keys=${Object.keys(attrs).join(',')} msg="${messageText.slice(0, 300)}" rc=${r.link_refcode}`);
+      if (dbgCount < 4) {
+        const urls = messageText.match(/https?:\/\/[^\s"'<>]+/gi) ?? [];
+        console.log(`[sb-detail] ${r.campaign_id} urls=${JSON.stringify(urls)} rc=${r.link_refcode}`);
         dbgCount++;
       }
     } catch (e) {

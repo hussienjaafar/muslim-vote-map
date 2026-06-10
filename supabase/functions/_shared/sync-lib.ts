@@ -466,18 +466,28 @@ async function syncSwitchboard(
   // Pull each broadcast's message body from the single-broadcast endpoint and
   // extract the real `?refcode=` from the donate link inside it. This is the
   // authoritative per-broadcast refcode (the list endpoint omits message_text).
+  let dbgCount = 0;
   for (const r of rows) {
     try {
       const res = await fetch(`https://api.oneswitchboard.com/v1/broadcasts/${r.campaign_id}`, {
         headers: { Authorization: auth, 'Content-Type': 'application/json', Accept: 'application/json' },
       });
-      if (!res.ok) continue;
+      if (!res.ok) {
+        if (dbgCount < 3) console.log(`[sb-detail] ${r.campaign_id} status=${res.status}`);
+        dbgCount++;
+        continue;
+      }
       const payload = await res.json();
       const d = (payload.data ?? payload) as Record<string, any>;
       const attrs = (d.attributes ?? d) as Record<string, unknown>;
       const messageText = String(attrs.message_text ?? attrs.text ?? attrs.body ?? '');
       r.link_refcode = extractRefcodeFromText(messageText);
-    } catch (_e) {
+      if (dbgCount < 3) {
+        console.log(`[sb-detail] ${r.campaign_id} keys=${Object.keys(attrs).join(',')} msg="${messageText.slice(0, 300)}" rc=${r.link_refcode}`);
+        dbgCount++;
+      }
+    } catch (e) {
+      if (dbgCount < 3) { console.log(`[sb-detail] ${r.campaign_id} err=${String(e).slice(0, 120)}`); dbgCount++; }
       // Leave link_refcode null; assign_sms_refcodes falls back to date matching.
     }
   }

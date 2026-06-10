@@ -1,52 +1,46 @@
+# Plan: Exact refcode-to-refcode SMS attribution
+
 ## Goal
+Match each SMS donation to the **specific broadcast that used that refcode**, the same deterministic way Meta works today. Right now donations and broadcasts have no shared key: donations carry refcodes like `victory`/`frontrunner`, but `sms_campaign_metrics` only stores the Switchboard `campaign_id` (`bc_01...`) and `campaign_name` — no refcode. So first we capture each broadcast's refcode from its link, then match exactly.
 
-Make Meta and SMS attribution work the way Molitico's does — deterministic refcode matching — by fixing the bug that strips refcodes off every donation at import time. Today 98.9% of transactions have a NULL refcode, so there is nothing for the refcode→channel mappings to match against. The Meta refcode mappings (`q2fad*`, `enbyBS`) are already synced and correct; they just have no refcodes to bind to.
+Per your answers: refcode comes from the broadcast's link (sync parses it), **exact** match only, and the same refcode can appear on multiple broadcasts → attribute to the broadcast whose **send date is closest** to the donation date.
 
-## Root cause
+## How it works
 
-`parseActblueCsv()` in `supabase/functions/_shared/sync-lib.ts` reads the refcode from CSV columns named `refcode` / `refcode2`:
-
-```ts
-refcode: get('refcode') || get('refcode2') || null,
+```text
+Broadcast message body ──contains──▶ shortened link ──resolves──▶ ActBlue URL ?refcode=victory
+                                                                              │
+sms_campaign_metrics.refcode  ◀── store ──────────────────────────────────────┘
+                                                                              │ exact match (case-insensitive)
+actblue_transactions.refcode "victory" ──────────────────────────────────────┘
+        └─ if multiple broadcasts share "victory" → pick closest send date
 ```
 
-ActBlue's contribution CSV actually names these columns **"Reference Code"** and **"Reference Code 2"** (lowercased by the parser to `reference code` / `reference code 2`). The lookup never matches, so every refcode is dropped. Evidence: the `modigitalh4nj` Meta form has 4,096 donations but only 2 stored refcodes.
+## Changes
 
-## How Molitico does it (for reference)
+### 1. Add `refcode` to `sms_campaign_metrics` (migration)
+- Add `refcode text` column (nullable). No data backfill in the migration itself.
 
-- Reads `refcode`, `refcode2`, `refcode_custom` on every transaction.
-- Matches refcodes against Meta ad-link refcodes (exact, then partial) and SMS campaign refcodes.
-- Falls back to **contribution-form** matching and **send-date proximity** scoring for SMS.
-- It only works because the refcodes are present on the transactions — which is precisely what we're missing.
+### 2. Capture the broadcast refcode during Switchboard sync (`syncSwitchboard` in `_shared/sync-lib.ts`)
+- For each broadcast, read its message body / link field from the Switchboard API (using the Get Broadcast detail when the list response doesn't include the body).
+- Extract candidate URLs from the body; for Switchboard shortened links, follow the redirect to the final ActBlue URL.
+- Parse the `refcode` (fallback `refcode2`) query param using the existing `extractRefcode` helper, and store it on the broadcast's `sms_campaign_metrics` row.
+- Robustness: wrap link resolution in try/catch with a short timeout so a broken link never fails the whole sync; leave `refcode` null when none is found.
 
-## Plan
+### 3. Rewrite the SMS tier in `recompute_attribution` (migration)
+Run two passes before the existing fallbacks:
+- **Pass A — exact refcode match (high confidence):** `lower(t.refcode)` (or `t.refcode2`) `=` `lower(s.refcode)` where `s.refcode` is not null. Sets `attributed_channel='sms'`, `attributed_campaign = campaign_name`, `attribution_method='sms_match'`, `attribution_confidence='high'`. When several broadcasts share the refcode, tie-break by `ORDER BY abs((t.transaction_date AT TIME ZONE 'America/New_York')::date - s.date)` (closest send date).
+- **Pass B — existing fallbacks (medium):** keep the current `campaign_id`-contains and `form_name`-contains logic for anything Pass A misses. The `keyword` tier remains the final low-confidence safety net.
 
-### 1. Fix the CSV refcode mapping (the core fix)
-In `parseActblueCsv()`, read the real ActBlue headers with fallbacks:
-- `refcode`  ← `reference code` || `refcode`
-- `refcode2` ← `reference code 2` || `refcode2`
-Store the primary refcode (and keep refcode2 available for matching). Keep existing fallbacks so webhook-shaped and older exports still work.
+### 4. Backfill + recompute
+- Trigger a full Switchboard re-sync for the org so existing broadcasts get their `refcode` populated.
+- Run `recompute_attribution` so the ~830 SMS donations bind to their exact broadcast at high confidence with `attributed_campaign` set.
 
-### 2. Capture refcode2 for matching
-`actblue_transactions` has only a single `refcode` column. Add a `refcode2 text` column (nullable) so both ActBlue reference codes are retained, mirroring Molitico. Update `parseActblueCsv()` and the webhook insert to populate it, and extend `recompute_attribution` to match on either `refcode` or `refcode2`.
+## Result
+- Every SMS donation links to the exact broadcast whose refcode it carries.
+- Confidence upgrades from low (keyword guess) to high (exact refcode match).
+- Per-broadcast ROI reporting becomes possible (donations / $ raised vs each broadcast's `cost`).
 
-### 3. Re-import ActBlue history
-Trigger a full ActBlue CSV re-sync for the affected org(s) so the corrected parser backfills refcodes onto existing transactions (upsert on `organization_id,transaction_id`, so no duplicates). Confirm `pct_with_refcode` jumps from ~1% to the expected majority.
-
-### 4. Recompute attribution
-After re-import, `recompute_attribution` runs automatically (already wired into the CSV job). The already-synced `q2fad*`/`enbyBS` → Meta mappings will now bind to the `modigitalh4nj` donations, moving ~4,000 donations / ~$131k from `other` to `meta` with `attribution_method='mapping'`.
-
-### 5. Molitico-parity SMS matching (bring SMS up to par)
-With refcodes restored, extend the SMS tier in `recompute_attribution` to match Switchboard `sms_campaign_metrics` on refcode (exact + contains) and contribution-form, with send-date proximity as a tiebreaker — mirroring Molitico's `sync-sms-campaign-attribution`. This upgrades SMS from low-confidence keyword guessing to deterministic matching.
-
-### 6. Verify
-- `pct_with_refcode` is high for the org.
-- Channel breakdown shows a realistic Meta share (hundreds of donations, ~$100k+), not 2.
-- Spot-check `modigitalh4nj` donations now resolve to `meta` via `mapping`.
-- SMS donations resolve via `sms_match` where a campaign refcode/form matches.
-
-## Technical notes
-- Schema change: add `actblue_transactions.refcode2 text`; no destructive changes.
-- `recompute_attribution`: broaden exact/prefix/contains refcode checks to consider `coalesce(refcode2,'')` as well; add the SMS proximity tiebreaker.
-- Re-import is idempotent via the existing `organization_id,transaction_id` conflict key.
-- The form-level override (`modigitalh4nj` → meta) remains available as a manual safety net but is not needed once refcodes import correctly — the deterministic refcode path is more accurate (preserves per-campaign labels).
+## Technical notes / open risk
+- The one unknown is whether the Switchboard broadcast payload exposes the message body (and thus the link). If the list endpoint omits it, sync will call the Get Broadcast detail endpoint per broadcast. If Switchboard doesn't expose the body/link at all, we fall back to storing the refcode via a small admin-provided broadcast→refcode mapping instead — I'll confirm against the live API during build and adjust.
+- Schema change limited to one nullable column; `recompute_attribution` is the only function modified.

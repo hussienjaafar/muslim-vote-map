@@ -301,6 +301,8 @@ function extractRefcode(rawUrl: string): string | null {
   }
 }
 
+
+
 const META_HOURLY_WINDOW_DAYS = 7;
 
 /**
@@ -444,6 +446,12 @@ async function syncSwitchboard(
       .upsert(rows, { onConflict: 'organization_id,campaign_id,date' });
     if (error) return { platform: 'switchboard', ok: false, rows: 0, error: error.message };
   }
+
+  // Derive each broadcast's ActBlue refcode from donation data (the broadcast link
+  // is a single rotating donate URL, so the refcode is not present in the message).
+  // assign_sms_refcodes maps the refcode that first appears on each broadcast's send day.
+  await admin.rpc('assign_sms_refcodes', { _org_id: orgId });
+
   return { platform: 'switchboard', ok: true, rows: rows.length };
 }
 

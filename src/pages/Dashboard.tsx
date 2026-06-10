@@ -8,6 +8,7 @@ import { useRealtimeFundraising } from '@/queries/useRealtimeFundraising';
 import { OrgSwitcher } from '@/components/org/OrgSwitcher';
 import { DateRangePicker } from '@/components/dashboard/DateRangePicker';
 import { ChannelBreakdownCard } from '@/components/dashboard/ChannelBreakdownCard';
+import { SmsBroadcastRoiCard } from '@/components/dashboard/SmsBroadcastRoiCard';
 import { type RangeSelection, presetSelection, resolveRange } from '@/lib/dateRanges';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
@@ -339,6 +340,9 @@ export default function Dashboard({ embedded = false }: { embedded?: boolean }) 
 
         {/* Revenue by channel (refcode attribution) */}
         <ChannelBreakdownCard orgId={orgId} range={range} />
+
+        {/* Per-broadcast SMS ROI */}
+        <SmsBroadcastRoiCard orgId={orgId} range={range} />
 
         {/* Recent donations */}
 

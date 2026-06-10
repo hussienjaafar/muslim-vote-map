@@ -454,6 +454,7 @@ async function syncSwitchboard(
         conversions: num(attrs.donations ?? attrs.conversions),
         amount_raised: num(attrs.amount_raised),
         cost: num(attrs.cost_estimate ?? attrs.cost),
+        link_refcode: null as string | null,
         synced_at: new Date().toISOString(),
       };
     })
@@ -462,6 +463,25 @@ async function syncSwitchboard(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     .map(({ status, ...rest }) => rest);
 
+  // Pull each broadcast's message body from the single-broadcast endpoint and
+  // extract the real `?refcode=` from the donate link inside it. This is the
+  // authoritative per-broadcast refcode (the list endpoint omits message_text).
+  for (const r of rows) {
+    try {
+      const res = await fetch(`https://api.oneswitchboard.com/v1/broadcasts/${r.campaign_id}`, {
+        headers: { Authorization: auth, 'Content-Type': 'application/json', Accept: 'application/json' },
+      });
+      if (!res.ok) continue;
+      const payload = await res.json();
+      const d = (payload.data ?? payload) as Record<string, any>;
+      const attrs = (d.attributes ?? d) as Record<string, unknown>;
+      const messageText = String(attrs.message_text ?? attrs.text ?? attrs.body ?? '');
+      r.link_refcode = extractRefcodeFromText(messageText);
+    } catch (_e) {
+      // Leave link_refcode null; assign_sms_refcodes falls back to date matching.
+    }
+  }
+
   if (rows.length) {
     const { error } = await admin
       .from('sms_campaign_metrics')
@@ -469,9 +489,8 @@ async function syncSwitchboard(
     if (error) return { platform: 'switchboard', ok: false, rows: 0, error: error.message };
   }
 
-  // Derive each broadcast's ActBlue refcode from donation data (the broadcast link
-  // is a single rotating donate URL, so the refcode is not present in the message).
-  // assign_sms_refcodes maps the refcode that first appears on each broadcast's send day.
+  // Assign each broadcast's refcode: the link_refcode extracted above wins;
+  // broadcasts without an extractable link fall back to date-based matching.
   await admin.rpc('assign_sms_refcodes', { _org_id: orgId });
 
   return { platform: 'switchboard', ok: true, rows: rows.length };

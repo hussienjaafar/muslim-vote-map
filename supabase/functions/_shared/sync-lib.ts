@@ -251,7 +251,6 @@ function collectCreativeUrls(creative: Record<string, unknown> | null | undefine
   };
 
   pushSpec((creative as any).object_story_spec);
-  pushSpec((creative as any).effective_object_story_spec);
 
   const afs = (creative as any).asset_feed_spec;
   for (const l of afs?.link_urls ?? []) {

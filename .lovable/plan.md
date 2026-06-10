@@ -1,53 +1,47 @@
-# Robust SMS Broadcasts: detail sub-tab + richer widget
+# Reliable per-broadcast refcode extraction
 
-Expand the SMS feature from a single ROI card into a full broadcast analytics area: add date & time sent everywhere, a dedicated **SMS** sub-tab that lists every broadcast, and a per-broadcast **detail page** (shareable URL) covering deliverability, engagement, fundraising/ROI, and the individual attributed donations.
+## Goal
+Keep your existing refcode-based attribution. Stop guessing which refcode belongs to each SMS broadcast by date, and instead extract the real `?refcode=` straight from each broadcast's form link.
 
-## Key data finding
-- The Switchboard API already returns a full `started_at` timestamp — the sync currently discards the time via `.slice(0,10)`. We'll store the full timestamp and backfill via a re-sync.
-- `messages_failed`, `opt_outs`, and `conversions` are already synced but never shown — they power the deliverability/engagement sections with no new ingestion.
+## Why today is unreliable
+- ActBlue donations already capture `refcode` correctly at the transaction level (e.g. `victory`, `electionday`). That part works.
+- The weak link is mapping each **broadcast** to a refcode. The Switchboard SMS message contains the donate link, but we never read it — `assign_sms_refcodes` instead infers a broadcast's refcode from whichever refcode happened to appear in donations on the send date. When two sends are close together or share a label, broadcasts get the wrong refcode or `NULL` (e.g. Copy of Frontrunner, Q1_Deadline, Fundraiser_3272026 all sit at `NULL` → 0.00x ROAS).
 
-## Navigation
+## What we found
+The Switchboard list endpoint we currently call returns only summary fields (no message body). But the single-broadcast endpoint `GET /v1/broadcasts/{id}` returns `message_text`, which contains the ActBlue link the organizer pasted, e.g.:
 
 ```text
-Header tabs:  [ Fundraising ]  [ SMS ]  [ Data & Issues ]
-
-SMS tab
- ├─ (no broadcast selected) → Broadcast list
- │     sortable table: Broadcast · Date & time · Delivered · Raised+ROAS · …
- │     row click → detail
- └─ ?tab=sms&broadcast=<id> → Broadcast detail page
-        ├─ Header: name, date & time sent, refcode, Raised + ROAS pair
-        ├─ Audience & deliverability  (sent, delivered, failed, opt-outs + rates)
-        ├─ Engagement                 (clicks, click rate, conversions, conv. rate)
-        ├─ Fundraising & ROI          (raised, donations, donors, avg gift, cost,
-        │                               cost/donation, $/1k delivered, ROAS)
-        └─ Attributed donations list  (donor, amount, time, recurring)
+"Hey {{firstname}}, donate here: https://secure.actblue.com/donate/moliticosms?refcode=victory&..."
 ```
 
-The compact "SMS Broadcast Performance" card stays on the **Fundraising** tab but gains date & time per row and a "Raised + ROAS" headline pair; its "View all broadcasts" button now links to the SMS sub-tab (replacing the dialog).
+So we can parse `?refcode=` (and `refcode2`) directly from `message_text` per broadcast.
 
-## Technical details
+## Changes
 
-### Database
-1. **Migration** — `ALTER TABLE public.sms_campaign_metrics ADD COLUMN sent_at timestamptz;` (nullable; UI falls back to `date` when null).
-2. **Update `sms_broadcast_roi` RPC** — also return `sent_at, messages_failed, opt_outs, conversions` (used by list + card).
-3. **New RPC `sms_broadcast_detail(_org_id uuid, _broadcast_id uuid)`** — returns the single broadcast's full metric row (all columns + attributed `raised/donations/donors`), gated by `can_access_organization_data`.
-4. **New RPC `sms_broadcast_donations(_org_id uuid, _broadcast_id uuid)`** — returns attributed donations for that broadcast (`donor_name, amount, transaction_date, is_recurring, refcode`) by matching `attributed_channel='sms'` and `lower(attributed_campaign)=lower(campaign_name)`, ordered by date desc, capped (e.g. 500). Same access gate.
-All RPCs `SECURITY DEFINER STABLE` with `GRANT EXECUTE` to `authenticated`/`service_role`.
+### 1. Pull the real link per broadcast (sync-lib.ts → syncSwitchboard)
+- For each broadcast we upsert, call `GET /v1/broadcasts/{id}` and read `message_text`.
+- Extract the refcode from any ActBlue URL in the text using a regex like `refcode2?=([^&#\s"']+)` (lowercased), reusing the existing `extractRefcode` helper pattern.
+- Store it on `sms_campaign_metrics` in a new dedicated column `link_refcode` (so it is never clobbered by the date heuristic).
+- Incremental syncs only fetch detail for broadcasts in the window; full backfills fetch all. A small per-call guard keeps request volume bounded.
 
-### Sync (backfill send time)
-- **`supabase/functions/_shared/sync-lib.ts`** — in `syncSwitchboard`, add `sent_at: <full started_at ISO>` to each row while keeping `date` (sliced) for the existing conflict key. Deploy `sync-org`.
-- **Backfill** — run a full Switchboard re-sync so historical `sent_at` populates from `started_at`. Until it runs, rows show date-only gracefully.
+### 2. Make the link refcode authoritative (assign_sms_refcodes)
+- Change the function so each broadcast's `refcode` is set to `coalesce(link_refcode, <existing date-based guess>)`.
+- The deterministic link refcode always wins; the date heuristic only fills broadcasts whose message had no extractable ActBlue link (e.g. media-only sends or shortened links).
 
-### Frontend
-- **`src/queries/useFundraisingQueries.ts`** — extend `SmsBroadcast` with `sentAt`, `messagesFailed`, `optOuts`, `conversions` (+ derived `deliveryRate`, `failureRate`, `optOutRate`, `avgGift`). Add `useSmsBroadcastDetail(orgId, broadcastId)` and `useSmsBroadcastDonations(orgId, broadcastId)` hooks.
-- **`src/pages/Workspace.tsx`** — add a third `SMS` tab (value `sms`) between Fundraising and Data; render new `SmsBroadcasts` page when active.
-- **`src/pages/SmsBroadcasts.tsx`** (new) — reads `broadcast` search param: if absent shows the broadcast **list** (reuses an extracted table with date/time + Raised+ROAS columns, row → sets `broadcast` param); if present renders `SmsBroadcastDetail`.
-- **`src/components/dashboard/SmsBroadcastDetail.tsx`** (new) — the four detail sections above, surgical-glass styling, design tokens only, with a back link to the list and an empty/loading state.
-- **`src/components/dashboard/SmsBroadcastRoiCard.tsx`** — add date & time per row, switch headline to Raised + ROAS pair, and point "View all" to `/home?tab=sms`. Retire the in-card dialog table (logic moves to the SMS tab list).
-- Reuse existing date-range picker behavior for the list; the detail page shows the broadcast's own all-time attributed donations.
+### 3. Attribution flows through unchanged
+- `recompute_attribution` already matches ActBlue transactions to broadcasts via `sms_campaign_metrics.refcode`. With correct per-broadcast refcodes, the SMS ROI / detail widgets show the right Raised and ROAS automatically.
 
-### Notes
-- No changes to attribution logic or `recompute_attribution`.
-- Time rendered in Eastern Time (matching the rest of the dashboard).
-- Donor names in the attributed-donations list are already shown on the existing "Recent Donations" panel, so no new privacy surface.
+### 4. Backfill
+- Run a full org re-sync so historical broadcasts get their `link_refcode` populated and attribution recomputes.
+
+## Honest limitation (no behavior hidden from you)
+If two different broadcasts genuinely use the **same** `refcode` (e.g. both link to `?refcode=victory`), ActBlue exports cannot tell them apart — the unique part of the link (`refcodeSB`/`t`) is not stored by ActBlue. In that case donations are split between the same-refcode broadcasts by closest send date. To get fully exact separation, each broadcast needs its own unique `?refcode=` in the form link. This plan guarantees we always capture whatever refcode the form actually used.
+
+## Out of scope
+- No use of Switchboard's reported donation/amount numbers (you asked to stay on the refcode system).
+- No change to the org-wide Channel Breakdown or Attribution admin logic beyond the improved SMS refcode mapping.
+
+## Technical notes
+- Migration: add `link_refcode text` to `sms_campaign_metrics`; update `assign_sms_refcodes` to prefer it.
+- Edge function: `supabase/functions/_shared/sync-lib.ts` (`syncSwitchboard`) gains the per-broadcast detail fetch + refcode parse + `link_refcode` write.
+- Frontend: no required changes; widgets read existing fields. ROAS rows that were 0.00x due to bad mapping populate once attribution recomputes.

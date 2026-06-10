@@ -1785,6 +1785,7 @@ export type Database = {
         Args: { target_user_id: string }
         Returns: undefined
       }
+      assign_sms_refcodes: { Args: { _org_id: string }; Returns: undefined }
       can_access_organization_data: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean

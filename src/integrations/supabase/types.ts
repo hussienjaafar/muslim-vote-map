@@ -1402,6 +1402,7 @@ export type Database = {
           messages_sent: number
           opt_outs: number
           organization_id: string
+          refcode: string | null
           synced_at: string
         }
         Insert: {
@@ -1418,6 +1419,7 @@ export type Database = {
           messages_sent?: number
           opt_outs?: number
           organization_id: string
+          refcode?: string | null
           synced_at?: string
         }
         Update: {
@@ -1434,6 +1436,7 @@ export type Database = {
           messages_sent?: number
           opt_outs?: number
           organization_id?: string
+          refcode?: string | null
           synced_at?: string
         }
         Relationships: [

@@ -76,6 +76,9 @@ export default function Workspace() {
                 <TabsTrigger value="fundraising" className="gap-1.5">
                   <TrendingUp className="w-4 h-4" /> <span className="hidden sm:inline">Fundraising</span>
                 </TabsTrigger>
+                <TabsTrigger value="sms" className="gap-1.5">
+                  <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">SMS</span>
+                </TabsTrigger>
                 <TabsTrigger value="data" className="gap-1.5">
                   <Map className="w-4 h-4" /> <span className="hidden sm:inline">Data &amp; Issues</span>
                 </TabsTrigger>

@@ -113,6 +113,8 @@ export type SmsBroadcast = {
   optOutRate: number | null;
   /** raised ÷ donations */
   avgGift: number | null;
+  /** Whether the broadcast's link reaches ActBlue; false → excluded from ROAS */
+  hasActBlueLink: boolean;
 };
 
 function mapBroadcast(r: any): SmsBroadcast {
@@ -124,6 +126,7 @@ function mapBroadcast(r: any): SmsBroadcast {
   const clicks = Number(r.clicks) || 0;
   const raised = Number(r.raised) || 0;
   const donations = Number(r.donations) || 0;
+  const hasActBlueLink = r.has_actblue_link !== false;
   return {
     id: r.id,
     campaignName: r.campaign_name ?? '—',
@@ -140,7 +143,7 @@ function mapBroadcast(r: any): SmsBroadcast {
     raised,
     donations,
     donors: Number(r.donors) || 0,
-    roas: cost > 0 ? raised / cost : null,
+    roas: hasActBlueLink && cost > 0 ? raised / cost : null,
     dollarsPer1kDelivered: delivered > 0 ? (raised / delivered) * 1000 : null,
     clickRate: delivered > 0 ? clicks / delivered : null,
     conversionRate: clicks > 0 ? donations / clicks : null,
@@ -149,6 +152,7 @@ function mapBroadcast(r: any): SmsBroadcast {
     failureRate: sent > 0 ? failed / sent : null,
     optOutRate: delivered > 0 ? optOuts / delivered : null,
     avgGift: donations > 0 ? raised / donations : null,
+    hasActBlueLink,
   };
 }
 

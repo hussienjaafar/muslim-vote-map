@@ -1396,6 +1396,7 @@ export type Database = {
           conversions: number
           cost: number
           date: string
+          has_actblue_link: boolean
           id: string
           link_refcode: string | null
           messages_delivered: number
@@ -1415,6 +1416,7 @@ export type Database = {
           conversions?: number
           cost?: number
           date: string
+          has_actblue_link?: boolean
           id?: string
           link_refcode?: string | null
           messages_delivered?: number
@@ -1434,6 +1436,7 @@ export type Database = {
           conversions?: number
           cost?: number
           date?: string
+          has_actblue_link?: boolean
           id?: string
           link_refcode?: string | null
           messages_delivered?: number
@@ -1892,6 +1895,7 @@ export type Database = {
           date: string
           donations: number
           donors: number
+          has_actblue_link: boolean
           id: string
           messages_delivered: number
           messages_failed: number
@@ -1923,6 +1927,7 @@ export type Database = {
           date: string
           donations: number
           donors: number
+          has_actblue_link: boolean
           id: string
           messages_delivered: number
           messages_failed: number

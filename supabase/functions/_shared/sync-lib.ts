@@ -489,6 +489,7 @@ async function syncSwitchboard(
         amount_raised: num(attrs.amount_raised),
         cost: num(attrs.cost_estimate ?? attrs.cost),
         link_refcode: null as string | null,
+        has_actblue_link: true as boolean,
         synced_at: new Date().toISOString(),
       };
     })
@@ -505,11 +506,12 @@ async function syncSwitchboard(
   // repointed before each send) only reflects its CURRENT target, so a resolved
   // refcode from a shared link is trusted ONLY for the most-recent broadcast
   // using that link; older sends on the same link fall back to date matching.
-  const linkMeta: { vanity: string | null; resolvedRc: string | null; directRc: string | null }[] = [];
+  const linkMeta: { vanity: string | null; resolvedRc: string | null; directRc: string | null; hasActBlue: boolean }[] = [];
   for (const r of rows) {
     let directRc: string | null = null;
     let vanity: string | null = null;
     let resolvedRc: string | null = null;
+    let hasActBlue = false;
     try {
       const res = await fetch(`https://api.oneswitchboard.com/v1/broadcasts/${r.campaign_id}`, {
         headers: { Authorization: auth, 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -519,6 +521,8 @@ async function syncSwitchboard(
         const d = (payload.data ?? payload) as Record<string, any>;
         const attrs = (d.attributes ?? d) as Record<string, unknown>;
         const messageText = String(attrs.message_text ?? attrs.text ?? attrs.body ?? '');
+        // A direct ActBlue link in the message body counts as reaching ActBlue.
+        if (/actblue\.com/i.test(messageText)) hasActBlue = true;
         directRc = extractRefcodeFromText(messageText);
         if (!directRc) {
           const urls = messageText.match(/https?:\/\/[^\s"'<>]+/gi) ?? [];
@@ -526,6 +530,8 @@ async function syncSwitchboard(
           if (vanity) {
             const resolved = await resolveRedirect(vanity);
             if (resolved && /actblue\.com/i.test(resolved)) {
+              // The vanity link redirects to ActBlue (refcode optional).
+              hasActBlue = true;
               const v = extractRefcode(resolved);
               resolvedRc = v ? v.toLowerCase() : null;
             }
@@ -535,7 +541,7 @@ async function syncSwitchboard(
     } catch (_e) {
       // Network error: leave everything null; date fallback handles it.
     }
-    linkMeta.push({ vanity, resolvedRc, directRc });
+    linkMeta.push({ vanity, resolvedRc, directRc, hasActBlue });
   }
 
   // Count vanity-link usage and find the most-recent broadcast per shared link.
@@ -551,6 +557,7 @@ async function syncSwitchboard(
 
   rows.forEach((r, i) => {
     const m = linkMeta[i];
+    r.has_actblue_link = m.hasActBlue;
     if (m.directRc) {
       r.link_refcode = m.directRc;
     } else if (m.resolvedRc && m.vanity) {

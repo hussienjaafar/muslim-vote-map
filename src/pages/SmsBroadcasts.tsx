@@ -24,8 +24,10 @@ export default function SmsBroadcasts() {
   const broadcasts = data ?? [];
 
   const totals = useMemo(() => {
-    const raised = broadcasts.reduce((a, b) => a + b.raised, 0);
-    const cost = broadcasts.reduce((a, b) => a + b.cost, 0);
+    // Only broadcasts whose link reaches ActBlue count toward ROAS.
+    const attributable = broadcasts.filter((b) => b.hasActBlueLink !== false);
+    const raised = attributable.reduce((a, b) => a + b.raised, 0);
+    const cost = attributable.reduce((a, b) => a + b.cost, 0);
     return { raised, cost, roas: cost > 0 ? raised / cost : null, count: broadcasts.length };
   }, [broadcasts]);
 

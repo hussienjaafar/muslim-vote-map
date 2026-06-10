@@ -157,12 +157,21 @@ export function SmsBroadcastTable({
                     key={col.key}
                     className={`py-2.5 px-2 whitespace-nowrap tabular-nums ${
                       col.numeric ? 'text-right' : 'text-left'
-                    } ${col.key === 'campaignName' ? 'font-medium text-foreground max-w-[220px] truncate' : 'text-muted-foreground'} ${
+                    } ${col.key === 'campaignName' ? 'font-medium text-foreground max-w-[260px] truncate' : 'text-muted-foreground'} ${
                       isRoas ? `font-bold ${roasColor}` : ''
                     } ${col.key === 'raised' ? 'text-emerald-400 font-semibold' : ''}`}
                     title={col.key === 'campaignName' ? b.campaignName : undefined}
                   >
-                    {cellValue(b, col.key)}
+                    {col.key === 'campaignName' && b.hasActBlueLink === false ? (
+                      <span className="inline-flex items-center gap-2">
+                        <span className="truncate">{b.campaignName}</span>
+                        <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                          No ActBlue link
+                        </span>
+                      </span>
+                    ) : (
+                      cellValue(b, col.key)
+                    )}
                   </td>
                 );
               })}

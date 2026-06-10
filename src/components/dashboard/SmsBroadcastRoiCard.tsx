@@ -45,9 +45,11 @@ export function SmsBroadcastRoiCard({ orgId, range }: { orgId: string | null; ra
   const broadcasts = data ?? [];
 
   const { topRows, totalRaised, totalCost, maxRoas } = useMemo(() => {
-    const totalRaised = broadcasts.reduce((a, b) => a + b.raised, 0);
-    const totalCost = broadcasts.reduce((a, b) => a + b.cost, 0);
-    const topRows = [...broadcasts]
+    // Only broadcasts whose link reaches ActBlue count toward ROAS.
+    const attributable = broadcasts.filter((b) => b.hasActBlueLink !== false);
+    const totalRaised = attributable.reduce((a, b) => a + b.raised, 0);
+    const totalCost = attributable.reduce((a, b) => a + b.cost, 0);
+    const topRows = [...attributable]
       .sort((a, b) => (b.roas ?? -1) - (a.roas ?? -1))
       .slice(0, TOP_N);
     const maxRoas = topRows.reduce((m, b) => Math.max(m, b.roas ?? 0), 0);

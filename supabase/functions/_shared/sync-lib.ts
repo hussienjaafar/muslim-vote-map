@@ -157,7 +157,7 @@ export async function syncMetaAdLinks(
 ): Promise<{ mappings: number; ads: number; urls: number; error: string | null }> {
   const params = new URLSearchParams({
     fields:
-      'id,name,effective_status,campaign{id,name},creative{object_story_spec,asset_feed_spec,url_tags,template_url,link_url,effective_object_story_spec}',
+      'id,name,effective_status,campaign{id,name},creative{object_story_spec,asset_feed_spec,url_tags,template_url,link_url}',
     limit: '200',
     access_token: token,
   });

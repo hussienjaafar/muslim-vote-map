@@ -1,50 +1,36 @@
 ## Goal
 
-Meta gets almost no attributed revenue ($94k spent, 1 attributed donation) because this org's Meta ads use refcodes like `q2fad2`, `q2fad5`, `enbyBS` that contain no keyword the resolver recognizes (`fb`, `meta`, `facebook`). Rather than guessing with regex, we'll do it the **deterministic, self-maintaining** way: read the actual destination link of every Meta ad, extract its `refcode`, and store an exact refcode → Meta mapping. Donations then attribute to Meta with high confidence and link back to the specific campaign/ad.
+Meta attribution is empty not because of missing data or vendor-account separation, but because of a one-field bug in the new ad-link sync. The connected ad account (`act_910839715277336`) returns every ad with an ActBlue destination link carrying a `refcode` (`q2fad9`, `q2fad10`, `enbyBS`, …). We just need the creatives request to stop erroring so those refcodes get stored as exact Meta mappings.
 
-## How it works
+## Root cause (confirmed by live test)
+
+`syncMetaAdLinks()` requests `creative{...,effective_object_story_spec}`. That subfield does not exist in Graph API v19, so Meta rejects the whole `/ads` call:
 
 ```text
-Meta Graph API (ads + creatives)
-   └─ destination link: https://secure.actblue.com/donate/xyz?refcode=q2fad2
-        └─ parse refcode  -> "q2fad2"
-            └─ upsert campaign_attribution (refcode=q2fad2, channel=meta,
-                                            campaign_label=<campaign name>, source=meta_ad)
-                 └─ recompute_attribution -> donations with refcode q2fad2 become "meta"
+(#100) Tried accessing nonexisting field (effective_object_story_spec)
 ```
 
-This mirrors Molitico's deterministic `refcode_mappings`, but reconciles the mapping from the live ad links instead of generating it at ad-creation (which we can't do, since we don't deploy ads from the app).
+The function catches it as a best-effort error and returns 0 mappings — which is why `campaign_attribution` is completely empty and Meta donations stay `other`.
 
-## Plan
+## Fix
 
-### 1. Capture Meta ad links (new sync step)
-- Add `syncMetaAdLinks()` in `supabase/functions/_shared/sync-lib.ts`, called from the Meta branch of the org sync alongside the existing campaign-insights pull.
-- Fetch ads + creatives from the Graph API:
-  `GET /{ad_account}/ads?fields=id,name,effective_status,campaign{id,name},creative{object_story_spec,asset_feed_spec,url_tags,template_url,link_url,effective_object_story_spec}`
-- For each ad, extract every destination URL it can reach:
-  - `creative.object_story_spec.link_data.link` / `child_attachments[].link`
-  - `creative.asset_feed_spec.link_urls[].website_url`
-  - `creative.template_url`, `creative.link_url`, `effective_object_story_spec`
-  - `creative.url_tags` (merged query params) as a fallback
-- Parse each URL's query string for `refcode` (and `refcode2` if present). Also capture the ActBlue form slug from the path when available.
+### 1. Remove the invalid field
+In `supabase/functions/_shared/sync-lib.ts`:
+- Drop `effective_object_story_spec` from the `creative{...}` field list in `syncMetaAdLinks()`.
+- Remove the `pushSpec((creative as any).effective_object_story_spec)` line in `collectCreativeUrls()` (it can never be populated now and isn't needed — `object_story_spec` + `asset_feed_spec.link_urls` already cover every ad in the live test).
 
-### 2. Store deterministic mappings
-- For each `(refcode, campaign_name)` found, upsert into `campaign_attribution`:
-  `channel='meta'`, `match_type='exact'`, `pattern=<refcode>`, `campaign_label=<campaign name>`, `meta_campaign_id=<campaign id>`, `priority` high (e.g. 10 so ad-derived mappings win over manual patterns).
-- Add a `source` column (`meta_ad` | `manual`) so auto-synced mappings are distinguishable and can be safely refreshed each sync without clobbering admin-created ones. Upsert on `(organization_id, pattern)`.
+### 2. Deploy & run
+- Deploy the edge functions.
+- Trigger a Meta sync for this org (or click "Sync Meta ad links" on `/admin/attribution`), which now:
+  - parses all 50+ ad links,
+  - upserts exact `q2fad*` / `enbyBS` → `meta` mappings (`source='meta_ad'`, `priority=10`),
+  - calls `recompute_attribution(org_id)`.
 
-### 3. Recompute after sync
-- After ad-link sync completes, call `recompute_attribution(org_id)` (already wired for webhook/CSV paths) so historical donations re-attribute immediately.
-
-### 4. Admin visibility
-- On `/admin/attribution`, show the auto-synced Meta mappings (read-only badge "from Meta ad") next to manual ones, plus a "Sync Meta ad links" action that triggers the fetch + recompute on demand.
-
-### 5. Backfill & verify
-- Run the new sync for this org, then confirm Meta donations jump from ~$3 to a realistic share and spot-check that `q2fad*` refcodes now resolve to `meta` with `attribution_method='mapping'`, `confidence='high'`.
+### 3. Verify
+- Confirm `campaign_attribution` has `source='meta_ad'` rows.
+- Confirm Meta's attributed revenue on the dashboard jumps from ~$3 to a realistic share, and spot-check a `q2fad*` donation now resolves to `meta` with `attribution_method='mapping'`, `attribution_confidence='high'`.
 
 ## Technical notes
-- **Schema:** add `source text default 'manual'` to `campaign_attribution`; add unique index on `(organization_id, pattern)` for clean upserts. Migration includes it; no new table.
-- **Resolver:** no change needed — exact mappings already take priority 1 in `recompute_attribution`. We're just populating them.
-- **Token scope:** uses the existing stored Meta access token + ad account (same credentials as `syncMeta`). Ad-creative reads require `ads_read`, which the current insights pull already relies on.
-- **Edge case:** ads with no parseable refcode are skipped (logged, not errored). Keyword fallback still covers anything unmapped.
-- **Optional follow-up (not in this pass):** broaden the keyword regex to catch `fad`/`fbad` shorthands for orgs without a Meta connection — kept out so we rely on deterministic links here.
+- No schema change — the `source` column and unique index already exist.
+- No resolver change — exact mappings already win at priority 1 in `recompute_attribution`.
+- Robustness add: if the creatives call still returns a non-200, log the Graph error body (already partially done) so future field/version issues are visible rather than silently producing 0 mappings.

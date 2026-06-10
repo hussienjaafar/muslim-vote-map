@@ -126,6 +126,7 @@ function mapBroadcast(r: any): SmsBroadcast {
   const clicks = Number(r.clicks) || 0;
   const raised = Number(r.raised) || 0;
   const donations = Number(r.donations) || 0;
+  const hasActBlueLink = r.has_actblue_link !== false;
   return {
     id: r.id,
     campaignName: r.campaign_name ?? '—',

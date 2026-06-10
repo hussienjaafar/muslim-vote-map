@@ -1876,6 +1876,22 @@ export type Database = {
         Returns: Json
       }
       self_delete_account: { Args: never; Returns: undefined }
+      sms_broadcast_roi: {
+        Args: { _end: string; _org_id: string; _start: string }
+        Returns: {
+          campaign_name: string
+          clicks: number
+          cost: number
+          date: string
+          donations: number
+          donors: number
+          id: string
+          messages_delivered: number
+          messages_sent: number
+          raised: number
+          refcode: string
+        }[]
+      }
       submit_access_request: {
         Args: {
           _email: string

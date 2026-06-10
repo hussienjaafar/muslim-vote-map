@@ -143,7 +143,7 @@ function mapBroadcast(r: any): SmsBroadcast {
     raised,
     donations,
     donors: Number(r.donors) || 0,
-    roas: cost > 0 ? raised / cost : null,
+    roas: hasActBlueLink && cost > 0 ? raised / cost : null,
     dollarsPer1kDelivered: delivered > 0 ? (raised / delivered) * 1000 : null,
     clickRate: delivered > 0 ? clicks / delivered : null,
     conversionRate: clicks > 0 ? donations / clicks : null,
@@ -152,6 +152,7 @@ function mapBroadcast(r: any): SmsBroadcast {
     failureRate: sent > 0 ? failed / sent : null,
     optOutRate: delivered > 0 ? optOuts / delivered : null,
     avgGift: donations > 0 ? raised / donations : null,
+    hasActBlueLink,
   };
 }
 

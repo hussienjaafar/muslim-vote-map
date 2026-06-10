@@ -556,6 +556,7 @@ async function syncSwitchboard(
 
   rows.forEach((r, i) => {
     const m = linkMeta[i];
+    r.has_actblue_link = m.hasActBlue;
     if (m.directRc) {
       r.link_refcode = m.directRc;
     } else if (m.resolvedRc && m.vanity) {

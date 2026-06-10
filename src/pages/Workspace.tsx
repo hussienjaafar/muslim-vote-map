@@ -10,9 +10,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { OrgSwitcher } from '@/components/org/OrgSwitcher';
-import { User, LogOut, TrendingUp, Map, Loader2 } from 'lucide-react';
+import { User, LogOut, TrendingUp, Map, Loader2, MessageSquare } from 'lucide-react';
 import Home from './Home';
 import Dashboard from './Dashboard';
+import SmsBroadcasts from './SmsBroadcasts';
 
 export default function Workspace() {
   const { user } = useAuth();

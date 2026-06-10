@@ -497,12 +497,12 @@ async function syncSwitchboard(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     .map(({ status, ...rest }) => rest);
 
-  // Pull each broadcast's message body from the single-broadcast endpoint and
-  // extract the real `?refcode=` from a direct ActBlue donate link inside it.
-  // This is the authoritative per-broadcast refcode (the list endpoint omits
-  // message_text). Note: if a broadcast links through a reused vanity/redirect
-  // (e.g. example.org/donate) the refcode is not in the message and stays null;
-  // assign_sms_refcodes then falls back to date-based matching for that send.
+  // Resolve each broadcast's refcode from its message link:
+  //   1) a direct `?refcode=` in the message text, else
+  //   2) follow the vanity URL's redirect chain to the final ActBlue URL and
+  //      read `?refcode=` from there.
+  // [DIAGNOSTIC] logs the vanity URL + resolved URL per broadcast so we can tell
+  // whether vanity paths are unique per broadcast or one shared/repointed link.
   for (const r of rows) {
     try {
       const res = await fetch(`https://api.oneswitchboard.com/v1/broadcasts/${r.campaign_id}`, {
@@ -513,11 +513,28 @@ async function syncSwitchboard(
       const d = (payload.data ?? payload) as Record<string, any>;
       const attrs = (d.attributes ?? d) as Record<string, unknown>;
       const messageText = String(attrs.message_text ?? attrs.text ?? attrs.body ?? '');
-      r.link_refcode = extractRefcodeFromText(messageText);
+
+      let rc = extractRefcodeFromText(messageText);
+      let vanity: string | null = null;
+      let resolved: string | null = null;
+      if (!rc) {
+        const urls = messageText.match(/https?:\/\/[^\s"'<>]+/gi) ?? [];
+        vanity = urls.find((u) => !/oneswitchboard|sb\.run|switchboard/i.test(u)) ?? urls[0] ?? null;
+        if (vanity) {
+          resolved = await resolveRedirect(vanity);
+          if (resolved && /actblue\.com/i.test(resolved)) {
+            const v = extractRefcode(resolved);
+            rc = v ? v.toLowerCase() : null;
+          }
+        }
+      }
+      r.link_refcode = rc;
+      console.log(`[sb-link] name="${r.campaign_name}" date=${r.date} vanity=${vanity ?? '(direct)'} resolved=${resolved ?? '-'} rc=${rc}`);
     } catch (_e) {
       // Leave link_refcode null; assign_sms_refcodes falls back to date matching.
     }
   }
+
 
 
   if (rows.length) {

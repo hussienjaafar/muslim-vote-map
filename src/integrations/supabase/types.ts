@@ -1397,6 +1397,7 @@ export type Database = {
           cost: number
           date: string
           id: string
+          link_refcode: string | null
           messages_delivered: number
           messages_failed: number
           messages_sent: number
@@ -1415,6 +1416,7 @@ export type Database = {
           cost?: number
           date: string
           id?: string
+          link_refcode?: string | null
           messages_delivered?: number
           messages_failed?: number
           messages_sent?: number
@@ -1433,6 +1435,7 @@ export type Database = {
           cost?: number
           date?: string
           id?: string
+          link_refcode?: string | null
           messages_delivered?: number
           messages_failed?: number
           messages_sent?: number

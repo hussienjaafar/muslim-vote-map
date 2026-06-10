@@ -301,6 +301,40 @@ function extractRefcode(rawUrl: string): string | null {
   }
 }
 
+/**
+ * Resolves the ActBlue refcode used by an SMS broadcast from its message text.
+ * Pulls every URL out of the template, takes the refcode directly if present,
+ * otherwise follows the (shortened/tracked) link's redirects to the final
+ * ActBlue URL and reads the refcode there. Best-effort: never throws.
+ */
+async function resolveRefcodeFromMessage(messageText: string | null | undefined): Promise<string | null> {
+  if (!messageText) return null;
+  const urls = messageText.match(/https?:\/\/[^\s<>"')]+/gi) ?? [];
+  for (const raw of urls) {
+    const url = raw.replace(/[.,;:)\]]+$/, ''); // strip trailing punctuation
+    // Direct hit: refcode already in the link.
+    const direct = extractRefcode(url);
+    if (direct) return direct;
+    // Otherwise follow the shortened/tracked link to its destination.
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(url, {
+        method: 'GET',
+        redirect: 'follow',
+        signal: controller.signal,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CDS-attribution/1.0)' },
+      });
+      clearTimeout(timer);
+      const finalRc = extractRefcode(res.url);
+      if (finalRc) return finalRc;
+    } catch (_e) {
+      // ignore broken/unresolvable links and try the next URL
+    }
+  }
+  return null;
+}
+
 const META_HOURLY_WINDOW_DAYS = 7;
 
 /**

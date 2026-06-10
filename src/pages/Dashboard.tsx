@@ -341,6 +341,9 @@ export default function Dashboard({ embedded = false }: { embedded?: boolean }) 
         {/* Revenue by channel (refcode attribution) */}
         <ChannelBreakdownCard orgId={orgId} range={range} />
 
+        {/* Per-broadcast SMS ROI */}
+        <SmsBroadcastRoiCard orgId={orgId} range={range} />
+
         {/* Recent donations */}
 
         <section className="surgical-glass p-4 sm:p-8">

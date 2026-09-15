@@ -65,8 +65,13 @@ export function useAuth() {
         const u = session?.user ?? null;
         setUser(u);
         if (u) {
-          checkAdmin(u.id);
-          checkSuspended(u.id);
+          // Supabase holds an internal auth lock while this callback runs.
+          // Defer database/auth calls or signInWithPassword can remain pending.
+          window.setTimeout(() => {
+            if (!mounted) return;
+            void checkAdmin(u.id);
+            void checkSuspended(u.id);
+          }, 0);
 
           // Only log login when transitioning from no-user to user (real sign-in),
           // not on token refreshes, page reloads, or INITIAL_SESSION events.
@@ -77,7 +82,7 @@ export function useAuth() {
             !_loginLoggedForSession
           ) {
             _loginLoggedForSession = true;
-            logActivity('login');
+            window.setTimeout(() => logActivity('login'), 0);
           }
           previousUserIdRef.current = u.id;
         } else {

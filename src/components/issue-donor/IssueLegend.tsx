@@ -72,7 +72,7 @@ const MODE_LABELS: Record<ScaleMode, { label: string; tip: string }> = {
 export function IssueLegend({
   selectedIssues, metric, maxValue,
   scaleMode = 'quantile', onScaleModeChange, stops,
-  compact,
+  compact, nationalTotals,
 }: IssueLegendProps) {
   if (!selectedIssues.length) return null;
 
@@ -114,6 +114,7 @@ export function IssueLegend({
             </div>
           </>
         )}
+        <NationalBlock nationalTotals={nationalTotals} metric={metric} isMulti={isMulti} small />
       </div>
     );
   }

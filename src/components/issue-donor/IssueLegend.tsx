@@ -127,7 +127,7 @@ export function IssueLegend({
   }
 
   return (
-    <div className="bg-[#1c1c1e]/90 backdrop-blur-[20px] rounded-lg border border-white/10 p-3 shadow-xl min-w-[220px]">
+    <div className="bg-[#1c1c1e]/90 backdrop-blur-[20px] rounded-lg border border-white/10 px-3 py-2.5 shadow-xl w-[280px]">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground font-display">
           {METRIC_LABELS[metric]}
@@ -194,6 +194,11 @@ export function IssueLegend({
                   {formatNum(v)}{i === arr.length - 1 && maxValue > stops![7] ? '+' : ''}
                 </span>
               ))}
+              {maxValue > stops![7] && (
+                <span className="text-[9px] text-muted-foreground tabular-nums whitespace-nowrap pl-1">
+                  top <span className="text-foreground">{formatNum(maxValue)}</span>
+                </span>
+              )}
             </div>
           ) : (
             <div className="flex items-center justify-between mt-1.5">
@@ -202,15 +207,9 @@ export function IssueLegend({
               <span className="text-[10px] text-muted-foreground tabular-nums">{formatNum(maxValue)}</span>
             </div>
           )}
-          {showStops && maxValue > stops![7] && (
-            <p className="mt-1.5 text-[9px] text-muted-foreground leading-snug">
-              Top region: <span className="text-foreground tabular-nums">{formatNum(maxValue)}</span>
-              {scaleMode === 'linear' && ' (capped above P95)'}
-            </p>
-          )}
         </>
       )}
-      <NationalBlock nationalTotals={nationalTotals} metric={metric} isMulti={isMulti} />
+      <NationalBlock nationalTotals={nationalTotals} isMulti={isMulti} />
     </div>
   );
 }

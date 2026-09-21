@@ -19,6 +19,42 @@ interface IssueLegendProps {
   onScaleModeChange?: (mode: ScaleMode) => void;
   stops?: number[];
   compact?: boolean;
+  /** Per-issue national totals for the active metric. */
+  nationalTotals?: { issueId: string; name: string; value: number }[];
+}
+
+function NationalBlock({
+  nationalTotals, metric, isMulti, small,
+}: {
+  nationalTotals?: { issueId: string; name: string; value: number }[];
+  metric: IssueMetric;
+  isMulti: boolean;
+  small?: boolean;
+}) {
+  if (!nationalTotals || nationalTotals.length === 0) return null;
+  return (
+    <div className={`${small ? 'mt-1.5 pt-1.5' : 'mt-2 pt-2'} border-t border-white/5`}>
+      <p className={`${small ? 'text-[9px]' : 'text-[10px]'} font-bold uppercase tracking-[0.15em] text-muted-foreground font-display mb-1`}>
+        National · {METRIC_LABELS[metric]}
+      </p>
+      <div className="space-y-1">
+        {nationalTotals.map((t, idx) => (
+          <div key={t.issueId} className="flex items-center gap-1.5">
+            <span
+              className={`${small ? 'h-2 w-2' : 'h-2.5 w-2.5'} rounded-full shrink-0`}
+              style={{ backgroundColor: getIssuePalette(idx).swatch }}
+            />
+            {isMulti && (
+              <span className={`${small ? 'text-[10px]' : 'text-xs'} text-muted-foreground truncate flex-1`}>{t.name}</span>
+            )}
+            <span className={`${small ? 'text-[10px]' : 'text-xs'} tabular-nums font-semibold text-foreground ${isMulti ? '' : 'ml-auto'}`}>
+              {formatNum(t.value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function formatNum(n: number): string {

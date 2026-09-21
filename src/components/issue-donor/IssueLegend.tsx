@@ -90,7 +90,7 @@ export function IssueLegend({
   // Compact (mobile) variant — drops the scale-mode toggles and shrinks chrome
   if (compact) {
     return (
-      <div className="bg-[#1c1c1e]/90 backdrop-blur-[20px] rounded-lg border border-white/10 px-2.5 py-1.5 shadow-xl min-w-[180px] max-w-[260px]">
+      <div className="bg-[#1c1c1e]/90 backdrop-blur-[20px] rounded-lg border border-white/10 px-2.5 py-2 shadow-xl w-[200px]">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground font-display truncate">
             {METRIC_LABELS[metric]}
@@ -121,7 +121,7 @@ export function IssueLegend({
             </div>
           </>
         )}
-        <NationalBlock nationalTotals={nationalTotals} metric={metric} isMulti={isMulti} small />
+        <NationalBlock nationalTotals={nationalTotals} isMulti={isMulti} small />
       </div>
     );
   }

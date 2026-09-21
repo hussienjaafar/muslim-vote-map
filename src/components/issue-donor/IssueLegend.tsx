@@ -24,32 +24,39 @@ interface IssueLegendProps {
 }
 
 function NationalBlock({
-  nationalTotals, metric, isMulti, small,
+  nationalTotals, isMulti, small,
 }: {
   nationalTotals?: { issueId: string; name: string; value: number }[];
-  metric: IssueMetric;
   isMulti: boolean;
   small?: boolean;
 }) {
   if (!nationalTotals || nationalTotals.length === 0) return null;
+  const text = small ? 'text-[10px]' : 'text-[11px]';
+
+  // Single issue → one tidy line: label left, number right.
+  if (!isMulti) {
+    return (
+      <div className={`${small ? 'mt-1.5 pt-1.5' : 'mt-2 pt-2'} border-t border-white/5 flex items-center justify-between`}>
+        <span className={`${text} uppercase tracking-[0.12em] font-display text-muted-foreground`}>National</span>
+        <span className={`${small ? 'text-[11px]' : 'text-xs'} tabular-nums font-semibold text-foreground`}>
+          {formatNum(nationalTotals[0].value)}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className={`${small ? 'mt-1.5 pt-1.5' : 'mt-2 pt-2'} border-t border-white/5`}>
-      <p className={`${small ? 'text-[9px]' : 'text-[10px]'} font-bold uppercase tracking-[0.15em] text-muted-foreground font-display mb-1`}>
-        National · {METRIC_LABELS[metric]}
-      </p>
-      <div className="space-y-1">
+      <p className={`${text} uppercase tracking-[0.12em] font-display text-muted-foreground mb-1`}>National</p>
+      <div className="space-y-0.5">
         {nationalTotals.map((t, idx) => (
           <div key={t.issueId} className="flex items-center gap-1.5">
             <span
-              className={`${small ? 'h-2 w-2' : 'h-2.5 w-2.5'} rounded-full shrink-0`}
+              className="h-2 w-2 rounded-full shrink-0"
               style={{ backgroundColor: getIssuePalette(idx).swatch }}
             />
-            {isMulti && (
-              <span className={`${small ? 'text-[10px]' : 'text-xs'} text-muted-foreground truncate flex-1`}>{t.name}</span>
-            )}
-            <span className={`${small ? 'text-[10px]' : 'text-xs'} tabular-nums font-semibold text-foreground ${isMulti ? '' : 'ml-auto'}`}>
-              {formatNum(t.value)}
-            </span>
+            <span className={`${text} text-muted-foreground truncate flex-1`}>{t.name}</span>
+            <span className={`${text} tabular-nums font-semibold text-foreground`}>{formatNum(t.value)}</span>
           </div>
         ))}
       </div>

@@ -108,6 +108,16 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
     [selectedIssueIds, allIssues],
   );
 
+  // National totals: sum state-level rows per selected issue for the active metric.
+  const nationalTotals = useMemo(
+    () => selectedIssues.map(issue => ({
+      issueId: issue.id,
+      name: issue.name,
+      value: stateData.reduce((sum, s) => sum + (s.issue_id === issue.id ? Number(s[metric]) || 0 : 0), 0),
+    })),
+    [selectedIssues, stateData, metric],
+  );
+
   return (
     <div className={`fixed ${isAdminView ? 'top-16 left-0 md:left-64' : 'top-0 left-0'} right-0 bottom-0 bg-[#0e0e0e] text-foreground flex flex-col`}>
       {/* Top bar — single row on desktop; 2-row stacked on mobile */}
@@ -295,6 +305,7 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
                   scaleMode={scaleMode}
                   onScaleModeChange={setScaleMode}
                   stops={scaleStops}
+                  nationalTotals={nationalTotals}
                 />
               </div>
             )}
@@ -314,6 +325,7 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
                   scaleMode={scaleMode}
                   stops={scaleStops}
                   compact
+                  nationalTotals={nationalTotals}
                 />
               </div>
             )}

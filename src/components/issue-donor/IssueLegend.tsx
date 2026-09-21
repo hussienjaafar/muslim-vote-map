@@ -24,32 +24,39 @@ interface IssueLegendProps {
 }
 
 function NationalBlock({
-  nationalTotals, metric, isMulti, small,
+  nationalTotals, isMulti, small,
 }: {
   nationalTotals?: { issueId: string; name: string; value: number }[];
-  metric: IssueMetric;
   isMulti: boolean;
   small?: boolean;
 }) {
   if (!nationalTotals || nationalTotals.length === 0) return null;
+  const text = small ? 'text-[10px]' : 'text-[11px]';
+
+  // Single issue → one tidy line: label left, number right.
+  if (!isMulti) {
+    return (
+      <div className={`${small ? 'mt-1.5 pt-1.5' : 'mt-2 pt-2'} border-t border-white/5 flex items-center justify-between`}>
+        <span className={`${text} uppercase tracking-[0.12em] font-display text-muted-foreground`}>National</span>
+        <span className={`${small ? 'text-[11px]' : 'text-xs'} tabular-nums font-semibold text-foreground`}>
+          {formatNum(nationalTotals[0].value)}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className={`${small ? 'mt-1.5 pt-1.5' : 'mt-2 pt-2'} border-t border-white/5`}>
-      <p className={`${small ? 'text-[9px]' : 'text-[10px]'} font-bold uppercase tracking-[0.15em] text-muted-foreground font-display mb-1`}>
-        National · {METRIC_LABELS[metric]}
-      </p>
-      <div className="space-y-1">
+      <p className={`${text} uppercase tracking-[0.12em] font-display text-muted-foreground mb-1`}>National</p>
+      <div className="space-y-0.5">
         {nationalTotals.map((t, idx) => (
           <div key={t.issueId} className="flex items-center gap-1.5">
             <span
-              className={`${small ? 'h-2 w-2' : 'h-2.5 w-2.5'} rounded-full shrink-0`}
+              className="h-2 w-2 rounded-full shrink-0"
               style={{ backgroundColor: getIssuePalette(idx).swatch }}
             />
-            {isMulti && (
-              <span className={`${small ? 'text-[10px]' : 'text-xs'} text-muted-foreground truncate flex-1`}>{t.name}</span>
-            )}
-            <span className={`${small ? 'text-[10px]' : 'text-xs'} tabular-nums font-semibold text-foreground ${isMulti ? '' : 'ml-auto'}`}>
-              {formatNum(t.value)}
-            </span>
+            <span className={`${text} text-muted-foreground truncate flex-1`}>{t.name}</span>
+            <span className={`${text} tabular-nums font-semibold text-foreground`}>{formatNum(t.value)}</span>
           </div>
         ))}
       </div>
@@ -83,7 +90,7 @@ export function IssueLegend({
   // Compact (mobile) variant — drops the scale-mode toggles and shrinks chrome
   if (compact) {
     return (
-      <div className="bg-[#1c1c1e]/90 backdrop-blur-[20px] rounded-lg border border-white/10 px-2.5 py-1.5 shadow-xl min-w-[180px] max-w-[260px]">
+      <div className="bg-[#1c1c1e]/90 backdrop-blur-[20px] rounded-lg border border-white/10 px-2.5 py-2 shadow-xl w-[200px]">
         <div className="flex items-center justify-between mb-1">
           <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground font-display truncate">
             {METRIC_LABELS[metric]}
@@ -114,13 +121,13 @@ export function IssueLegend({
             </div>
           </>
         )}
-        <NationalBlock nationalTotals={nationalTotals} metric={metric} isMulti={isMulti} small />
+        <NationalBlock nationalTotals={nationalTotals} isMulti={isMulti} small />
       </div>
     );
   }
 
   return (
-    <div className="bg-[#1c1c1e]/90 backdrop-blur-[20px] rounded-lg border border-white/10 p-3 shadow-xl min-w-[220px]">
+    <div className="bg-[#1c1c1e]/90 backdrop-blur-[20px] rounded-lg border border-white/10 px-3 py-2.5 shadow-xl w-[280px]">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground font-display">
           {METRIC_LABELS[metric]}
@@ -187,6 +194,11 @@ export function IssueLegend({
                   {formatNum(v)}{i === arr.length - 1 && maxValue > stops![7] ? '+' : ''}
                 </span>
               ))}
+              {maxValue > stops![7] && (
+                <span className="text-[9px] text-muted-foreground tabular-nums whitespace-nowrap pl-1">
+                  top <span className="text-foreground">{formatNum(maxValue)}</span>
+                </span>
+              )}
             </div>
           ) : (
             <div className="flex items-center justify-between mt-1.5">
@@ -195,15 +207,9 @@ export function IssueLegend({
               <span className="text-[10px] text-muted-foreground tabular-nums">{formatNum(maxValue)}</span>
             </div>
           )}
-          {showStops && maxValue > stops![7] && (
-            <p className="mt-1.5 text-[9px] text-muted-foreground leading-snug">
-              Top region: <span className="text-foreground tabular-nums">{formatNum(maxValue)}</span>
-              {scaleMode === 'linear' && ' (capped above P95)'}
-            </p>
-          )}
         </>
       )}
-      <NationalBlock nationalTotals={nationalTotals} metric={metric} isMulti={isMulti} />
+      <NationalBlock nationalTotals={nationalTotals} isMulti={isMulti} />
     </div>
   );
 }

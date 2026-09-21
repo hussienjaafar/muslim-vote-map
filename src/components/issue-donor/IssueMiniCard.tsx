@@ -18,16 +18,14 @@ export function IssueMiniCard({ stateCode, color, value, onClick }: IssueMiniCar
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-0.5 sm:gap-1 rounded-lg border border-white/10 bg-[#1c1c1e]/80 backdrop-blur-[20px] p-1.5 sm:p-2 hover:bg-[#2c2c2e] transition-colors cursor-pointer min-h-[44px] min-w-[44px]"
+      className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-[#1c1c1e]/85 backdrop-blur-[20px] px-2 py-1.5 hover:bg-[#2c2c2e] transition-colors cursor-pointer"
       aria-label={`View ${stateCode}`}
     >
-      <svg viewBox={viewBox} className="w-10 h-6 sm:w-16 sm:h-10">
+      <svg viewBox={viewBox} className="w-6 h-4 shrink-0">
         <path d={path} fill={color} stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
       </svg>
-      <div className="flex items-center gap-0.5 sm:gap-1">
-        <span className="text-[10px] sm:text-xs font-bold text-foreground font-display">{stateCode}</span>
-        <span className="text-[10px] sm:text-xs text-muted-foreground hidden sm:inline tabular-nums">{value}</span>
-      </div>
+      <span className="text-[10px] font-bold text-foreground font-display">{stateCode}</span>
+      <span className="text-[10px] text-muted-foreground tabular-nums">{value}</span>
     </button>
   );
 }

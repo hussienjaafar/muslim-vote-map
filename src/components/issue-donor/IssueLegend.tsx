@@ -203,6 +203,7 @@ export function IssueLegend({
           )}
         </>
       )}
+      <NationalBlock nationalTotals={nationalTotals} metric={metric} isMulti={isMulti} />
     </div>
   );
 }

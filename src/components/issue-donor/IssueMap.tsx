@@ -76,7 +76,7 @@ interface IssueMapProps {
   metric: IssueMetric;
   districtData: IssueDonorDistrict[];
   stateData: IssueDonorState[];
-  selectedRegion: { code: string; type: 'state' | 'district' } | null;
+  selectedRegion: { code: string; type: 'state' | 'district' | 'national' } | null;
   onRegionSelect: (code: string, type: 'state' | 'district') => void;
   onMaxValueChange?: (max: number) => void;
   scaleMode?: ScaleMode;
@@ -92,7 +92,7 @@ interface InnerProps {
   metric: IssueMetric;
   districtData: IssueDonorDistrict[];
   stateData: IssueDonorState[];
-  selectedRegion: { code: string; type: 'state' | 'district' } | null;
+  selectedRegion: { code: string; type: 'state' | 'district' | 'national' } | null;
   onRegionSelect: (code: string, type: 'state' | 'district') => void;
   enrichedStates: any | null;
   enrichedDistricts: any | null;

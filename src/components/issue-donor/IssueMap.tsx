@@ -166,9 +166,13 @@ function MapInner({
     return { 'line-color': gc, 'line-width': gw, 'line-blur': 4, 'line-opacity': 0.5 };
   }, [hovered, selectedRegion]);
 
-  // Label points (state abbreviations)
+  // Label points (state abbreviations + aggregated metric count)
   const labelPointsGeoJSON = useMemo((): GeoJSON.FeatureCollection => {
     if (!enrichedStates) return { type: 'FeatureCollection', features: [] };
+    const labelProps = (f: any, sc: string) => {
+      const value = (f.properties?.__metricSum as number) ?? 0;
+      return { stateCode: sc, value, valueLabel: formatCompact(value) };
+    };
     return {
       type: 'FeatureCollection',
       features: enrichedStates.features
@@ -176,7 +180,7 @@ function MapInner({
         .map((f: any) => {
           const sc = f.properties.__regionKey as string;
           if (LABEL_OVERRIDES[sc]) {
-            return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: LABEL_OVERRIDES[sc] }, properties: { stateCode: sc } };
+            return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: LABEL_OVERRIDES[sc] }, properties: labelProps(f, sc) };
           }
           const geom = f.geometry;
           let coords: number[][] = [];

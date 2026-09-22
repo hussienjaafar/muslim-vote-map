@@ -15,7 +15,7 @@ interface IssueRegionSidebarProps {
   onClose: () => void;
   selectedIssues: Issue[];
   metric: IssueMetric;
-  region: { code: string; type: 'state' | 'district' } | null;
+  region: { code: string; type: 'state' | 'district' | 'national' } | null;
   districtData: IssueDonorDistrict[];
   stateData: IssueDonorState[];
   /** When true, renders bare content (no Sheet wrapper) — for use inside an external bottom sheet. */
@@ -58,6 +58,24 @@ export function IssueRegionSidebar({
       for (const d of districtData) {
         if (d.cd_code === region.code) m.set(d.issue_id, d);
       }
+    } else if (region.type === 'national') {
+      // Aggregate every state row into a synthetic national row per issue.
+      for (const s of stateData) {
+        const agg = m.get(s.issue_id) ?? {
+          issue_id: s.issue_id,
+          gold_donors: 0, gold_addresses: 0, gold_cell_phones: 0,
+          silver_donors: 0, silver_addresses: 0, silver_cell_phones: 0,
+          total_donors: 0,
+        };
+        agg.gold_donors += Number(s.gold_donors) || 0;
+        agg.gold_addresses += Number(s.gold_addresses) || 0;
+        agg.gold_cell_phones += Number(s.gold_cell_phones) || 0;
+        agg.silver_donors += Number(s.silver_donors) || 0;
+        agg.silver_addresses += Number(s.silver_addresses) || 0;
+        agg.silver_cell_phones += Number(s.silver_cell_phones) || 0;
+        agg.total_donors += Number(s.total_donors) || 0;
+        m.set(s.issue_id, agg);
+      }
     } else {
       for (const s of stateData) {
         if (s.state_code === region.code) m.set(s.issue_id, s);
@@ -79,11 +97,15 @@ export function IssueRegionSidebar({
 
   const title = region.type === 'district'
     ? `District ${region.code}`
-    : (STATE_ABBREVIATIONS[region.code] || region.code);
+    : region.type === 'national'
+      ? 'United States'
+      : (STATE_ABBREVIATIONS[region.code] || region.code);
 
   const subtitle = region.type === 'district'
     ? STATE_ABBREVIATIONS[region.code.split('-')[0]] || region.code.split('-')[0]
-    : 'State rollup';
+    : region.type === 'national'
+      ? 'National rollup'
+      : 'State rollup';
 
   // Compact peek: single-line summary with title + total for primary issue
   if (compactMode) {
@@ -273,7 +295,7 @@ function AddToQuoteSection({
   region,
   issues,
 }: {
-  region: { code: string; type: 'state' | 'district' };
+  region: { code: string; type: 'state' | 'district' | 'national' };
   issues: { issue: Issue; row: any }[];
 }) {
   const { user } = useAuth();
@@ -285,7 +307,9 @@ function AddToQuoteSection({
 
   const geoName = region.type === 'district'
     ? `District ${region.code}`
-    : (STATE_ABBREVIATIONS[region.code] || region.code);
+    : region.type === 'national'
+      ? 'United States (National)'
+      : (STATE_ABBREVIATIONS[region.code] || region.code);
 
   const recordsFor = (row: any, sourceField?: string | null): number => {
     if (!sourceField) return 0;

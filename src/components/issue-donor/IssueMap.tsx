@@ -39,6 +39,12 @@ const LABEL_OVERRIDES: Record<string, [number, number]> = {
   WV: [-80.6, 38.6], WI: [-89.8, 44.6], WY: [-107.5, 43.0],
 };
 
+function formatCompact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
+  return String(Math.round(n));
+}
+
 function isValidFC(d: any): boolean {
   return d && typeof d === 'object' && d.type === 'FeatureCollection' && Array.isArray(d.features);
 }
@@ -166,9 +172,13 @@ function MapInner({
     return { 'line-color': gc, 'line-width': gw, 'line-blur': 4, 'line-opacity': 0.5 };
   }, [hovered, selectedRegion]);
 
-  // Label points (state abbreviations)
+  // Label points (state abbreviations + aggregated metric count)
   const labelPointsGeoJSON = useMemo((): GeoJSON.FeatureCollection => {
     if (!enrichedStates) return { type: 'FeatureCollection', features: [] };
+    const labelProps = (f: any, sc: string) => {
+      const value = (f.properties?.__metricSum as number) ?? 0;
+      return { stateCode: sc, value, valueLabel: formatCompact(value) };
+    };
     return {
       type: 'FeatureCollection',
       features: enrichedStates.features
@@ -176,7 +186,7 @@ function MapInner({
         .map((f: any) => {
           const sc = f.properties.__regionKey as string;
           if (LABEL_OVERRIDES[sc]) {
-            return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: LABEL_OVERRIDES[sc] }, properties: { stateCode: sc } };
+            return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: LABEL_OVERRIDES[sc] }, properties: labelProps(f, sc) };
           }
           const geom = f.geometry;
           let coords: number[][] = [];
@@ -195,12 +205,12 @@ function MapInner({
             coords = geom.coordinates[0];
           }
           if (!coords.length) {
-            return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [0, 0] }, properties: { stateCode: sc } };
+            return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [0, 0] }, properties: labelProps(f, sc) };
           }
           let sumLng = 0, sumLat = 0, count = 0;
           const step = Math.max(1, Math.floor(coords.length / 30));
           for (let i = 0; i < coords.length; i += step) { sumLng += coords[i][0]; sumLat += coords[i][1]; count++; }
-          return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [sumLng / count, sumLat / count] }, properties: { stateCode: sc } };
+          return { type: 'Feature' as const, geometry: { type: 'Point' as const, coordinates: [sumLng / count, sumLat / count] }, properties: labelProps(f, sc) };
         }),
     };
   }, [enrichedStates]);
@@ -301,7 +311,12 @@ function MapInner({
             id="issue-states-labels"
             type="symbol"
             layout={{
-              'text-field': ['get', 'stateCode'],
+              'text-field': [
+                'case',
+                ['>', ['coalesce', ['get', 'value'], 0], 0],
+                ['concat', ['get', 'stateCode'], '\n', ['get', 'valueLabel']],
+                ['get', 'stateCode'],
+              ],
               'text-size': ['interpolate', ['linear'], ['zoom'], 3, 9, 5, 12, 7, 14],
               'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
               'text-letter-spacing': 0.15,

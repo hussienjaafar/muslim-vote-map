@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Map as MapIcon, Upload, ChevronDown, ChevronUp, Shield, X } from 'lucide-react';
+import { ArrowLeft, Map as MapIcon, Upload, ChevronDown, ChevronUp, Shield, X, Flag } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -39,7 +39,7 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
   const { data: allIssues, isLoading: issuesLoading } = useIssues();
   const [selectedIssueIds, setSelectedIssueIds] = useState<string[]>([]);
   const [metric, setMetric] = useState<IssueMetric>('total_donors');
-  const [region, setRegion] = useState<{ code: string; type: 'state' | 'district' } | null>(null);
+  const [region, setRegion] = useState<{ code: string; type: 'state' | 'district' | 'national' } | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [maxValue, setMaxValue] = useState(0);
   const [scaleStops, setScaleStops] = useState<number[]>([]);
@@ -154,6 +154,18 @@ export default function IssueDonorMap({ isAdminView = false }: { isAdminView?: b
             districtsData={allDistrictsDir ?? null}
             onSelect={(code, type) => setRegion({ code, type })}
           />
+
+          {/* National rollup */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setRegion({ code: 'US', type: 'national' })}
+            className="gap-1.5 border-white/10 bg-[#1c1c1e]/80 text-muted-foreground hover:text-foreground hover:bg-white/5 px-2 sm:px-3 min-h-[40px] sm:min-h-0"
+            aria-label="View national rollup"
+          >
+            <Flag className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">National</span>
+          </Button>
 
           {/* Cart — opens the quote request drawer */}
           {!isAdminView && (

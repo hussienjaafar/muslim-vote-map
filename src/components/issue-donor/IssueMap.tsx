@@ -76,7 +76,7 @@ interface IssueMapProps {
   metric: IssueMetric;
   districtData: IssueDonorDistrict[];
   stateData: IssueDonorState[];
-  selectedRegion: { code: string; type: 'state' | 'district' } | null;
+  selectedRegion: { code: string; type: 'state' | 'district' | 'national' } | null;
   onRegionSelect: (code: string, type: 'state' | 'district') => void;
   onMaxValueChange?: (max: number) => void;
   scaleMode?: ScaleMode;
@@ -92,7 +92,7 @@ interface InnerProps {
   metric: IssueMetric;
   districtData: IssueDonorDistrict[];
   stateData: IssueDonorState[];
-  selectedRegion: { code: string; type: 'state' | 'district' } | null;
+  selectedRegion: { code: string; type: 'state' | 'district' | 'national' } | null;
   onRegionSelect: (code: string, type: 'state' | 'district') => void;
   enrichedStates: any | null;
   enrichedDistricts: any | null;
@@ -311,12 +311,7 @@ function MapInner({
             id="issue-states-labels"
             type="symbol"
             layout={{
-              'text-field': [
-                'case',
-                ['>', ['coalesce', ['get', 'value'], 0], 0],
-                ['concat', ['get', 'stateCode'], '\n', ['get', 'valueLabel']],
-                ['get', 'stateCode'],
-              ],
+              'text-field': ['get', 'stateCode'],
               'text-size': ['interpolate', ['linear'], ['zoom'], 3, 9, 5, 12, 7, 14],
               'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
               'text-letter-spacing': 0.15,

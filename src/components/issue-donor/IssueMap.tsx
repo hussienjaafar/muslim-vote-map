@@ -311,12 +311,7 @@ function MapInner({
             id="issue-states-labels"
             type="symbol"
             layout={{
-              'text-field': [
-                'case',
-                ['>', ['coalesce', ['get', 'value'], 0], 0],
-                ['concat', ['get', 'stateCode'], '\n', ['get', 'valueLabel']],
-                ['get', 'stateCode'],
-              ],
+              'text-field': ['get', 'stateCode'],
               'text-size': ['interpolate', ['linear'], ['zoom'], 3, 9, 5, 12, 7, 14],
               'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
               'text-letter-spacing': 0.15,
